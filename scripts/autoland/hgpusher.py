@@ -1,38 +1,33 @@
-import os, sys, signal
+import os, sys
 import re
-import tempfile, ConfigParser
 import subprocess
 import logging as log
 import logging.handlers
 import shutil
 
-sys.path.append(os.path.join(os.path.dirname(__file__), "../../lib/python"))
-
 from util.hg import mercurial, apply_and_push, cleanOutgoingRevs, out, \
-        remove_path, HgUtilError, update, get_revision
+                    remove_path, HgUtilError, update, get_revision
 from util.retry import retry
-import utils.mjessome_bz_utils as bz_utils
-import utils.mq_utils as mq_utils
-import utils.common as common
+from utils import bz_utils, mq_utils, common, ldap_utils
 
-base_dir = os.path.abspath(os.path.dirname(os.path.realpath(__file__))+'/../')
+base_dir = common.get_base_dir(__file__)
 
 LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
 LOGFILE = os.path.join(base_dir, 'hgpusher.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
-base_dir = os.path.dirname(os.path.realpath(__file__)) + '/../'
-base_dir = os.path.abspath(base_dir)
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(config['bz_api_url'], config['bz_attachment_url'],
         config['bz_username'], config['bz_password'])
+ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
+        config['ldap_bind_dn'], config['ldap_password'])
 
 def run_hg(hg_args):
     """
-    Run hg with given args, returning a tuple containing
-    stdout string, stderr string, and return code.
+    Run hg with given args, returning a tuple containing stdout,
+    stderr and return code.
     """
     cmd = ['hg']
     cmd.extend(hg_args)
@@ -51,153 +46,253 @@ def log_msg(message, log_to=log.error):
     if callable(log_to):
         log_to(message)
 
-def has_valid_header(file, try_push=False):
+def has_valid_header(filename):
     """
-    Checks to see if file has a valid header. The header must include author,
-    name, and commit message. The commit message must start with 'bug \d+:'
+    Check to see if the file has a valid header. The header must
+    include author name and commit message. The commit message must
+    start with 'bug \d+:'
+
+    Note: this forces developers to use 'hg export' rather than 'hg diff'
+          if they want to be pushing to branch.
     """
-    f = open(file, 'r')
+    f = open(filename, 'r')
     for line in f:
         if re.match('# User ', line):
+            # User line must be of the form
+            # # User Name <name@email.com>
             if not re.match('# User [\w\s]+ <[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$', line):
+                print 'Bad header.'
                 return False
-        elif re.match('^bug (\d+|\w+)[:\s]', line, re.I):
-            # comment line
+        elif re.match('^bug (\d+|\w+)[:\s]', line, re.I):   # comment line
             return True
         elif re.match('^$', line):
             # done with header
             break
     return False
 
+def has_sufficient_permissions(patches, try_run):
+    """
+    Searches LDAP to see if any of the users (author, reviewers) have
+    sufficient LDAP permissions.
+    These permissions are done on a whole for the patchset, so
+    if any patch is missing those permissions the whole patchset
+    cannot be pushed.
+    """
+    def bz_email_is_member(email, group):
+        email = ldap.get_member('bugzillaEmail=%s'
+                % (email), ['mail'])
+        try:
+            email = email[0][1]['mail'][0]
+        except IndexError,KeyError:
+            email = []
+        return email and ldap.is_member_of_group(email, group)
+
+    if try_run:
+        # Need level 1 for push to try
+        group = 'scm_level_1'
+    else:
+        # Otherwise, need level 3
+        group = 'scm_level_3'
+
+    for patch in patches:
+        found = False
+        if bz_email_is_member(patch['author']['email'], group):
+            continue    # next patch
+        for review in patch['reviews']:
+            if bz_email_is_member(review['reviewer']['email'], group):
+                found = True
+                break   # next patch
+        if not found:
+            return False
+
+    return True
+
+def import_patch(repo, patch, try_run):
+    """
+    Import patch file patch into repo.
+    If it is a try run, replace commit message with "try:"
+
+    Import is used to pull required header information, and to
+    automatically perform a commit for each patch
+    """
+    cmd = ['import', '-R']
+    if try_run:
+        cmd.append('-m "try:"')
+    cmd.append(active_repo)
+    (out, err, rc) = run_hg(cmd)
+    return rc
+
 def process_patchset(data):
     """
-    Apply patches and push to branch repository.
+    Process, apply, and push the patchset to the correct location.
+    If try_run is specified, it will be pushed to try, and otherwise
+    will be pushed to branch if the credentials are correct.
     """
-    remote = '%s%s' % (config['hg_base_url'], data['branch'])
-    active_repo = 'active/%s' % (data['branch'])
-    fail_messages = []
-    def cleanup_wrapper():
-        try:
-            shutil.rmtree(active_repo)
-            clone_branch(data['branch'])
-        except subprocess.CalledProcessError:
-            # something useful needs to be done here
-            log_msg('Error while cleaning/replacing repository.')
+    class RETRY(Exception):
+        pass
+    active_repo = os.path.join(config['work_dir'],
+                    'active/%s' % (data['branch']))
+    try_run = (data['try-run'] == True)
+    if try_run:
+        remote = '%s/try' % (config['hg_base_url'])
+    else:
+        remote = '%s%s' % (config['hg_base_url'], data['branch'])
+    comment = ['Autoland Patchset:\nPatches: %s\nBranch: %s %s\nDestination: %s'
+            % (', '.join(map(lambda x: x['id'], data['patches'])), data['branch'],
+               ('try' if try_run else ''), remote )]
 
+    def cleanup_wrapper():
+        shutil.rmtree(active_repo)
+        clone_branch(data['branch'])
     def apply_patchset(dir, attempt):
         for patch in data['patches']:
             log_msg("Getting patch %s" % (patch['id']), None)
             # store patches in 'patches/' below work_dir
-            patch_file = bz.get_patch(patch['id'], 'patches', create_path=True)
-            if not has_valid_header(patch_file, data['branch'] == 'try'):
-                log_msg('[Patch %s] invalid header.' % (patch['id']))
-                msg = {
-                    'type'    : 'error',
-                    'action'  : 'patch.header',
-                    'bugid'   : data['bugid'],
-                    'branch'  : data['branch'],
-                    'patchid' : patch['id'],
-                    'patchsetid' : data['patchsetid'],
-                    }
-                if msg not in fail_messages:
-                    fail_messages.append(msg)
-                return False
+            patch_file = bz.get_patch(patch['id'],
+                    os.path.join(config['work_dir'],'patches'),create_path=True)
+            if not patch_file:
+                msg = 'Patch %s could not be fetched.' % (patch['id'])
+                log_msg(msg)
+                if msg not in comment:
+                    comment.append(msg)
+                raise RETRY
+            if not try_run and not has_valid_header(patch_file):
+                log_msg('[Patch %s] Invalid header.' % (patch['id']))
+                # append comment to comment
+                msg = 'Patch %s does not have a properly formatted header.' \
+                        % (patch['id'])
+                if msg not in comment:
+                    comment.append(msg)
+                raise RETRY
 
-            # using import to patch, this will pull required header information
-            # and automatically perform commit for each import.
-            (out, err, rc) = run_hg(['import', '-R', active_repo, patch_file])
-            if rc != 0:
+            patch_success = import_patch(active_repo, patch_file, try_run)
+            if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
-                msg = {
-                    'type'       : 'error',
-                    'action'     : 'patch.import',
-                    'bugid'      : data['bugid'],
-                    'branch'     : data['branch'],
-                    'patchid'    : patch['id'],
-                    'patchsetid' : data['patchsetid']
-                    }
-                if msg not in fail_messages:
-                    fail_messages.append(msg)
-                return False
+                # append comment to comment
+                msg = 'Error applying patch %s to %s.\n%s' \
+                        % (patch['id'], data['branch'], err)
+                if msg not in comment:
+                    comment.append(msg)
+                raise RETRY
         return True
+
+    if not has_sufficient_permissions(data['patches'], try_run):
+        msg = 'Insufficient permissions to push to %s' \
+                % ((data['branch'] if not try_run else 'try'))
+        log_msg(msg)
+        comment.append(msg)
+        bz.publish_comment('\n'.join(comment))
+        return False
+
+    if not clone_branch(data['branch']):
+            return False
 
     try:
         retry(apply_and_push, cleanup=cleanup_wrapper,
-                retry_exceptions=Exception('E_RETRY'),
+                retry_exceptions=(RETRY,),
                 args=(active_repo, remote, apply_patchset, 1),
-                kwargs=dict(ssh_username=config['hg_username'],ssh_key=config['hg_ssh_key']))
-    except HgUtilError as error:
-        log_msg('[PatchSet] Could not apply and push patchset:\n%s' % (error))
-        mq.send_message(fail_messages, config['mq_queue'],
-                routing_keys=[config['mq_comment_topic'],
-                              config['mq_db_topic']])
+                kwargs=dict(ssh_username=config['hg_username'],
+                            ssh_key=config['hg_ssh_key']))
+        revision = get_revision(active_repo)
+        shutil.rmtree(active_repo)
+    except (HgUtilError, RETRY) as error:
+        msg = 'Could not apply and push patchset:\n%s' % (error)
+        log_msg('[PatchSet] %s' % (msg))
+        comment.append(msg)
+        bz.publish_comment('\n'.join(comment))
+        mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
+                   'patchsetid' : data['patchsetid'] }
         return False
-    except Exception('E_RETRY'):
-        log_msg('[PatchSet] Could not apply and push patchset.')
-        mq.send_message(fail_messages, config['mq_queue'],
-                routing_keys=[config['mq_comment_topic'],
-                              config['mq_db_topic']])
-        return False
-    revision = get_revision(active_repo)
-    shutil.rmtree(active_repo)
+
+    if try_run:
+        # comment to bug with link to the try run on self-serve
+        comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
+                % (revision, os.path.join(config['self_serve'],
+                                          'try/rev/%s' % (revision))) )
+    else:
+        comment.append('Successfully applied and pushed patchset.\n\tRevision: %s\n\tBranch: %s\n\tPatches: %s'
+                % (revision, data['branch'],
+                   ', '.join(map(lambda x: x['id'], data['patches']))))
+        comment.append('To monitor the commit, see: %s'
+                % (os.path.join(config['self_serve'],
+                   '%s/rev/%s' % (data['branch'], revision))))
+    bz.publish_comment('\n'.join(comment))
     return revision
 
 def clone_branch(branch):
     """
-    Clone the tip of the specified branch.
+    Clone tip of the specified branch.
     """
     remote = '%s%s' % (config['hg_base_url'], branch)
-    # Set up the local/clean repository if it doesn't exist,
-    # otherwise, it will update.
-    clean = 'clean/%s' % (branch)
-    if not os.access('clean', os.F_OK):
-        os.mkdir('clean')
+    # Set up the clean repository if it doesn't exist,
+    # otherwise, it will be updated.
+    clean = os.path.join(config['work_dir'], 'clean')
+    clean_repo = os.path.join(clean, branch)
+    if not os.access(clean, os.F_OK):
+        os.mkdir(clean)
     try:
-        mercurial(remote, clean)
+        mercurial(remote, clean_repo)
     except subprocess.CalledProcessError as error:
-        log_msg('[Clone] error cloning \'%s\' into local repository :\n%s'
-                %(remote,error))
+        log_msg('[Clone] error cloning \'%s\' into clean repository:\n%s'
+                % (remote, error))
         return None
-    # Clone that local repository and return that revision
-    active = 'active/%s' % (branch)
-    if not os.access('active', os.F_OK):
-        os.mkdir('active')
-    elif os.access(active, os.F_OK):
-        shutil.rmtree(active)
+    # Clone that clean repository to active and return that revision
+    active = os.path.join(config['work_dir'], 'active')
+    active_repo = os.path.join(active, branch)
+    if not os.access(active, os.F_OK):
+        os.mkdir(active)
+    elif os.access(active_repo, os.F_OK):
+        shutil.rmtree(active_repo)
     try:
-        revision = mercurial(clean, active)
-        log_msg('[Clone] Cloned revision %s' % (revision))
+        print 'Cloning from %s -----> %s' % (clean_repo, active_repo)
+        revision = mercurial(clean_repo, active_repo)
+        log_msg('[Clone] Cloned revision %s' %(revision), log.info)
     except subprocess.CalledProcessError as error:
-        log_msg('[Clone] error cloning \'%s\' into active repository :\n%s'
-                %(remote,error))
+        log_msg('[Clone] error cloning \'%s\' into active repository:\n%s'
+                % (remote, error))
         return None
 
     return revision
 
-def valid_patchset_data(data):
-    for element in ['bugid', 'branch', 'patchsetid', 'patches']:
-        if element not in data:
-            mq.send_message('ERROR %s not specified.'
-                    % (element.capitalize()), config['mq_queue'],
-                    config['mq_db_topic'])
-            log_msg("Missing element: %s" % (element))
+def valid_dictionary_structure(d, elements):
+    """
+    Check that the given dictionary contains all elements.
+    """
+    for element in elements:
+        if element not in d:
             return False
-    if not isinstance(data['patches'], list):
+    return True
+
+def valid_job_message(message):
+    """
+    Verify that the 'job' message has valid data & structure.
+    This also ensures that the patchset has the correct data.
+    """
+    if not valid_dictionary_structure(message,
+            ['bugid','branch','try-run','patches']):
+        log_message('Invalid message.')
         return False
-    for item in data['patches']:
-        for element in ['id', 'author', 'reviewer']:
-            if element not in item:
-                mq.send_message('ERROR %s not specified for patch.'
-                        % (element.capitalize()),
-                        config['mq_db_topic'])
-                log_msg("Patch missing element: %s" % (element))
+    for patch in message['patches']:
+        if not valid_dictionary_structure(patch,
+                ['id', 'author', 'reviews']) or \
+           not valid_dictionary_structure(patch['author'],
+                ['email', 'name']):
+            log_message('Invalid patchset in message.')
+            return False
+        for review in patch['reviews']:
+            if not valid_dictionary_structure(review,
+                ['reviewer', 'type', 'result']):
+                log_message('Invalid review in patchset')
+                return False
+            if not valid_dictionary_structure(review['reviewer'],
+                ['email', 'name']):
+                log_message('Invalid reviewer')
                 return False
     return True
 
 def message_handler(message):
     """
-    Handles all messages that are coming through and performs
-    the correct checks and actions on each.
+    Handles all incoming messages.
     """
     os.chdir(config['work_dir'])
     data = message['payload']
@@ -205,54 +300,38 @@ def message_handler(message):
         log_msg('[HgPusher] Erroneous message: %s' % (message))
         return
     if data['job_type'] == 'command':
-        if data['command'] == 'stop':
-            # clean up and quit
-            pass
-        if data['command'] == 'backout':
-            #backout a specified changeset
-            pass
+        pass
     elif data['job_type'] == 'patchset':
         # check that all necessary data is present
-        if valid_patchset_data(job_info):
-            clone_revision = clone_branch(data['branch'])
-            if clone_revision == None:
-                # Handle the clone error
-                log_msg("[HgPusher] Clone error...")
-                return
-            patch_revision = process_patchset(job_info)
-            if patch_revision and patch_revision != clone_revision:
-                log_msg('[Patchset] Successfully applied patchset %s'
-                        % (patchsetid))
-                msg = {
-                    'type'       : 'success',
-                    'action'     : 'push',
-                    'bugid'      : job_info['bugid'],
-                    'branch'     : job_info['branch'],
-                    'revision'   : patch_revision,
-                    'patchsetid' : job_info['patchsetid'],
-                    }
-                mq.send_message(msg, config['mq_queue'],
-                        routing_keys=[config['mq_comment_topic'],
-                                      config['mq_db_topic']])
-            else:
-                # patchset failed
-                msg = {
-                    'type'       : 'error',
-                    'action'     : 'push',
-                    'bugid'      : job_info['bugid'],
-                    'branch'     : job_info['branch'],
-                    'patchsetid' : job_info['patchsetid'],
-                    }
-                mq.send_message(msg, config['mq_queue'],
-                        routing_keys=[config['mq_comment_topic'],
-                                      config['mq_db_topic']])
+        if not valid_job_message(data):
+            # comment?
+            return
 
+        clone_revision = clone_branch(data['branch'])
+        if clone_revision == None:
+            # Handle clone error
+            log_msg('[HgPusher] Clone error...')
+            return
+        patch_revision = process_patchset(data)
+        if patch_revision and patch_revision != clone_revision:
+            # comment already posted in process_patchset
+            log_msg('[Patchset] Successfully applied patchset %s'
+                % (patch_revision), log.info)
+            msg = { 'type'  : 'success',
+                    'action': 'try.push' if data['try-run'] else 'branch.push',
+                    'bugid' : data['bugid'], 'patchsetid': data['patchsetid'],
+                    'revision': patch_revision }
+            mq.send_message(msg, config['mq_queue'],
+                    routing_keys=[config['mq_db_queue']])
+
+        else:
+            # comment already posted in process_patchset
+            pass
 
 def main():
     # set up logging
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
             filename=LOGFILE, handler=LOGHANDLER)
-    log.info('Process running, PID: %s' % str(os.getpid()))
 
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
@@ -265,67 +344,9 @@ def main():
         exit(1)
 
     mq.listen(config['mq_queue'], message_handler,
-              routing_keys=[config['mq_hgpusher_topic']])
-
+            routing_keys=[config['mq_hgpusher_topic']])
 
 if __name__ == '__main__':
-    daemonize = True
-    pid_file = '%s/hgpusher.pid' % (base_dir)
-    for arg in sys.argv[1:]:
-        if arg == 'stop':
-            try:
-                pidfile = open(pid_file, 'r')
-                os.kill(int(pidfile.read()), signal.SIGTERM)
-                pidfile.close()
-                os.remove(pid_file)
-                exit(0)
-            except IOError:
-                print >>sys.stderr, 'Error: No pidfile present.'
-                exit(1)
-            except OSError:
-                print >>sys.stderr, \
-                        'Error: Process not running. Removing pidfile'
-                os.remove(pid_file)
-                exit(1)
-        elif arg == '--fg':
-            # don't daemonize
-            daemonize = False
-        else:
-            print >>sys.stderr, 'Unknown argument %s.' % (arg)
-
-    if os.access('hgpusher.pid', os.F_OK):
-        # already running
-        print >>sys.stderr,'Error: Found pidfile, is hgpusher already running?'
-        exit(1)
-    # no pidfile, create it
-    pidfile = open(pid_file, 'w')
-    if daemonize:
-        try:
-            pid = os.fork()
-        except OSError, e:
-            raise Exception, '%s [%d]' % (e.strerror, e.errno)
-        if pid == 0:
-            os.setsid()
-            try:
-                pid = os.fork()
-            except OSError, e:
-                raise Exception, '%s [%d]' % (e.strerror, e.errno)
-            if pid == 0:
-                os.chdir(base_dir)
-                os.umask(0)
-                # daemonized, redirect fd's
-                os.close(0); os.close(1); os.close(2)
-                os.open('/dev/null', os.O_RDWR)
-                os.dup2(0,1); os.dup2(0,2)
-            else:
-                os._exit(0)
-        else:
-            os._exit(0)
-
-    pidfile.write(str(os.getpid()))
-    pidfile.close()
-    try:
-        main()
-    except (KeyboardInterrupt, SystemExit):
-        os.remove(pid_file)
+    os.chdir(base_dir)
+    main()
 
