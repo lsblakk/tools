@@ -170,7 +170,7 @@ class bz_util():
             return None
         info = {}
         info['name'] = re.split('\s*\[', data['real_name'], 1)[0]
-        info['email'] = data['email']
+        info['email'] = data.get('email', email)
         return info
 
     def publish_comment(self, comment, bugid, retries=5, interval=30):
@@ -294,12 +294,13 @@ class bz_util():
                 their whiteboard.
         For list of types and more information on fields, see
         https://wiki.mozilla.org/Bugzilla:REST_API:Search
+        Note that for this api, the regex need not escape [] characters.
         """
         page = self.request('bug/?%s=%s&%s_type=%s&include_fields=id,%s'
                 % (field, match_string, field, match_type, field))
         if not 'bugs' in page:
             # error, we shouldn't be here
-            pass
+            return []
         bugs = []
         for b in page['bugs']:
             bugs.append((b['id'], b[field]))
