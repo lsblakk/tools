@@ -3,6 +3,9 @@ import os, shutil, sys
 import tempfile
 import mock
 import json
+import string
+import random
+import datetime
 # Autoland imports
 sys.path.append('..')
 from utils import bz_utils
@@ -34,7 +37,7 @@ class TestGetPatch(unittest.TestCase):
     def testGetUserInfoFail(self):
         self.assertEquals(bz.get_user_info(''), None)
 
-    def testWhiteBoardTag(self):
+    def testWhiteBoardTagPass(self):
         """
         Test all the whiteboard related functions, since we can add,
         remove and replace sequentially this way.
@@ -53,6 +56,33 @@ class TestGetPatch(unittest.TestCase):
         self.assertTrue((bug, '[bz_utils test2]') in match)
         # remove_whiteboard_tag
         self.assertTrue(bz.remove_whiteboard_tag('\[bz_utils test2\]', bug))
+
+    def testWhiteBoardTagFail(self):
+        bug = 10469
+        dt = str(datetime.datetime.utcnow())
+        match = bz.get_matching_bugs('whiteboard', dt)
+        self.assertFalse((bug, dt) in match)
+        self.assertFalse(bz.has_comment(dt, bug))
+        self.assertFalse(bz.has_recent_comment(dt, bug))
+
+    def testCommentFail(self):
+        bug = 10469
+        comment = list(string.printable)
+        dt = str(datetime.datetime.utcnow())
+        random.shuffle(comment)
+        comment = ''.join(comment) + dt
+        self.assertFalse(bz.has_comment(comment, bug))
+        self.assertFalse(bz.has_recent_comment(dt, bug))
+
+    def testCommentPass(self):
+        bug = 10469
+        comment = list(string.printable)
+        dt = str(datetime.datetime.utcnow())
+        random.shuffle(comment)
+        comment = str(comment) + dt
+        self.assertTrue(bz.publish_comment(comment, bug))
+        self.assertTrue(bz.has_comment(comment, bug))
+        self.assertTrue(bz.has_recent_comment(dt, bug))
 
 '''
     def testGetBugPatchset(self):

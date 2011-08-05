@@ -85,7 +85,7 @@ def bz_notify_bug(api, bug_num, message, username, password, whiteboard="", retr
             if i < retries:
                 continue
             else:
-                raise 
+                raise
         break
     return results
 
@@ -173,7 +173,7 @@ class bz_util():
         info['email'] = data.get('email', email)
         return info
 
-    def publish_comment(self, comment, bugid, retries=5, interval=30):
+    def publish_comment(self, comment, bugid, retries=5, interval=10):
         """
         Publish the comment to the bug specified by bugid.
         By default retry 5 times at a 30s interval.
@@ -181,13 +181,13 @@ class bz_util():
         data = { 'text':comment }
         for i in range(retries):
             path = 'bug/%s/comment' % (bugid)
-            res = self.request(path, data = data)
-            if 'ref' in res:
+            res = self.request(path, data=data)
+            if res and 'ref' in res:
                 return res['id']
             time.sleep(interval)
         return False
 
-    def remove_whiteboard_tag(self, regex, bugid, retries=5, interval=30):
+    def remove_whiteboard_tag(self, regex, bugid, retries=5, interval=10):
         """
         Remove the first whiteboard tag matching regex from the specified bug.
         By default retries 5 times at a 30s interval.
@@ -210,7 +210,7 @@ class bz_util():
         self.put_request('bug/%s' % (bugid), data, retries, interval)
         return True
 
-    def add_whiteboard_tag(self, tag, bugid, retries=5, interval=30):
+    def add_whiteboard_tag(self, tag, bugid, retries=5, interval=10):
         """
         Add tag to the specified bug.
         By default retries 5 times at a 30s interval.
@@ -230,7 +230,7 @@ class bz_util():
         return True
 
     def replace_whiteboard_tag(self, regex, replacement, bugid,
-                               retries=5, interval=30):
+                               retries=5, interval=10):
         """
         Replace the specified regex with replacement. Returns True if the
         replacement was completed successfully.
