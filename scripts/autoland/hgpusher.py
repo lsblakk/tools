@@ -116,11 +116,13 @@ def import_patch(repo, patch, try_run):
     automatically perform a commit for each patch
     """
     cmd = ['import', '-R']
+    cmd.append(repo)
     if try_run:
-        cmd.append('-m "try:"')
-    cmd.append(active_repo)
+        cmd.extend(['-m', '"try:"'])
+    cmd.append(patch)
+    print cmd
     (out, err, rc) = run_hg(cmd)
-    return rc
+    return (rc, err)
 
 def process_patchset(data):
     """
@@ -137,7 +139,7 @@ def process_patchset(data):
         remote = '%s/try' % (config['hg_base_url'])
     else:
         remote = '%s%s' % (config['hg_base_url'], data['branch'])
-    comment = ['Autoland Patchset:\nPatches: %s\nBranch: %s %s\nDestination: %s'
+    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s %s\n\tDestination: %s'
             % (', '.join(map(lambda x: x['id'], data['patches'])), data['branch'],
                ('try' if try_run else ''), remote )]
 
@@ -145,6 +147,7 @@ def process_patchset(data):
         shutil.rmtree(active_repo)
         clone_branch(data['branch'])
     def apply_patchset(dir, attempt):
+        print "attempt #%s" % (attempt)
         for patch in data['patches']:
             log_msg("Getting patch %s" % (patch['id']), None)
             # store patches in 'patches/' below work_dir
@@ -165,7 +168,7 @@ def process_patchset(data):
                     comment.append(msg)
                 raise RETRY
 
-            patch_success = import_patch(active_repo, patch_file, try_run)
+            (patch_success,err) = import_patch(active_repo, patch_file, try_run)
             if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
                 # append comment to comment
@@ -181,7 +184,8 @@ def process_patchset(data):
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
         comment.append(msg)
-        bz.publish_comment('\n'.join(comment))
+        log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
+        bz.publish_comment('\n'.join(comment), data['bugid'])
         return False
 
     if not clone_branch(data['branch']):
@@ -199,7 +203,8 @@ def process_patchset(data):
         msg = 'Could not apply and push patchset:\n%s' % (error)
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
-        bz.publish_comment('\n'.join(comment))
+        log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
+        bz.publish_comment('\n'.join(comment), data['bugid'])
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
         return False
@@ -216,7 +221,8 @@ def process_patchset(data):
         comment.append('To monitor the commit, see: %s'
                 % (os.path.join(config['self_serve'],
                    '%s/rev/%s' % (data['branch'], revision))))
-    bz.publish_comment('\n'.join(comment))
+    log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
+    bz.publish_comment('\n'.join(comment), data['bugid'])
     return revision
 
 def clone_branch(branch):
