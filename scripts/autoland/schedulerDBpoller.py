@@ -42,9 +42,23 @@ def OrangeFactorHandling(buildrequests):
         if total_results - results['warnings'] == results['success'] and results['warnings'] <= MAX_ORANGE:
             print "We have a case for orange factor"
             # get buildernames of the ones with warnings
-            # check if those buildernames are in the buildrequests twice
-            # if yes, then compare results and return complete
-            # if no, do a retry and return incomplete
+            # for the buildrequests each one has the buildername and the status_str so I need to find
+            # if there is a dupe of buildername ie: len(all_buildrequests_buildernames) > 1
+            # then if yes, compare the status of those 2 or more buildernames
+            # otherwise trigger a rebuild of that buildername's buildid (bid) to branch and return incomplete
+            buildernames = []
+            for key, value in buildrequests.items():
+                br = value.to_dict()
+                buildernames.append((br['buildername'], br['status'], br['bid']))
+            print buildernames
+            seen = set()
+            for name, status, bid in buildernames:
+                if name in seen:
+                    print "we have a duplicate buildername %s - compare the statuses" % n
+                    # collect the two or more out of buildrequests....
+                else:
+                    print "unique buildername"
+                    seen.add(name)
             post = SelfServeRetry("try", 4801896, user, passwd)
             is_complete = False
         else:
@@ -55,32 +69,34 @@ def OrangeFactorHandling(buildrequests):
 def SelfServeRetry(branch, buildid):
     """ Takes a buildid and sends a POST request to self-serve api to retrigger that buildid"""
     # POST	/self-serve/{branch}/build	Rebuild `build_id`, which must be passed in as a POST parameter.
-    try:
-        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-        password_mgr.add_password(None,
-                                  uri='https://build.mozilla.org/buildapi/self-serve',
-                                  # works with my ldap, autolanduser needs to be fixed
-                                  user=user,
-                                  passwd=passwd)
-        auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())
-        
-        opener.addheaders = [
-         ('Content-Type', 'application/json'),
-         ('Accept', 'application/json'),
-         ]
-        urllib2.install_opener(opener)
-        
-        data = urllib.urlencode({"build_id": 4801896})
-        req = urllib2.Request("https://build.mozilla.org/buildapi/self-serve/try/build", data)
-        req.method = "POST"
-        
-        result = json.loads(opener.open(req).read())
-        # check that result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
-        
-    except Exception, e:
-        print "couldn't rebuild %s on %s: %s" % (branch, buildid, e)
-        return {}
+    """    try:
+            password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+            password_mgr.add_password(None,
+                                      uri='https://build.mozilla.org/buildapi/self-serve',
+                                      # works with my ldap, autolanduser needs to be fixed
+                                      user=user,
+                                      passwd=passwd)
+            auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+            opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())
+            
+            opener.addheaders = [
+             ('Content-Type', 'application/json'),
+             ('Accept', 'application/json'),
+             ]
+            urllib2.install_opener(opener)
+            
+            data = urllib.urlencode({"build_id": 4801896})
+            req = urllib2.Request("https://build.mozilla.org/buildapi/self-serve/try/build", data)
+            req.method = "POST"
+            
+            result = json.loads(opener.open(req).read())
+            # check that result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
+            
+        except Exception, e:
+            print "couldn't rebuild %s on %s: %s" % (branch, buildid, e)
+            return {}
+    """
+    pass
 
 def GetSingleAuthor(buildrequests):
     """Look through a list of buildrequests and return only one author from the changes if one exists"""
