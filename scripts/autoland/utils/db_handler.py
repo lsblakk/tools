@@ -1,6 +1,6 @@
 import simplejson
 from sqlalchemy import MetaData, create_engine
-from sqlalchemy import outerjoin, or_, select, not_
+from sqlalchemy import outerjoin, or_, select, not_, and_
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \
 INTERRUPTED, MISC
 from db_utils import NO_RESULT
@@ -153,17 +153,14 @@ class DBHandler(object):
             will return all branches in the db with a threshold of 50
             and a 'disabled' status.
         """
-        def gc(c):
-            """Get query constraint"""
-            return c if c else '%'
-
         r = self.scheduler_db_meta.tables['branches']
-        q = r.select().where(
-                and_(r.c.id.like(gc(branch.id)),
-                and_(r.c.name.like(gc(branch.name)),
-                and_(r.c.repo_url.like(gc(branch.repo_url)),
-                and_(r.c.threshold.like(gc(branch.threshold)),
-                     r.c.status.like(gc(branch.status) ))))))
+        q = r.select()
+        if not isinstance(branch.id,bool): q = q.where(r.c.id.like(branch.id))
+        if branch.name != False: q = q.where(r.c.name.like(branch.name))
+        if branch.repo_url != False: q = q.where(r.c.repo_url.like(branch.repo_url))
+        if not isinstance(branch.threshold,bool): q = q.where(r.c.threshold.like(branch.threshold))
+        if branch.status != False: q = q.where(r.c.status.like(branch.status))
+
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
@@ -180,7 +177,7 @@ class DBHandler(object):
         r = self.scheduler_db_meta.tables['branches']
         if not branch.name:
             return False
-        q = r.update(where(r.c.name.like(branch.name)), branch)
+        q = r.update(r.c.name.like(branch.name), branch)
         connection = self.engine.connect()
         connection.execute(q)
         return True
@@ -198,14 +195,14 @@ class DBHandler(object):
         q = r.insert(branch)
         connection = self.engine.connect()
         result = connection.execute(q)
-        return result.inserted_primary_key
+        return result.inserted_primary_key[0]
 
-    def BranchDelete(self, branch_name):
+    def BranchDelete(self, branch):
         """
         Delete the branch corresponding to the passed branch_name
         """
-        r = self.schdeuler_db_meta.tables['branches']
-        q = r.delete(where(r.c.name.like(branch_name)))
+        r = self.scheduler_db_meta.tables['branches']
+        q = r.delete(r.c.name.like(branch.name))
         connection = self.engine.connect()
         connection.execute(q)
 
@@ -216,25 +213,22 @@ class DBHandler(object):
             will return all branches in the db with a threshold of 50
             and a 'disabled' status.
         """
-        def gc(c):
-            """Get query constraint"""
-            return c if c else '%'
-
         r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.select().where(
-                and_(r.c.id.like(gc(patch_set.id)),
-                and_(r.c.bug_id.like(gc(patch_set.bug_id))),
-                and_(r.c.patches.like(gc(patch_set.patches)),
-                and_(r.c.revision.like(gc(patch_set.revision)),
-                and_(r.c.branch.like(gc(patch_set.branch)),
-                     r.c.try_run.like(gc(patch_set.try_run)) )))))
-        if patch_set.creation_time:
-            q = q.where(r.c.creation_time.like(patch_set.creation_time))
-        if patch_set.push_time:
-            q = q.where(r.c.push_time.like(patch_set.push_time))
-        if patch_set.completion_time:
-            q = q.where(r.c.completion_time.like(patch_set.completion_time))
-
+        q = r.select()
+        if patch_set.id != False:
+            q = q.where(r.c.id.like(patch_set.id))
+        if patch_set.bug_id != False:
+            q = q.where(r.c.bug_id.like(patch_set.bug_id))
+        if patch_set.patches != False:
+            q = q.where(r.c.patches.like(patch_set.patches))
+        if patch_set.revision != False:
+            q = q.where(r.c.revision.like(patch_set.revision))
+        if patch_set.branch != False:
+            q = q.where(r.c.branch.like(patch_set.branch))
+        if not isinstance(patch_set.try_run, bool):
+            q = q.where(r.c.try_run == patch_set.try_run)
+        if not isinstance(patch_set.to_branch, bool):
+            q = q.where(r.c.to_branch == patch_set.to_branch)
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
@@ -253,7 +247,7 @@ class DBHandler(object):
             patch_set.id = None
         q = r.insert(patch_set)
         result = connection.execute(q)
-        return result.inserted_primary_key
+        return result.inserted_primary_key[0]
 
     def PatchSetUpdate(self, patch_set):
         """
@@ -262,7 +256,7 @@ class DBHandler(object):
         r = self.scheduler_db_meta.tables['patch_sets']
         if not patch_set.id:
             return False
-        q = r.update(where(r.c.id.equals(patch_set.id)), patch_set)
+        q = r.update(r.c.id == patch_set.id, patch_set)
         connection = self.engine.connect()
         connection.execute(q)
         return True
@@ -274,11 +268,11 @@ class DBHandler(object):
         push_date but no completion_date.
         """
         r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.delete(where(
+        q = r.delete(
                 and_(r.c.id == patch_set.id,
-                or_(r.c.push_date == None,
-                and_(r.c.push_date != None,
-                     r.c.completion_date != None)))))
+                or_(r.c.push_time == None,
+                and_(r.c.push_time != None,
+                     r.c.completion_time != None))))
         connection = self.engine.connect()
         connection.execute(q)
 
@@ -287,51 +281,55 @@ class DBHandler(object):
         Get the next patch_set that is queued up for a try run,
         based on its creation_date.
         """
-        r = self.scheduler_db_met.tables['patch_sets']
+        r = self.scheduler_db_meta.tables['patch_sets']
         enabled = self.BranchQuery(Branch(status='enabled'))
         if branch != '%' and branch not in enabled:
             return None
         next_q = \
             '''
-            SELECT DISTINCT id,bug_id,patches,patch_sets.branch,try_run
-            FROM patch_sets,
+            SELECT DISTINCT patch_sets.id,bug_id,patches,patch_sets.branch,try_run,to_branch
+            FROM patch_sets
+
+            JOIN
+
+            (
+                SELECT *
+                FROM branches
+                LEFT OUTER JOIN
                 (
-                    (
-                        SELECT branch,count(*) as count
-                        FROM path_sets
-                        WHERE branch LIKE '%s'
-                        AND NOT push_time IS NULL
+                    SELECT branch,count(*) as count
+                    FROM patch_sets
+                    WHERE
+                        NOT push_time IS NULL
                         AND completion_time IS NULL
-                        GROUP BY branch
-                    ) as bCounts
-                    LEFT JOIN
-                    (
-                        SELECT name,threshold
-                        FROM branches
-                        WHERE name LIKE '%s'
-                        AND status = '%s'
-                    ) as bInfo
-                    ON (bCounts.branch = bInfo.name
-                        AND bCounts.count < bInfo.threshold)
-                )
+                    GROUP BY branch
+                ) as bCount
+                ON branches.name=bCount.branch
+                WHERE
+                    COALESCE(bCount.count,0) < branches.threshold
+                    AND branches.status='enabled'
+            ) as bAvailable
+            ON patch_sets.branch = bAvailable.name
             WHERE
                 NOT patch_sets.creation_time IS NULL
                 AND patch_sets.completion_time IS NULL
                 AND patch_sets.push_time IS NULL
-                AND patch_sets.branch LIKE '%s'
-            ORDER BY try_run ASC, creation_time ASC;
-            ''' % ( branch, branch, status, branch )
+            ORDER BY try_run ASC, to_branch DESC, creation_time ASC;
+            '''
         connection = self.engine.connect()
-        next = connection.execute(next_q)
+        next = connection.execute(next_q).fetchone()
+        if not next:
+            return None
+        return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]), branch=next[3], try_run=next[4], to_branch=next[5])
 
 class Branch(object):
-    def __init__(self, id=None, name=None, repo_url=None,
-            threshold=None, status=None):
+    def __init__(self, id=False, name=False, repo_url=False,
+            threshold=False, status=False):
         self.id = id
-        self.name = name
-        self.repo_url = repo_url
+        self.name = str(name) if name else name
+        self.repo_url = str(repo_url) if repo_url else repo_url
         self.threshold = threshold
-        self.status = status
+        self.status = str(status) if status else status
 
     def __repr__(self):
         return str(self.toDict())
@@ -343,25 +341,32 @@ class Branch(object):
         return self.toDict().items()
 
     def toDict(self):
-        return { 'id'        : self.id,
-                 'name'      : self.name,
-                 'repo_url'  : self.repo_url,
-                 'threshold' : self.threshold,
-                 'status'    : self.status }
+        d = {}
+        if self.id != False: d['id'] = self.id
+        if self.name != False: d['name'] = self.name
+        if self.repo_url != False: d['repo_url'] = self.repo_url
+        if not isinstance(self.threshold, bool): d['threshold'] = self.threshold
+        if self.status != False: d['status'] = self.status
+        return d
 
 class PatchSet(object):
-    def __init__(self, id=None, bug_id=None, patches=None, revision=None,
-            branch=None, try_run=None, to_branch=None, creation_time=None,
-            push_time=None, completion_time=None):
+    def __init__(self, id=False, bug_id=False, patches=False, revision=False,
+            branch=False, try_run=False, to_branch=False, creation_time=False,
+            push_time=False, completion_time=False):
         import datetime
         self.id = id
         self.bug_id = bug_id
-        self.patches = ','.join(patches) if patches else None
-        self.revision = revision
-        self.branch = branch
+        if isinstance(patches, list):
+            self.patches = ','.join(patches)
+        elif isinstance(patches, str):
+            self.patches = patches
+        else:
+            self.patches = False
+        self.revision = str(revision) if revision != False else revision
+        self.branch = str(branch) if branch != False else branch
         self.try_run = try_run
         self.to_branch = to_branch
-        self.creation_time = creation_time if creation_time else datetime.datetime.utcnow()
+        self.creation_time = creation_time
         self.push_time = push_time
         self.completion_time = completion_time
 
@@ -378,16 +383,18 @@ class PatchSet(object):
         return re.split(',', self.patches)
 
     def toDict(self):
-        return { 'id'                : self.id,
-                 'bug_id'            : self.bug_id,
-                 'patches'           : self.patches,
-                 'revision'          : self.revision,
-                 'branch'            : self.branch,
-                 'try_run'           : self.try_run,
-                 'creation_time'     : self.creation_time,
-                 'push_time'         : self.push_time,
-                 'completion_time'   : self.completion_time }
-
+        d = {}
+        if self.id != False: d['id'] = self.id
+        if self.bug_id != False: d['bug_id'] = self.bug_id
+        if self.patches != False: d['patches'] = self.patches
+        if self.revision != False: d['revision'] = self.revision
+        if self.branch != False: d['branch'] = self.branch
+        if self.try_run in [1,0]: d['try_run'] = self.try_run
+        if self.to_branch in [1,0]: d['to_branch'] = self.to_branch
+        if self.creation_time != False: d['creation_time'] = self.creation_time
+        if self.push_time != False: d['push_time'] = self.push_time
+        if self.completion_time != False: d['completion_time'] = self.completion_time
+        return d
 
 class BuildRequest(object):
 

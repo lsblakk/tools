@@ -13,7 +13,7 @@ bz = bz_utils.bz_util('https://api-dev.bugzilla.mozilla.org/test/latest/',
                       'https://bugzilla.mozilla.org/attachment.cgi?id=',
                       'mjessome@mozilla.com', 'abcd123')
 
-class TestGetPatch(unittest.TestCase):
+class TestBzUtils(unittest.TestCase):
     def testGetPatchBadID(self):
         self.assertEqual(bz.get_patch(-1), None)
 
