@@ -312,7 +312,7 @@ def message_handler(message):
             db.PatchSetDelete(ps)
             log_msg('Successful push to branch of patchset %s.' % (ps.id), log.DEBUG)
 
-    elif msg['type'] == 'error':
+    elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
         if msg['action'] == 'try.push' or msg['action'] == 'branch.push':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
