@@ -98,7 +98,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
         report = schedulerDBpoller.CalculateResults(buildrequests)
         message = schedulerDBpoller.GenerateResultReportMessage(revision, report)
-        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults:\n    warnings: 10\n')
+        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 10 total builds):\n    warnings: 10\n')
 
     def testLoadCacheNoFile(self):
         revisions = schedulerDBpoller.LoadCache(FILENAME)
@@ -157,7 +157,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testSchedulerDBByRevision(self):
         output = schedulerDBpoller.SchedulerDBPollerByRevision('83c09dc13bb8', "try", self.scheduler_db, self.autoland_db, True, self.config, True)
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults:\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
     def testSchedulerDBByTimeRange(self):
         incomplete = schedulerDBpoller.SchedulerDBPollerByTimeRange(self.scheduler_db, "try", None, None, self.autoland_db, True, self.config, True)
@@ -192,7 +192,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testOrangeFactorHandling(self):
         revision = '157ac288e589'
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
-        self.assertEquals(schedulerDBpoller.OrangeFactorHandling(buildrequests), {})
+        self.assertEquals(schedulerDBpoller.OrangeFactorHandling(buildrequests), (True, 'failure'))
 
 if __name__ == '__main__':
     unittest.main()

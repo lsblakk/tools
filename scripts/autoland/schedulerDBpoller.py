@@ -34,13 +34,14 @@ def OrangeFactorHandling(buildrequests, user=None, password=None):
         * If yes, check the timestamp/result of the matched pair and report back accordingly:
             ** [orange-factor] but pass if O:G
             ** [fail] if O:O
+    returns is_complete and final_status (success, failure, None) based on retried oranges
     """
-    is_complete = True
+    is_complete = None
+    final_status = None
     results = CalculateResults(buildrequests)
-    total_results = sum(results.values())
     # If only warnings and nothing else, we checkto see if a retry is possible
-    if total_results != results['success']:
-        if total_results - results['warnings'] == results['success'] and results['warnings'] <= MAX_ORANGE:
+    if results['total_builds'] != results['success']:
+        if results['total_builds'] - results['warnings'] == results['success'] and results['warnings'] <= MAX_ORANGE:
             print "We have a case for orange factor"
             # get buildernames of the ones with warnings
             # for the buildrequests each one has the buildername and the status_str so I need to find
@@ -65,7 +66,12 @@ def OrangeFactorHandling(buildrequests, user=None, password=None):
             is_complete = False
         else:
             print "This isn't an orange factor results set %s" % results
-    return is_complete
+            is_complete = True
+            final_status = "failure"
+    else:
+        is_complete = True
+        final_status = "success"
+    return is_complete, final_status
 
 def SelfServeRetry(branch, buildid, user, password):
     """ Takes a buildid and sends a POST request to self-serve api to retrigger that buildid"""
@@ -158,6 +164,7 @@ def CalculateResults(buildrequests):
         'skipped': 0,
         'exception': 0,
         'other': 0,
+        'total_builds': 0
     }
     for key,value in buildrequests.items():
         br = value.to_dict()
@@ -166,19 +173,19 @@ def CalculateResults(buildrequests):
             results[br['results_str'].lower()] += 1
         else:
             results['other'] += 1
+    results['total_builds'] = sum(results.values())
     return results
 
 def GenerateResultReportMessage(revision, report, author=None):
     """ Returns formatted message of revision report"""
 
-    message = """Try run for %(revision)s is complete.
+    log.debug("REPORT: %s" % report)
+    message = """Try run for %s is complete.
 Detailed breakdown of the results available here:
-    http://tbpl.mozilla.org/?tree=Try&rev=%(revision)s
-Results:\n""" % locals()
-    total_buildrequests = 0
+    http://tbpl.mozilla.org/?tree=Try&rev=%s
+Results (out of %d total builds):\n""" % (revision, revision, report['total_builds'])
     for key, value in report.items():
-        total_buildrequests += value
-        if value > 0:
+        if value > 0 and key != 'total_builds':
             message += "    %s: %d\n" % (key, value)
     if author != None:
         message += "Builds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s" % locals()
@@ -402,15 +409,16 @@ def SchedulerDBPollerByTimeRange(scheduler_db, branch, starttime, endtime, autol
         # Autoland revision is complete, send message to the BugCommenter queue
         elif info['is_complete'] and info['push_type'] == "auto":
             log.debug("Autoland wants to know about %s - bug commenter message sent" % revision)
+            # TODO - get the run's status to fit into one of success/failure
             if len(info['bugs']) == 1:
-                msg = { 'type'  : 'success',
-                        'action': '??????',
+                msg = { 'type'  : status,
+                        'action': 'try.push',
                         'bugid' : info['bugs'][0],
                         'revision': revision }
-                mq.send_message(msg, config['?????'],
-                    routing_keys=[config['???????']])
+                mq.send_message(msg, config.get('mq', 'queue'),
+                    routing_keys=[config.get('mq', 'db_queue')])
             else:
-                log.debug("Don't know what to do with %d bugs. Autoland tracks one bug right now." % len(info['bugs'])
+                log.debug("Don't know what to do with %d bugs. Autoland tracks one bug right now." % len(info['bugs']))
         # Complete but neither PushToTry nor Autoland, throw it away
         elif info['is_complete'] and info['push_type'] == None:
             log.debug("Nothing to do for %s - no one cares about it" % revision)
