@@ -137,11 +137,12 @@ class DBHandler(object):
         return build_requests
 
     def AutolandQuery(self, revision):
-        r = self.scheduler_db_meta.tables['results']
+        r = self.scheduler_db_meta.tables['patch_sets']
         q = r.select().where(r.c.revision.like(revision + '%'))
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
+        print rows
         if len(rows) == 1:
             return True
         return False

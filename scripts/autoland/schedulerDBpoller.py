@@ -1,7 +1,8 @@
-import sys, os, traceback, urllib2, json
+import sys, os, traceback, urllib2, urllib, json
 from argparse import ArgumentParser
 import ConfigParser
 import utils.bz_utils as bz_utils
+import utils.mq_utils as mq_utils
 from utils.db_handler import DBHandler
 from time import time, strftime, localtime
 
@@ -24,7 +25,7 @@ COMPLETION_THRESHOLD=600 # 10 minutes
 MAX_ORANGE = 2
 BUILDAPI_URL = "https://build.mozilla.org/buildapi/self-serve"
 
-def OrangeFactorHandling(buildrequests):
+def OrangeFactorHandling(buildrequests, user=None, password=None):
     """ Checks buildrequests for results and looks for all success but for (up to) MAX_ORANGE warnings
     
     If any warnings are present (no other non-success results):
@@ -59,44 +60,42 @@ def OrangeFactorHandling(buildrequests):
                 else:
                     print "unique buildername"
                     seen.add(name)
-            post = SelfServeRetry("try", 4801896, user, passwd)
+            # TODO - get the bid here instead of this hardcoded junk
+            post = SelfServeRetry("try", 4801896, user, password)
             is_complete = False
         else:
             print "This isn't an orange factor results set %s" % results
-
     return is_complete
 
-def SelfServeRetry(branch, buildid):
+def SelfServeRetry(branch, buildid, user, password):
     """ Takes a buildid and sends a POST request to self-serve api to retrigger that buildid"""
     # POST	/self-serve/{branch}/build	Rebuild `build_id`, which must be passed in as a POST parameter.
-    """    try:
-            password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-            password_mgr.add_password(None,
-                                      uri='https://build.mozilla.org/buildapi/self-serve',
-                                      # works with my ldap, autolanduser needs to be fixed
-                                      user=user,
-                                      passwd=passwd)
-            auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-            opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())
-            
-            opener.addheaders = [
-             ('Content-Type', 'application/json'),
-             ('Accept', 'application/json'),
-             ]
-            urllib2.install_opener(opener)
-            
-            data = urllib.urlencode({"build_id": 4801896})
-            req = urllib2.Request("https://build.mozilla.org/buildapi/self-serve/try/build", data)
-            req.method = "POST"
-            
-            result = json.loads(opener.open(req).read())
-            # check that result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
-            
-        except Exception, e:
-            print "couldn't rebuild %s on %s: %s" % (branch, buildid, e)
-            return {}
-    """
-    pass
+    try:
+        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        password_mgr.add_password(None,
+                                  uri='https://build.mozilla.org/buildapi/self-serve',
+                                  # works with autolanduser@mozilla.com
+                                  user=user,
+                                  passwd=password)
+        auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+        opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())
+        
+        opener.addheaders = [
+         ('Content-Type', 'application/json'),
+         ('Accept', 'application/json'),
+         ]
+        urllib2.install_opener(opener)
+        
+        data = urllib.urlencode({"build_id": 4801896})
+        req = urllib2.Request("https://build.mozilla.org/buildapi/self-serve/try/build", data)
+        req.method = "POST"
+        
+        result = json.loads(opener.open(req).read())
+        # check that result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
+        
+    except Exception, e:
+        print "couldn't rebuild %s on %s: %s" % (branch, buildid, e)
+        return {}
 
 def GetSingleAuthor(buildrequests):
     """Look through a list of buildrequests and return only one author from the changes if one exists"""
@@ -143,8 +142,10 @@ def ProcessPushType(revision, buildrequests, autoland_db, flagcheck):
             else:
                 if 'try: ' in comments:
                     type = "try"
-    if type == None and CheckAutolandDB(autoland_db, revision):
-            type = "auto"
+    if type == None and autoland_db.AutolandQuery(revision):
+        log.debug("ProcessPushType:CheckAutoalndDN - True")
+        type = "auto"
+    log.debug("ProcessPushType:CheckAutoalndDN - False")
     return type
 
 def CalculateResults(buildrequests):
@@ -279,7 +280,6 @@ def CalculateBuildRequestStatus(buildrequests):
         # TODO: If is_complete = True do a check for Orange here to get if is_complete is REALLY true or not
         is_complete = True
         log.debug("REV %s COMPLETED -- CALCULATIONS: %s: %s" % (br['revision'],status,is_complete))
-
     return (status,is_complete)
 
 def GetRevisions(db, branch, starttime=None, endtime=None):
@@ -294,12 +294,7 @@ def GetRevisions(db, branch, starttime=None, endtime=None):
         revision = br['revision']
         if not rev_dict.has_key(revision):
             rev_dict[revision] = {}
-
     return rev_dict
-
-def CheckAutolandDB(db, revision):
-    log.debug("Checking if %s is tracked in AutolandDB" % revision)
-    return db.AutolandQuery(revision)
 
 def SchedulerDBPollerByRevision(revision, branch, scheduler_db, autoland_db, flagcheck, config, dry_run=False):
     message = None
@@ -338,6 +333,9 @@ def SchedulerDBPollerByRevision(revision, branch, scheduler_db, autoland_db, fla
 
 def SchedulerDBPollerByTimeRange(scheduler_db, branch, starttime, endtime, autoland_db, flagcheck, config, dry_run=False, cache_filename=None):
     cache_filename = branch + "_cache"
+    # Make a message queue instance
+    mq = mq_utils.mq_util()
+
     # Get all the unique revisions in the specified timeframe range
     rev_report = GetRevisions(scheduler_db, branch, starttime, endtime)
     # Add in any revisions currently in cache for a complete list to poll schedulerdb about
@@ -403,8 +401,16 @@ def SchedulerDBPollerByTimeRange(scheduler_db, branch, starttime, endtime, autol
             log.debug("Push to try for %s is not requesting bug post - moving along..." % revision)
         # Autoland revision is complete, send message to the BugCommenter queue
         elif info['is_complete'] and info['push_type'] == "auto":
-            # TODO - send message with mq here to AutolandDB
             log.debug("Autoland wants to know about %s - bug commenter message sent" % revision)
+            if len(info['bugs']) == 1:
+                msg = { 'type'  : 'success',
+                        'action': '??????',
+                        'bugid' : info['bugs'][0],
+                        'revision': revision }
+                mq.send_message(msg, config['?????'],
+                    routing_keys=[config['???????']])
+            else:
+                log.debug("Don't know what to do with %d bugs. Autoland tracks one bug right now." % len(info['bugs'])
         # Complete but neither PushToTry nor Autoland, throw it away
         elif info['is_complete'] and info['push_type'] == None:
             log.debug("Nothing to do for %s - no one cares about it" % revision)

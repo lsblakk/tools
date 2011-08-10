@@ -185,14 +185,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
         pass
 
     def testSelfServeRetry(self):
-        results = schedulerDBpoller.SelfServeRetry("try", 4801896)
+        results = schedulerDBpoller.SelfServeRetry("try", 4801896, None, None)
         print results
         self.assertTrue(results)
 
     def testOrangeFactorHandling(self):
         revision = '157ac288e589'
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
-        self.assertTrue(schedulerDBpoller.OrangeFactorHandling(buildrequests))
+        self.assertEquals(schedulerDBpoller.OrangeFactorHandling(buildrequests), {})
 
 if __name__ == '__main__':
     unittest.main()
@@ -200,8 +200,8 @@ if __name__ == '__main__':
 """
 TODO:
 ** Turn SchedulerDBPoller into a class so that self.username, self.password and self.config file can be accessed in all modules?
-** Make a note when builds were cancelled via self-serve
-** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and wait for results
+** Make a note in the bug comment message when builds were cancelled via self-serve
+** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and mark incomplete so as to wait for results
 ** when writing incomplete to the file, keep the oldest timestamp for that revisions?
     ie: don't just write to incomplete everytime with the same 10 min interval datetime
     for each line (loaded time setting in the rev_report?)
@@ -209,6 +209,6 @@ TODO:
         then delete the revision's file when it is complete
 ** make a verbose mode
 ** more tests - there must be stuff missing
-** incorporate BugCommenter and AutolandDB
+** incorporate mq_util - send a message if autoland & complete
 ** Make it impossible to override the cache file on cruncher with one in the repo -- don't check in any cache files!!!
 """
