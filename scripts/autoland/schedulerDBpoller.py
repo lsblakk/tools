@@ -1,5 +1,5 @@
 import sys, os, traceback, urllib2, urllib
-import simplejson as json
+import json
 from collections import Counter
 from argparse import ArgumentParser
 import ConfigParser

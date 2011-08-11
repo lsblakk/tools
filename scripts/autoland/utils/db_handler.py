@@ -1,4 +1,4 @@
-import simplejson
+import json
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy import outerjoin, or_, select, not_
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \

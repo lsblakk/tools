@@ -2,7 +2,7 @@ import pika
 import sys
 from socket import error as sockerr
 import time
-import simplejson as json
+import json
 import logging
 import datetime
 
