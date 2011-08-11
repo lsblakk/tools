@@ -199,6 +199,7 @@ if __name__ == '__main__':
 
 """
 TODO:
+** Dry-run mode doesn't actually work: I want to see what would get posted - do not actually write to the bug, do not actually write to postedbugs.log
 ** Turn SchedulerDBPoller into a class so that self.username, self.password and self.config file can be accessed in all modules?
 ** Make a note in the bug comment message when builds were cancelled via self-serve
 ** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and mark incomplete so as to wait for results
