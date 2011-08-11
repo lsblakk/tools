@@ -1,6 +1,5 @@
-import sys, os, traceback, urllib2, urllib
+import sys, os, traceback, urllib2, urllib, re
 import json
-from collections import Counter
 from argparse import ArgumentParser
 import ConfigParser
 import utils.bz_utils as bz_utils
@@ -45,35 +44,37 @@ def OrangeFactorHandling(buildrequests, user=None, password=None):
         # If only warnings and nothing else, we checkto see if a retry is possible/needed
         if results['total_builds'] - results['warnings'] == results['success'] and results['warnings'] <= MAX_ORANGE:
             # Get buildernames that resulted in warnings
-            buildernames = Counter()
-            warnings = []
+            buildernames = {}
             for key, value in buildrequests.items():
                 br = value.to_dict()
-                buildernames[br['buildername']] += 1 
-                if br['results_str'] == 'warnings':
-                    warnings.append((br['buildername'], br['branch'], br['bid'], br['results_str']))
-            # Are there duplicates in the buildernames-with-warnings?
-            #seen = set(buildernames)
-            print buildernames
-            print warnings
-            #if len(buildernames) > len(seen): 
-            #    buildernames.sort()
-            #    count = 0
-            #    while count < len(buildernames):
-            #        if buildernames[i][0] == buildernames[i + 1][0]:
-            #            # compare results_str
-            #            if buildernames[i][-1] == buildernames[i + 1][-1]:
-            #                # Double orange == FAIL
-            #                final_status == "failure"
-            #            else:
-            #                # Mis-match of results == Intermittent Orange which ~= SUCCESS
-            #                final_status == "success"
-            #    is_complete = True
-            #else:
-                # We have a few oranges to retry
-            #    for name, branch, bid, results in buildernames:
-            #        post = SelfServeRetry(branch, bid, user, password)
-            #    is_complete = False
+                # Round up any duplicate buildernames
+                if not buildernames.has_key(br['buildername']):
+                    buildernames[br['buildername']] = [(br['results_str'], br['branch'], br['bid'])]
+                else:
+                    buildernames[br['buildername']].append((br['results_str'], br['branch'], br['bid']))
+            retry_count = 0
+            retry_pass = 0
+            for name, info in buildernames.items():
+                # If we have more than one result for a builder name, compare the results
+                if len(info) == 2:
+                    retry_count += 1
+                    c =  zip(info[0],info[1])
+                    if len(set(c[0])) > 1:
+                        # We have a mismatch of results - any success?
+                        if 'success' in c[0]:
+                            retry_pass += 1
+                    if retry_pass == retry_count:
+                        is_complete = True
+                        final_statue = "success"
+                    else:
+                        is_complete = True
+                        final_status = "failure"
+                else:
+                    for result, branch, bid in info:
+                        if result == 'warnings':
+                            log.debug("We must retry this one (%s, %s)" % (branch, bid))
+                            post = SelfServeRetry(branch, bid, user, password)
+                    is_complete = False
         else:
             # There are too many warnings there's nothing to be done
             is_complete = True
