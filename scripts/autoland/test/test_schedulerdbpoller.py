@@ -98,7 +98,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
         report = schedulerDBpoller.CalculateResults(buildrequests)
         message = schedulerDBpoller.GenerateResultReportMessage(revision, report)
-        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults:\n    warnings: 10\n')
+        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
     def testLoadCacheNoFile(self):
         revisions = schedulerDBpoller.LoadCache(FILENAME)
@@ -157,25 +157,40 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testSchedulerDBByRevision(self):
         output = schedulerDBpoller.SchedulerDBPollerByRevision('83c09dc13bb8', "try", self.scheduler_db, self.autoland_db, True, self.config, True)
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults:\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
     def testSchedulerDBByTimeRange(self):
         incomplete = schedulerDBpoller.SchedulerDBPollerByTimeRange(self.scheduler_db, "try", None, None, self.autoland_db, True, self.config, True)
         self.assertEquals({'6f8727aab415': {'status': {'complete': 8, 'misc': 0, 'interrupted': 1, 'running': 1, 'cancelled': 0, 'total_builds': 10, 'pending': 0}, 'bugs': [95846]}}, incomplete)
 
-    def testOrangeFactorRetries(self):
-        # SAMPLE DATA - only the first one should return False
-        # 9465683dcfe5 {'exception': 0, 'skipped': 0, 'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
-        # 83c09dc13bb8 {'exception': 0, 'skipped': 0, 'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
-        # 6f8727aab415 {'exception': 0, 'skipped': 0, 'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
-        # e6ae55cd2f5d {'exception': 0, 'skipped': 0, 'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
+    def testOrangeFactorRetriesWithoutDupes(self):
+        # SAMPLE DATA without having duplicate buildernames - test retrying
+        # 9465683dcfe5 {'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
+        # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
+        # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
+        # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
 
-        revisions = {'9465683dcfe5': False, '83c09dc13bb8': True, '6f8727aab415': True, 'e6ae55cd2f5d': True}
+        revisions = {'9465683dcfe5': (False, None), '83c09dc13bb8': (True, 'failure'), '6f8727aab415': (True, 'failure'), 'e6ae55cd2f5d': (True, 'success')}
         orange_revs = {}
         for revision in revisions.keys():
             buildrequests = self.scheduler_db.GetBuildRequests(revision)
             orange_revs[revision] = schedulerDBpoller.OrangeFactorHandling(buildrequests)
-            print revision, schedulerDBpoller.CalculateResults(buildrequests)
+        self.assertEqual(orange_revs, revisions)
+
+    def testOrangeFactorRetriesWithDupes(self):
+        # SAMPLE DATA with duplicate buildernames (already retried, now what is the result?)
+        # One warn, one pass on one dupe buildername- should return (True, 'success')
+        # 157ac288e589 {'success': 10, 'warnings': 1, 'total_builds': 11}
+        # Three warn, one pass on two dupe buildernames - should return (True, 'failure')
+        # 7acd48c25b5c {'success': 9, 'warnings': 3, 'total_builds': 12}
+        revisions = {'7acd48c25b5c': (True, 'failure'), '157ac288e589': (True, 'success')}
+        orange_revs = {}
+        for revision in revisions.keys():
+            buildrequests = self.scheduler_db.GetBuildRequests(revision)
+            for key, value in buildrequests.items():
+                br = value.to_dict()
+                print (br['results_str'], br['branch'], br['bid'], br['buildername'], br['brid'])
+            orange_revs[revision] = schedulerDBpoller.OrangeFactorHandling(buildrequests)
         self.assertEqual(orange_revs, revisions)
 
     def testPostRetryOrangeHandling(self):
@@ -185,23 +200,24 @@ class SchedulerDBPollerTests(unittest.TestCase):
         pass
 
     def testSelfServeRetry(self):
-        results = schedulerDBpoller.SelfServeRetry("try", 4801896)
+        results = schedulerDBpoller.SelfServeRetry("try", 4801896, None, None)
         print results
         self.assertTrue(results)
 
     def testOrangeFactorHandling(self):
-        revision = '157ac288e589'
+        revision = '83c09dc13bb8'
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
-        self.assertTrue(schedulerDBpoller.OrangeFactorHandling(buildrequests))
+        self.assertEquals(schedulerDBpoller.OrangeFactorHandling(buildrequests), (True, 'failure'))
 
 if __name__ == '__main__':
     unittest.main()
 
 """
 TODO:
+** Dry-run mode doesn't actually work: I want to see what would get posted - do not actually write to the bug, do not actually write to postedbugs.log
 ** Turn SchedulerDBPoller into a class so that self.username, self.password and self.config file can be accessed in all modules?
-** Make a note when builds were cancelled via self-serve
-** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and wait for results
+** Make a note in the bug comment message when builds were cancelled via self-serve
+** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and mark incomplete so as to wait for results
 ** when writing incomplete to the file, keep the oldest timestamp for that revisions?
     ie: don't just write to incomplete everytime with the same 10 min interval datetime
     for each line (loaded time setting in the rev_report?)
@@ -209,6 +225,6 @@ TODO:
         then delete the revision's file when it is complete
 ** make a verbose mode
 ** more tests - there must be stuff missing
-** incorporate BugCommenter and AutolandDB
+** incorporate mq_util - send a message if autoland & complete
 ** Make it impossible to override the cache file on cruncher with one in the repo -- don't check in any cache files!!!
 """

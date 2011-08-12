@@ -1,4 +1,4 @@
-import simplejson
+import json
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy import outerjoin, or_, select, not_, and_
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \
@@ -64,6 +64,7 @@ class DBHandler(object):
                 br.c.complete,
                 br.c.complete_at,
                 br.c.results,
+                bs.c.reason,
                 c.c.author,
                 c.c.changeid,
                 c.c.comments,
@@ -137,11 +138,12 @@ class DBHandler(object):
         return build_requests
 
     def AutolandQuery(self, revision):
-        r = self.scheduler_db_meta.tables['results']
+        r = self.scheduler_db_meta.tables['patch_sets']
         q = r.select().where(r.c.revision.like(revision + '%'))
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
+        print rows
         if len(rows) == 1:
             return True
         return False
@@ -395,7 +397,7 @@ class BuildRequest(object):
     def __init__(self, author=None, bid=None, branch=None, brid=None, claimed_at=None,
         buildsetid=None, category=None, changeid=None, buildername=None,
         changes_revision=None, comments=None, complete=0, complete_at=None,
-        revision=None, results=None, submitted_at=None, finish_time=None, 
+        revision=None, results=None, reason=None, submitted_at=None, finish_time=None, 
         start_time=None, when_timestamp=None):
         self.brid = brid
         self.bid = bid      # build id
@@ -412,6 +414,7 @@ class BuildRequest(object):
         self.complete = complete
         self.claimed_at = claimed_at
         self.results = results if results != None else NO_RESULT
+        self.reason = reason
 
         self.authors = set([author])
         self.comments = set([comments])
@@ -470,6 +473,7 @@ class BuildRequest(object):
             'finish_time': self.finish_time,
             'complete': self.complete,
             'results': self.results,
+            'reason': self.reason,
             'results_str': results_to_str(self.results),
             'status': self.status,
             'status_str': status_to_str(self.status),
