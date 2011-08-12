@@ -84,28 +84,6 @@ class TestBzUtils(unittest.TestCase):
         self.assertTrue(bz.has_comment(comment, bug))
         self.assertTrue(bz.has_recent_comment(dt, bug))
 
-'''
-    def testGetBugPatchset(self):
-        with mock.patch('utils.bz_utils.bz_util.request') as bz_rq:
-            return_values = []
-            for i in range(6):
-                return_values.append('test/mjessome.json')
-                return_values.append('test/lsblakk.json')
-            return_values.append('test/bug.json')
-            def sf(api, path, username, password):
-                return json.loads(open(return_values.pop(), 'r').read())
-            bz_rq.side_effect = sf
-
-            patchset = bz.get_bug_patchset('bug')
-            self.assertEquals(len(patchset), 6)
-            patches = ['531180', '531181', '532000',
-                       '534041', '534042', '534107']
-            for p in patchset:
-                self.assertTrue(p['id'] in patches)
-                patches.remove(p['id'])
-            self.assertTrue(len(patches) == 0)
-'''
-
 if __name__ == '__main__':
     unittest.main()
 

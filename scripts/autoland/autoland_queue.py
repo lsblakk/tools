@@ -1,5 +1,5 @@
 import time
-import os, errno
+import os, errno, sys
 import re
 import threading
 import logging as log
@@ -37,11 +37,11 @@ def get_first_autoland_tag(whiteboard):
     Returns the first autoland tag in the whiteboard,
     need not be well-formed.
     """
-    r = re.compile('\[autoland[^\[\]]+\]', re.I)
+    r = re.compile('\[autoland[^\[\]]*\]', re.I)
     s = r.search(whiteboard)
     if s != None:
-        s = s.group()
-    return s.lower()
+        s = s.group().lower()
+    return s
 
 def valid_autoland_tag(tag):
     r = re.compile('\[autoland(-[^\[\]]+)?(:\d+(,\d+)*)?\]', re.I)
@@ -79,7 +79,7 @@ def get_reviews(attachment):
                 break
     return reviews
 
-def get_patchset(bugid, try_run, patches=[]):
+def get_patchset(bug_id, try_run, patches=[]):
     """
     If patches specified, only fetch the information on those specific
     patches from the bug.
@@ -113,14 +113,15 @@ def get_patchset(bugid, try_run, patches=[]):
         ]
     """
     patchset = []
+    if patches: patches = patches[:]    # take a local copy of patches.
     # grab the bug data
-    bug_data = bz.request('bug/%s' % str(bugid))
+    bug_data = bz.request('bug/%s' % str(bug_id))
     if 'attachments' not in bug_data:
         return None     # bad bug id, or no attachments
     for attachment in bug_data['attachments']:
         # if it is a patch (is_patch), and is not (is_obsolete)
         if attachment['is_patch'] and not attachment['is_obsolete'] \
-                and (not patches or str(attachment['id']) in patches):
+                and (not patches or attachment['id'] in patches):
             patch = {'id':attachment['id'],
                      'author':bz.get_user_info(attachment['attacher']['name']),
                      'reviews':[]}
@@ -144,24 +145,24 @@ def get_patchset(bugid, try_run, patches=[]):
                 patch['reviews'] = reviews
             patchset.append(patch)
             if patches:
-                patches.remove(str(patch['id']))
+                patches.remove(patch['id'])
 
     if len(patches) != 0:
         # Some specified patches left over
         # comment that it couldn't get all specified patches
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
-        c = bz.publish_comment('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(patches)))
+        c = bz.publish_comment('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))))
         if c:
-            log_msg('Comment publised to bug %s' % (data['bugid']), log.DEBUG)
+            log_msg('Comment publised to bug %s' % (bug_id), log.DEBUG)
         else:
-            log_msg('ERROR: Could not comment to bug %s' % (data['bugid']))
+            log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
     if len(patchset) == 0:
         c = bz.publish_comment('Autoland Failure\nThe bug has no patches posted, there is nothing to push.')
         if c:
-            log_msg('Commend published to bug %s' % (data['bugid']), log.DEBUG)
+            log_msg('Commend published to bug %s' % (bug_id), log.DEBUG)
         else:
-            log_msg('ERROR: Could not comment to bug %s' % (data['bugid']))
+            log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
     return patchset
 
@@ -174,9 +175,9 @@ def bz_search_handler():
     Message sent to HgPusher is of the JSON structure:
         {
           'job_type' : 'patchset',
-          'bugid' : 12345,
+          'bug_id' : 12345,
           'branch' : 'mozilla-central',
-          'try-run' : 1,
+          'try_run' : 1,
           'patchsetid' : 42L,
           'patches' :
                 [
@@ -196,23 +197,29 @@ def bz_search_handler():
                 ]
         }
     """
-    bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
-    for (bugid, whiteboard) in bugs:
-        tag = get_first_autolandn_tag(whiteboard)
-        print bugid, tag
-        if tag == '[autoland-in-queue]':
-            continue
-        log_msg('Found and processing tag %s' % (tag), log.DEBUG)
-        bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]', '[autoland-in-queue]', bugid)
+    bugs = bz.get_matching_bugs('whiteboard', '[autoland.*]')
+    for (bug_id, whiteboard) in bugs:
+        tag = get_first_autoland_tag(whiteboard)
+        print bug_id, tag
 
-        if not valid_autoland_tag(tag):
-            bz.publish_comment('Poorly formed whiteboard tag %s.' %(tag))
+        if tag == None or tag == '[autoland-in-queue]':
+            # Strange that it showed up if None
             continue
+        elif not valid_autoland_tag(tag):
+            bz.publish_comment('Poorly formed whiteboard tag %s.' %(tag))
+            log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
+            bz.remove_whiteboard_tag(tag, bug_id)
+            continue
+
+        log_msg('Found and processing tag %s' % (tag), log.DEBUG)
+        bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
+                '[autoland-in-queue]', bug_id)
 
         # get the explicitly listed patches
+        patch_group = []
         r = re.compile('\d+')
         for id in r.finditer(whiteboard):
-            patch_group.append(id.group())
+            patch_group.append(int(id.group()))
 
         ps = PatchSet()
         branch = get_branch_from_tag(tag)
@@ -224,7 +231,8 @@ def bz_search_handler():
             ps.try_run = 1      # try run first
             ps.to_branch = 1    # then land to branch
             ps.branch = branch
-        ps.patches = patch_groups
+        ps.patches = patch_group
+        ps.bug_id = bug_id
 
         patchset_id = db.PatchSetInsert(ps)
 
@@ -235,15 +243,15 @@ def message_handler(message):
     For a JOB:
         {
             'type' : 'job',
-            'bugid' : 12345,
+            'bug_id' : 12345,
             'branch' : 'mozilla-central',
-            'try-run' : 1,
-            'to-branch' : 0,
+            'try_run' : 1,
+            'to_branch' : 0,
             'patches' : [ 53432, 64512 ],
         }
         NOTE: Try run specifies whether or not this should be run on try,
-        whether to-branch is specified or not.
-              If try-run and to-branch are both 0, job won't be added to queue.
+        whether to_branch is specified or not.
+              If try_run and to_branch are both 0, job won't be added to queue.
     For a SUCCESS/FAILURE:
         {
             'type' : 'error',
@@ -259,20 +267,30 @@ def message_handler(message):
     """
     msg = message['payload']
     if msg['type'] == 'job':
-        if 'try-run' not in msg:
-            msg['try-run'] = 1
-        if 'to-branch' not in msg:
-            msg['to-branch'] = 0
-        ps = PatchSet(bug_id=msg.get('bugid'),
+        if 'try_run' not in msg:
+            msg['try_run'] = 1
+        if 'to_branch' not in msg:
+            msg['to_branch'] = 0
+        if 'bug_id' not in msg:
+            log_msg('Bug ID not specified.')
+            return
+        if 'branch' not in msg:
+            log_msg('Branch not specified.')
+            return
+        if 'patches' not in msg:
+            log_msg('Patch list not specified')
+            return
+        if msg['try_run'] == 0 and msg['to_branch'] == 0:
+            # XXX: Nothing to do, don't add.
+            log_msg('ERROR: Neither try_run nor to_branch specified. Nothing to do.')
+            return
+
+        ps = PatchSet(bug_id=msg.get('bug_id'),
                       branch=msg.get('branch'),
-                      try_run=msg.get('try-run'),
-                      to_branch=msg.get('to-branch'),
+                      try_run=msg.get('try_run'),
+                      to_branch=msg.get('to_branch'),
                       patches=msg.get('patches')
                      )
-        if ps.try_run == 0 and ps.to_branch == 0:
-            # XXX: Nothing to do, don't add.
-            log_msg('ERROR: Neither try-run nor to-branch specified. Nothing to do.')
-            return
         patchset_id = db.PatchSetInsert(ps)
 
     elif msg['type'] == 'success':
@@ -283,12 +301,13 @@ def message_handler(message):
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
-        if msg['action'] == 'try.run':
+        elif msg['action'] == 'try.run':
             # Handle a successful try result
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
             if not ps:
-                # XXX: wtf... 
-                log_msg('ERROR: Unable to find revision in db.' % (msg['revision']))
+                # XXX: wtf...
+                log_msg('ERROR: Unable find revision in db.'
+                        % (msg['revision']))
                 return
             # Remove the -in-queue whiteboard tag
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
@@ -298,14 +317,14 @@ def message_handler(message):
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
                 return
-            # update to no longer be a try run, and will kick off a to-branch
+            # update to no longer be a try run, and will kick off a to_branch
             # landing when it comes up in the queue
             ps.try_run = 0
             ps.push_time = None
             db.PatchSetUpdate(ps)
-            log_msg('Flagging patchset %s revision %s for push-to-branch.'
+            log_msg('Flagging patchset %s revision %s for push-to_branch.'
                     % (ps.id, ps.revision), log.DEBUG)
-        if msg['action'] == 'branch.push':
+        elif msg['action'] == 'branch.push':
             # Guaranteed patchset EOL
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
@@ -344,11 +363,12 @@ class SearchThread(threading.Thread):
                 patchset = db.PatchSetGetNext()
                 if len(patchset) > 1:
                     patchset = patchset[0]
-                log_msg('Pulled patchset %s out of the queue' % (patchset), log.DEBUG)
+                log_msg('Pulled patchset %s out of the queue' % (patchset),
+                        log.DEBUG)
                 patches = get_patchset(patchset.bug_id, patchset.try_run,
                                        patchset.patchList())
-                message = { 'job_type':'patchset','bugid':patchset.bug_id,
-                        'branch':patchset.branch, 'try-run':patchset.try_run,
+                message = { 'job_type':'patchset','bug_id':patchset.bug_id,
+                        'branch':patchset.branch, 'try_run':patchset.try_run,
                         'patchsetid':patchset.id, 'patches':patches }
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])

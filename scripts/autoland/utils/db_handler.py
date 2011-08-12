@@ -356,12 +356,7 @@ class PatchSet(object):
         import datetime
         self.id = id
         self.bug_id = bug_id
-        if isinstance(patches, list):
-            self.patches = ','.join(patches)
-        elif isinstance(patches, str):
-            self.patches = patches
-        else:
-            self.patches = False
+        self.patches = patches
         self.revision = str(revision) if revision != False else revision
         self.branch = str(branch) if branch != False else branch
         self.try_run = try_run
@@ -377,14 +372,13 @@ class PatchSet(object):
         return self.toDict().items()
 
     def patchList(self):
-        import re
         if not self.patches:
             return []
-        return re.split(',', self.patches)
+        return self.patches
 
     def toDict(self):
         d = {}
-        if self.id != False: d['id'] = self.id
+        if not isinstance(self.id,bool): d['id'] = self.id
         if self.bug_id != False: d['bug_id'] = self.bug_id
         if self.patches != False: d['patches'] = self.patches
         if self.revision != False: d['revision'] = self.revision

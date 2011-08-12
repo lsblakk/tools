@@ -39,9 +39,9 @@ class TestHgPusher(unittest.TestCase):
         self.assertFalse(hgpusher.valid_dictionary_structure(lower, upper.keys()))
 
     def testValidJobMessage(self):
-        msg = { 'bugid' : '12345',
+        msg = { 'bug_id' : '12345',
                 'branch' : 'mozilla-central',
-                'try-run' : 1,
+                'try_run' : 1,
                 'patchsetid' : 5,
                 'patches' : [
                     { 'id' : '12345',
@@ -83,7 +83,7 @@ class TestHgPusher(unittest.TestCase):
         hgpusher.clone_branch('repo')
         os.chdir(test_dir)
         should_pass = \
-               [{ 'branch' : 'repo', 'bugid' : '10411', 'try-run' : 1,  # Push to try, Author & review only have scm_level_1
+               [{ 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 1,  # Push to try, Author & review only have scm_level_1
                   'patchsetid' : 5,
                 'patches' :
                 [{ 'id' : 'hello_patch.patch',
@@ -93,7 +93,7 @@ class TestHgPusher(unittest.TestCase):
                }]
 
         should_fail = \
-               [{ 'branch' : 'repo', 'bugid' : '10411', 'try-run' : 0,  # Push to branch, Author/Review have no access
+               [{ 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 0,  # Push to branch, Author/Review have no access
                   'patchsetid' : 5,
                 'patches' :
                 [{ 'id' : 'hello_patch.patch',
@@ -101,7 +101,7 @@ class TestHgPusher(unittest.TestCase):
                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgpr@mozilla.com' } } ]
                     }]
                },
-                { 'branch' : 'repo', 'bugid' : '10411', 'try-run' : 1,
+                { 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 1,
                   'patchsetid' : 5,
                   'patches' :
                   [{ 'id' : 'dne.patch',    # dne.patch doesn't exist
@@ -109,7 +109,7 @@ class TestHgPusher(unittest.TestCase):
                      'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'mjessome@mozilla.com' }} ]
                   }]
                 },
-                { 'branch' : 'repo', 'bugid' : '10411', 'try-run' : 0,
+                { 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 0,
                   'patchsetid' : 5,
                   'patches' :
                   [{ 'id' : 'hello_patch.diff', # invalid header
@@ -127,7 +127,6 @@ class TestHgPusher(unittest.TestCase):
                 get_patch.return_value = \
                     os.path.join(test_dir, 'work_dir/clean/repo/%s' % (data['patches'][0]['id']))
                 active_revision = hgpusher.process_patchset(data)
-                if active_revision == False: sleep(30)
                 self.assertNotEqual(active_revision, False)
             for data in should_fail:
                 get_patch.return_value = \

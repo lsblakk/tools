@@ -134,7 +134,7 @@ def process_patchset(data):
         pass
     active_repo = os.path.join(config['work_dir'],
                     'active/%s' % (data['branch']))
-    try_run = (data['try-run'] == True)
+    try_run = (data['try_run'] == True)
     if try_run:
         remote = '%s/try' % (config['hg_base_url'])
     else:
@@ -184,8 +184,8 @@ def process_patchset(data):
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
         comment.append(msg)
-        log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
-        bz.publish_comment('\n'.join(comment), data['bugid'])
+        log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        bz.publish_comment('\n'.join(comment), data['bug_id'])
         return False
 
     if not clone_branch(data['branch']):
@@ -203,8 +203,8 @@ def process_patchset(data):
         msg = 'Could not apply and push patchset:\n%s' % (error)
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
-        log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
-        bz.publish_comment('\n'.join(comment), data['bugid'])
+        log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        bz.publish_comment('\n'.join(comment), data['bug_id'])
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
         return False
@@ -221,8 +221,8 @@ def process_patchset(data):
         comment.append('To monitor the commit, see: %s'
                 % (os.path.join(config['self_serve'],
                    '%s/rev/%s' % (data['branch'], revision))))
-    log_msg('%s to %s' % ('\n'.join(comment), data['bugid']), log.DEBUG)
-    bz.publish_comment('\n'.join(comment), data['bugid'])
+    log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+    bz.publish_comment('\n'.join(comment), data['bug_id'])
     return revision
 
 def clone_branch(branch):
@@ -275,7 +275,7 @@ def valid_job_message(message):
     This also ensures that the patchset has the correct data.
     """
     if not valid_dictionary_structure(message,
-            ['bugid','branch','try-run','patches']):
+            ['bug_id','branch','try_run','patches']):
         log_message('Invalid message.')
         return False
     for patch in message['patches']:
@@ -324,8 +324,8 @@ def message_handler(message):
             log_msg('[Patchset] Successfully applied patchset %s'
                 % (patch_revision), log.info)
             msg = { 'type'  : 'success',
-                    'action': 'try.push' if data['try-run'] else 'branch.push',
-                    'bugid' : data['bugid'], 'patchsetid': data['patchsetid'],
+                    'action': 'try.push' if data['try_run'] else 'branch.push',
+                    'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
                     'revision': patch_revision }
             mq.send_message(msg, config['mq_queue'],
                     routing_keys=[config['mq_db_queue']])
