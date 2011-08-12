@@ -42,7 +42,7 @@ def OrangeFactorHandling(buildrequests, user=None, password=None):
     # Check if it's a successful build first
     if results['total_builds'] != results['success']:
         # If only warnings and nothing else, we checkto see if a retry is possible/needed
-        if results['total_builds'] - results['warnings'] == results['success'] and results['warnings'] <= MAX_ORANGE:
+        if results['total_builds'] - results['warnings'] == results['success'] and results['warnings'] <= (MAX_ORANGE * 2):
             # Get buildernames that resulted in warnings
             buildernames = {}
             for key, value in buildrequests.items():
@@ -57,63 +57,72 @@ def OrangeFactorHandling(buildrequests, user=None, password=None):
             for name, info in buildernames.items():
                 # If we have more than one result for a builder name, compare the results
                 if len(info) == 2:
+                    log.debug("WE HAVE A DUPE: %s" % name)
                     retry_count += 1
                     c =  zip(info[0],info[1])
+                    log.debug("C is: %s" % c)
                     if len(set(c[0])) > 1:
+                        log.debug("We have a mismatch in %s" % set(c[0]))
                         # We have a mismatch of results - any success?
                         if 'success' in c[0]:
+                            log.debug("There's a success, incrementing retry_pass")
                             retry_pass += 1
-                    if retry_pass == retry_count:
-                        is_complete = True
-                        final_statue = "success"
-                    else:
-                        is_complete = True
-                        final_status = "failure"
+                # Only one buildername with warnings, trigger a rebuild return incomplete
                 else:
                     for result, branch, bid in info:
                         if result == 'warnings':
-                            log.debug("We must retry this one (%s, %s)" % (branch, bid))
+                            log.debug("Attempting to retry branch: %s bid: %s" % (branch, bid))
                             post = SelfServeRetry(branch, bid, user, password)
-                    is_complete = False
+                            is_complete = False
+            # Passed on Retry
+            if retry_count != 0 and retry_pass == retry_count:
+                is_complete = True
+                final_status = "success"
+            # Failed on Retry
+            elif retry_count != 0:
+                is_complete = True
+                final_status = "failure"
         else:
             # There are too many warnings there's nothing to be done
+            log.debug("Too many warnings! Final = failure")
             is_complete = True
             final_status = "failure"
     else:
         # It's really complete, and green at that
+        log.debug("All green! Final = success")
         is_complete = True
         final_status = "success"
+    log.debug("Returning: (%s, %s)" % (is_complete, final_status))
     return is_complete, final_status
 
 def SelfServeRetry(branch, buildid, user, password):
-    """ Takes a buildid and sends a POST request to self-serve api to retrigger that buildid"""
-    # POST	/self-serve/{branch}/build	Rebuild `build_id`, which must be passed in as a POST parameter.
+    """ Uses self-serve API to retrigger the buildid/branch sent in with a POST request"""
     try:
         password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
         password_mgr.add_password(None,
-                                  uri='https://build.mozilla.org/buildapi/self-serve',
+                                  uri=BUILDAPI_URL,
                                   # works with autolanduser@mozilla.com
                                   user=user,
                                   passwd=password)
         auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-        opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())
-        
+        opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())       
         opener.addheaders = [
          ('Content-Type', 'application/json'),
          ('Accept', 'application/json'),
          ]
         urllib2.install_opener(opener)
-        
-        data = urllib.urlencode({"build_id": 4801896})
-        req = urllib2.Request("https://build.mozilla.org/buildapi/self-serve/try/build", data)
+        data = urllib.urlencode({"build_id": buildid})
+        url = BUILDAPI_URL + "/" + branch
+        req = urllib2.Request(url, data)
         req.method = "POST"
         
         result = json.loads(opener.open(req).read())
         # check that result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
         
     except Exception, e:
-        print "couldn't rebuild %s on %s: %s" % (branch, buildid, e)
-        return {}
+        log.debug("No rebuild for %s on %s: %s" % (branch, buildid, e))
+        result = {}
+    return result
 
 def GetSingleAuthor(buildrequests):
     """Look through a list of buildrequests and return only one author from the changes if one exists"""
@@ -476,7 +485,7 @@ if __name__ == '__main__':
         config = ConfigParser.ConfigParser()
         config.read(options.config)
 
-    # Grab the db handlers
+    # Create database handlers
     scheduler_db = DBHandler(config.get('databases', 'scheduler_db_url'))
     autoland_db = DBHandler(config.get('databases', 'autoland_db_url'))
     

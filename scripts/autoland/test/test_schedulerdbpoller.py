@@ -98,7 +98,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
         report = schedulerDBpoller.CalculateResults(buildrequests)
         message = schedulerDBpoller.GenerateResultReportMessage(revision, report)
-        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 10 total builds):\n    warnings: 10\n')
+        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
     def testLoadCacheNoFile(self):
         revisions = schedulerDBpoller.LoadCache(FILENAME)
@@ -163,19 +163,34 @@ class SchedulerDBPollerTests(unittest.TestCase):
         incomplete = schedulerDBpoller.SchedulerDBPollerByTimeRange(self.scheduler_db, "try", None, None, self.autoland_db, True, self.config, True)
         self.assertEquals({'6f8727aab415': {'status': {'complete': 8, 'misc': 0, 'interrupted': 1, 'running': 1, 'cancelled': 0, 'total_builds': 10, 'pending': 0}, 'bugs': [95846]}}, incomplete)
 
-    def testOrangeFactorRetries(self):
-        # SAMPLE DATA - only the first one should return False
-        # 9465683dcfe5 {'exception': 0, 'skipped': 0, 'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
-        # 83c09dc13bb8 {'exception': 0, 'skipped': 0, 'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
-        # 6f8727aab415 {'exception': 0, 'skipped': 0, 'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
-        # e6ae55cd2f5d {'exception': 0, 'skipped': 0, 'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
+    def testOrangeFactorRetriesWithoutDupes(self):
+        # SAMPLE DATA without having duplicate buildernames - test retrying
+        # 9465683dcfe5 {'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
+        # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
+        # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
+        # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
 
-        revisions = {'9465683dcfe5': False, '83c09dc13bb8': True, '6f8727aab415': True, 'e6ae55cd2f5d': True}
+        revisions = {'9465683dcfe5': (False, None), '83c09dc13bb8': (True, 'failure'), '6f8727aab415': (True, 'failure'), 'e6ae55cd2f5d': (True, 'success')}
         orange_revs = {}
         for revision in revisions.keys():
             buildrequests = self.scheduler_db.GetBuildRequests(revision)
             orange_revs[revision] = schedulerDBpoller.OrangeFactorHandling(buildrequests)
-            print revision, schedulerDBpoller.CalculateResults(buildrequests)
+        self.assertEqual(orange_revs, revisions)
+
+    def testOrangeFactorRetriesWithDupes(self):
+        # SAMPLE DATA with duplicate buildernames (already retried, now what is the result?)
+        # One warn, one pass on one dupe buildername- should return (True, 'success')
+        # 157ac288e589 {'success': 10, 'warnings': 1, 'total_builds': 11}
+        # Three warn, one pass on two dupe buildernames - should return (True, 'failure')
+        # 7acd48c25b5c {'success': 9, 'warnings': 3, 'total_builds': 12}
+        revisions = {'7acd48c25b5c': (True, 'failure'), '157ac288e589': (True, 'success')}
+        orange_revs = {}
+        for revision in revisions.keys():
+            buildrequests = self.scheduler_db.GetBuildRequests(revision)
+            for key, value in buildrequests.items():
+                br = value.to_dict()
+                print (br['results_str'], br['branch'], br['bid'], br['buildername'], br['brid'])
+            orange_revs[revision] = schedulerDBpoller.OrangeFactorHandling(buildrequests)
         self.assertEqual(orange_revs, revisions)
 
     def testPostRetryOrangeHandling(self):
@@ -190,7 +205,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertTrue(results)
 
     def testOrangeFactorHandling(self):
-        revision = '157ac288e589'
+        revision = '83c09dc13bb8'
         buildrequests = self.scheduler_db.GetBuildRequests(revision)
         self.assertEquals(schedulerDBpoller.OrangeFactorHandling(buildrequests), (True, 'failure'))
 
