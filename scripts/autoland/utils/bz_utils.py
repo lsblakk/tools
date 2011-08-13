@@ -90,7 +90,7 @@ def bz_notify_bug(api, bug_num, message, username, password, whiteboard="", retr
     return results
 
 class bz_util():
-    def __init__(self, api_url, attachment_url, username=None, password=None):
+    def __init__(self, api_url, attachment_url=None, username=None, password=None):
         self.api_url = api_url
         self.attachment_url = attachment_url
         self.username = username
