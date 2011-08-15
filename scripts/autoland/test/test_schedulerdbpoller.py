@@ -213,7 +213,6 @@ if __name__ == '__main__':
 """
 TODO:
 ** Dry-run mode doesn't actually work: I want to see what would get posted - do not actually write to the bug, do not actually write to postedbugs.log
-
 ** Make a note in the bug comment message when builds were cancelled via self-serve
 ** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and mark incomplete so as to wait for results
 ** when writing incomplete to the file, keep the oldest timestamp for that revisions?
