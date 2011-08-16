@@ -285,15 +285,13 @@ class DBHandler(object):
         """
         r = self.scheduler_db_meta.tables['patch_sets']
         enabled = self.BranchQuery(Branch(status='enabled'))
-        if branch != '%' and branch not in enabled:
+        if branch != '%' and branch not in map(lambda x: x.name, enabled):
             return None
         next_q = \
             '''
             SELECT DISTINCT patch_sets.id,bug_id,patches,patch_sets.branch,try_run,to_branch
             FROM patch_sets
-
             JOIN
-
             (
                 SELECT *
                 FROM branches
@@ -316,13 +314,28 @@ class DBHandler(object):
                 NOT patch_sets.creation_time IS NULL
                 AND patch_sets.completion_time IS NULL
                 AND patch_sets.push_time IS NULL
-            ORDER BY try_run ASC, to_branch DESC, creation_time ASC;
-            '''
+            ''' # This gets extended below
+        # if the try threshold is already full, only pull non-try
+        b = self.BranchQuery(Branch(name='try'))
+        if b == None:
+            b = Branch(threshold=0)
+        else:
+            b = b[0]
         connection = self.engine.connect()
+        try_count = connection.execute('''SELECT count(*) as count
+                              FROM patch_sets
+                              WHERE try_run=1
+                              AND NOT push_time IS NULL
+                              AND completion_time IS NULL''').fetchone()
+        try_count = 0 if try_count == None else try_count[0]
+        if b.threshold < try_count:
+            next_q += 'AND patch_sets.try_run = 0'
+        next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
         if not next:
             return None
-        return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]), branch=next[3], try_run=next[4], to_branch=next[5])
+        return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
+                branch=next[3], try_run=next[4], to_branch=next[5])
 
 class Branch(object):
     def __init__(self, id=False, name=False, repo_url=False,
