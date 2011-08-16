@@ -171,31 +171,6 @@ def bz_search_handler():
     Search bugzilla whiteboards for Autoland jobs.
     Search handler, for the moment, only supports push to try,
     and then to branch. It cannot push directly to branch.
-
-    Message sent to HgPusher is of the JSON structure:
-        {
-          'job_type' : 'patchset',
-          'bug_id' : 12345,
-          'branch' : 'mozilla-central',
-          'try_run' : 1,
-          'patchsetid' : 42L,
-          'patches' :
-                [
-                    { 'id' : 54321,
-                      'author' : { 'name' : 'Name',
-                                   'email' : 'me@email.com' },
-                      'reviews' : [
-                            { 'reviewer' : { 'name' : 'Rev. Name',
-                                             'email' : 'rev@email.com' },
-                              'type' : 'superreview',
-                              'result' : '+'
-                            },
-                            { ... }
-                        ]
-                    },
-                    { ... }
-                ]
-        }
     """
     bugs = bz.get_matching_bugs('whiteboard', '[autoland.*]')
     for (bug_id, whiteboard) in bugs:
@@ -210,7 +185,12 @@ def bz_search_handler():
             log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue
-
+        branch = get_branch_from_tag(tag)
+        if db.BranchQuery(Branch(name=branch)) == None:
+            bz.publish_comment('Bad autoland tag: branch %s does not exist.' % (branch))
+            log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
+            bz.remove_whiteboard_tag(tag, bug_id)
+            continue
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
         bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
                 '[autoland-in-queue]', bug_id)
@@ -222,7 +202,6 @@ def bz_search_handler():
             patch_group.append(int(id.group()))
 
         ps = PatchSet()
-        branch = get_branch_from_tag(tag)
         if branch == 'try':
             ps.try_run = 1
             ps.to_branch = 0
@@ -282,8 +261,12 @@ def message_handler(message):
             return
         if msg['try_run'] == 0 and msg['to_branch'] == 0:
             # XXX: Nothing to do, don't add.
-            log_msg('ERROR: Neither try_run nor to_branch specified. Nothing to do.')
+            log_msg('ERROR: Neither try_run nor to_branch specified.')
             return
+
+        if msg['branch'].lower() == 'try':
+            msg['branch'] = 'mozilla-central'
+            msg['try_run'] = 1
 
         ps = PatchSet(bug_id=msg.get('bug_id'),
                       branch=msg.get('branch'),
@@ -353,6 +336,33 @@ class MessageThread(threading.Thread):
 class SearchThread(threading.Thread):
     """
     Threaded bugzilla search, also handles the jobs coming through the queue.
+
+    Message sent to HgPusher is of the JSON structure:
+        {
+          'job_type' : 'patchset',
+          'bug_id' : 12345,
+          'branch' : 'mozilla-central',
+          'push_url' : 'ssh://hg.mozilla.org/try',
+          'branch_url' : 'ssh://hg.mozilla.org/mozilla-central',
+          'try_run' : 1,
+          'patchsetid' : 42L,
+          'patches' :
+                [
+                    { 'id' : 54321,
+                      'author' : { 'name' : 'Name',
+                                   'email' : 'me@email.com' },
+                      'reviews' : [
+                            { 'reviewer' : { 'name' : 'Rev. Name',
+                                             'email' : 'rev@email.com' },
+                              'type' : 'superreview',
+                              'result' : '+'
+                            },
+                            { ... }
+                        ]
+                    },
+                    { ... }
+                ]
+        }
     """
     def run(self):
         while(1):
@@ -367,9 +377,20 @@ class SearchThread(threading.Thread):
                         log.DEBUG)
                 patches = get_patchset(patchset.bug_id, patchset.try_run,
                                        patchset.patchList())
+                # get branch information so that message can contain branch_url
+                branch = BranchQuery(Branch(name=patchset.branch))
+                if not branch:
+                    # error, branch non-existent
+                    log_msg('ERROR: Could not find %s in branches table.' % (patchset.branch))
+                    db.PatchSetDelete(patchset)
+                    continue
                 message = { 'job_type':'patchset','bug_id':patchset.bug_id,
+                        'branch_url':branch.repo_url,
                         'branch':patchset.branch, 'try_run':patchset.try_run,
                         'patchsetid':patchset.id, 'patches':patches }
+                if patchset.try_run == 1:
+                    tb = BranchQuery(Branch(name='try'))
+                    message['push_url'] = branch.repo_url
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])
                 patchset.push_time = datetime.utcnow()
