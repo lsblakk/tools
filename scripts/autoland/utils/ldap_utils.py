@@ -1,5 +1,6 @@
 import ldap
 import json
+import urllib2
 
 class ldap_util():
     def __init__(self, host, port, bind_dn='', password=''):
@@ -85,4 +86,20 @@ class ldap_util():
         elif result == []:
             return []
         return result[1]
+
+    def get_branch_permissions(self, branch):
+        """
+        Queries http://hg.mozilla.org/repo-group?repo=/releases/%branch%
+        for the permission level on that branch.
+            eg. scm_level_3
+        """
+        url = 'http://hg.mozilla.org/repo-group?repo=/%s' % (branch)
+        req = urllib2.Request(url)
+        result = urllib2.urlopen(req)
+        data = result.read()
+        data = data[:-1]
+        if data.find('is not an hg repository') > 0 or \
+                data.find('Need a repository') > 0:
+            data = None
+        return data
 

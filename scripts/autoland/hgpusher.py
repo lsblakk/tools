@@ -70,7 +70,7 @@ def has_valid_header(filename):
             break
     return False
 
-def has_sufficient_permissions(patches, try_run):
+def has_sufficient_permissions(patches, branch):
     """
     Searches LDAP to see if any of the users (author, reviewers) have
     sufficient LDAP permissions.
@@ -87,12 +87,9 @@ def has_sufficient_permissions(patches, try_run):
             email = []
         return email and ldap.is_member_of_group(email, group)
 
-    if try_run:
-        # Need level 1 for push to try
-        group = 'scm_level_1'
-    else:
-        # Otherwise, need level 3
-        group = 'scm_level_3'
+    group = ldap.get_branch_permissions(branch)
+    if group == None:
+        return False
 
     for patch in patches:
         found = False
@@ -135,17 +132,22 @@ def process_patchset(data):
     active_repo = os.path.join(config['work_dir'],
                     'active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
-    if try_run:
-        remote = '%s/try' % (config['hg_base_url'])
-    else:
-        remote = '%s%s' % (config['hg_base_url'], data['branch'])
+    if not 'branch_url' in data:
+        # TODO: Log bad message
+        return False
+    push_url = data['branch_url']
+    if try_run and not 'push_url' in data:
+        # TODO: Log bad message...
+        return False
+    if 'push_url' in data:
+        push_url = data['push_url']
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s %s\n\tDestination: %s'
             % (', '.join(map(lambda x: x['id'], data['patches'])), data['branch'],
-               ('try' if try_run else ''), remote )]
+               ('try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
-        clone_branch(data['branch'])
+        clone_branch(data['branch'], data['branch_url'])
     def apply_patchset(dir, attempt):
         print "attempt #%s" % (attempt)
         for patch in data['patches']:
@@ -179,7 +181,7 @@ def process_patchset(data):
                 raise RETRY
         return True
 
-    if not has_sufficient_permissions(data['patches'], try_run):
+    if not has_sufficient_permissions(data['patches'], data['branch']):
         msg = 'Insufficient permissions to push to %s' \
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
@@ -188,13 +190,13 @@ def process_patchset(data):
         bz.publish_comment('\n'.join(comment), data['bug_id'])
         return False
 
-    if not clone_branch(data['branch']):
+    if not clone_branch(data['branch'], data['branch_url']):
             return False
 
     try:
         retry(apply_and_push, cleanup=cleanup_wrapper,
                 retry_exceptions=(RETRY,),
-                args=(active_repo, remote, apply_patchset, 1),
+                args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
                             ssh_key=config['hg_ssh_key']))
         revision = get_revision(active_repo)
@@ -203,7 +205,7 @@ def process_patchset(data):
         msg = 'Could not apply and push patchset:\n%s' % (error)
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
-        log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        log_msg('commenting "%s" to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         bz.publish_comment('\n'.join(comment), data['bug_id'])
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
@@ -225,11 +227,11 @@ def process_patchset(data):
     bz.publish_comment('\n'.join(comment), data['bug_id'])
     return revision
 
-def clone_branch(branch):
+def clone_branch(branch, branch_url):
     """
     Clone tip of the specified branch.
     """
-    remote = '%s%s' % (config['hg_base_url'], branch)
+    remote = branch_url
     # Set up the clean repository if it doesn't exist,
     # otherwise, it will be updated.
     clean = os.path.join(config['work_dir'], 'clean')
@@ -275,7 +277,7 @@ def valid_job_message(message):
     This also ensures that the patchset has the correct data.
     """
     if not valid_dictionary_structure(message,
-            ['bug_id','branch','try_run','patches']):
+            ['bug_id','branch','branch_url','try_run','patches']):
         log_message('Invalid message.')
         return False
     for patch in message['patches']:
@@ -313,7 +315,7 @@ def message_handler(message):
             # comment?
             return
 
-        clone_revision = clone_branch(data['branch'])
+        clone_revision = clone_branch(data['branch_url'], data['branch'])
         if clone_revision == None:
             # Handle clone error
             log_msg('[HgPusher] Clone error...')
