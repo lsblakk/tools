@@ -97,7 +97,11 @@ class mq_util():
         """
         assert callable(callback), 'callback must be a function'
         def callback_wrapper(ch, method, properties, body):
-            message = json.loads(body)
+            try:
+                message = json.loads(body)
+            except ValueError:
+                ch.basic_ack(deliver_tag = method.delivery_tag)
+                return
             # make sure that the message has the expected structure.
             if not 'payload' in message:
                 message = {'payload' : message}

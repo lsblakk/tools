@@ -41,6 +41,8 @@ class TestHgPusher(unittest.TestCase):
     def testValidJobMessage(self):
         msg = { 'bug_id' : '12345',
                 'branch' : 'mozilla-central',
+                'branch_url' : 'ssh://hg.mozilla.org/mozilla-central',
+                'push_url' : 'ssh://hg.mozilla.org/try',
                 'try_run' : 1,
                 'patchsetid' : 5,
                 'patches' : [
@@ -57,7 +59,7 @@ class TestHgPusher(unittest.TestCase):
         subprocess.Popen(['sh', '../gen_hgrepo.sh'])
         sleep(1)
         os.chdir('work_dir')
-        rev = hgpusher.clone_branch('repo')
+        rev = hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo'))
         self.assertTrue(os.access('active/repo', os.F_OK))
         try:
             self.assertNotEqual(rev, None)
@@ -70,7 +72,7 @@ class TestHgPusher(unittest.TestCase):
 
     def testCloneBranchFail(self):
         os.chdir('work_dir')
-        rev = hgpusher.clone_branch('bad_repo')
+        rev = hgpusher.clone_branch('bad_repo', os.path.join(test_dir, 'bad_repo'))
         self.assertFalse(os.access('active/repo', os.F_OK))
         self.assertEquals(rev, None)
         os.chdir(test_dir)
@@ -80,10 +82,13 @@ class TestHgPusher(unittest.TestCase):
         sleep(1)
         print "RUNNING TEST"
         os.chdir('work_dir')
-        hgpusher.clone_branch('repo')
+        hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo'))
         os.chdir(test_dir)
+        branch_url = os.path.join(test_dir, 'repo/')
+        push_url = os.path.join(test_dir, 'try/')
         should_pass = \
-               [{ 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 1,  # Push to try, Author & review only have scm_level_1
+               [{ 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,  # Push to try, Author & review only have scm_level_1
+                  'branch_url' : branch_url, 'push_url' : push_url,
                   'patchsetid' : 5,
                 'patches' :
                 [{ 'id' : 'hello_patch.patch',
@@ -93,7 +98,8 @@ class TestHgPusher(unittest.TestCase):
                }]
 
         should_fail = \
-               [{ 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 0,  # Push to branch, Author/Review have no access
+               [{ 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 0,  # Push to branch, Author/Review have no access
+                   'branch_url' : branch_url,
                   'patchsetid' : 5,
                 'patches' :
                 [{ 'id' : 'hello_patch.patch',
@@ -101,7 +107,9 @@ class TestHgPusher(unittest.TestCase):
                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgpr@mozilla.com' } } ]
                     }]
                },
-                { 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 1,
+                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,
+                  'branch_url' : branch_url,
+                  'push_url' : push_url,
                   'patchsetid' : 5,
                   'patches' :
                   [{ 'id' : 'dne.patch',    # dne.patch doesn't exist
@@ -109,19 +117,33 @@ class TestHgPusher(unittest.TestCase):
                      'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'mjessome@mozilla.com' }} ]
                   }]
                 },
-                { 'branch' : 'repo', 'bug_id' : '10411', 'try_run' : 0,
+                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 0,
                   'patchsetid' : 5,
                   'patches' :
                   [{ 'id' : 'hello_patch.diff', # invalid header
                      'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
                      'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgp@moz.com' }}]
                      }]
+                },
+                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,
+                  'branch_url' : branch_url,
+                  'patchsetid' : 5,
+                  'patches' :
+                  [{ 'id' : 'hello_patch.patch',
+                     'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
+                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgp@moz.com' }}]
+                     }]
+
                 }]
         os.chdir('work_dir')
         with mock.patch('hgpusher.bz.get_patch') as get_patch:
+            perms = ['scm_level_1', 'scm_level_1', 'scm_level_1', 'scm_level_3', 'scm_level_1']
             def send_message(x, y, routing_keys=[]):
                 return
+            def get_branch_permissions(branch):
+                return perms.pop()
             hgpusher.mq.send_message = send_message
+            hgpusher.ldap.get_branch_permissions = get_branch_permissions
             # Push a single patch
             for data in should_pass:
                 get_patch.return_value = \
@@ -147,16 +169,16 @@ class TestHgPusher(unittest.TestCase):
         p = [ { 'author' : { 'email' : 'bad@email.com'},
                 'reviews' : [ { 'reviewer' : { 'email' : 'mjessome@mozilla.com' } } ]
                     } ]
-        self.assertTrue(hgpusher.has_sufficient_permissions(p, True))
-        self.assertFalse(hgpusher.has_sufficient_permissions(p, False))
+        self.assertTrue(hgpusher.has_sufficient_permissions(p, 'try'))
+        self.assertFalse(hgpusher.has_sufficient_permissions(p, 'mozilla-central'))
         p = [ { 'author' : { 'email' : 'mjessome@mozilla.com'},
             'reviews' : [ { 'reviewer' : { 'email' : 'bad@email.com' } } ] }]
-        self.assertTrue(hgpusher.has_sufficient_permissions(p, True))
-        self.assertFalse(hgpusher.has_sufficient_permissions(p, False))
+        self.assertTrue(hgpusher.has_sufficient_permissions(p, 'try'))
+        self.assertFalse(hgpusher.has_sufficient_permissions(p, 'mozilla-central'))
         p = [ { 'author' : { 'email' : 'bad@email.com'},
                 'reviews' : [ { 'reviewer' : { 'email' : 'bad@email.com' } } ] }]
-        self.assertFalse(hgpusher.has_sufficient_permissions(p, True))
-        self.assertFalse(hgpusher.has_sufficient_permissions(p, False))
+        self.assertFalse(hgpusher.has_sufficient_permissions(p, 'try'))
+        self.assertFalse(hgpusher.has_sufficient_permissions(p, 'mozilla-central'))
 
     def testRunHg(self):
         (out, err, rc) = hgpusher.run_hg(['help'])
@@ -204,7 +226,7 @@ class TestHgPusher(unittest.TestCase):
         rev = []
         os.chdir('work_dir')
         for i in range(2):
-            rev.append(hgpusher.clone_branch('repo'))
+            rev.append(hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo')))
             try:
                 self.assertNotEqual(rev, None)
             except AssertionError:

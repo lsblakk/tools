@@ -4,10 +4,14 @@ import tempfile
 import json
 import mock
 from socket import error as sockerr
+import subprocess
 # Autoland imports
 sys.path.append('..')
 from utils import mq_utils
+import time
 
+rmq = subprocess.Popen(['rabbitmq-server', '-detached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+time.sleep(10) # Allow for the server to start
 class TestMqUtils(unittest.TestCase):
     def setUp(self):
         self.mq = mq_utils.mq_util()
