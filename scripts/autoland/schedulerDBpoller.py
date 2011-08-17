@@ -190,7 +190,7 @@ class SchedulerDBPoller():
         """ Search buildrequest comments for try syntax and query autoland_db about a revision returns type as "try", "auto", or None
     
         try: if "try: --post-to-bugzilla" is present in the comments of a buildrequest
-        auto: if "try: " is NOT present, and if a check against AutolandDB returns True
+        auto: if a check against AutolandDB returns True
         None: if it's not "try" and AutolandDB isn't tracking it """
     
         type = None
@@ -203,7 +203,7 @@ class SchedulerDBPoller():
                 else:
                     if 'try: ' in comments:
                         type = "try"
-        if type == None and self.autoland_db.AutolandQuery(revision):
+        if self.autoland_db.AutolandQuery(revision):
             type = "auto"
         return type
     
@@ -466,7 +466,7 @@ Results (out of %d total builds):\n""" % (revision, revision, report['total_buil
             # It's a try run but no bug number(s) gets discarded with log note for debugging
             elif info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) == 0 and self.verbose:
                 log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
-            # Autoland revision is complete, send message to the BugCommenter queue
+            # Autoland revision is complete, send message to the autoland_queue
             elif info['is_complete'] and info['push_type'] == "auto":
                 if self.verbose:
                     log.debug("Autoland wants to know about %s - message being sent" % revision)
