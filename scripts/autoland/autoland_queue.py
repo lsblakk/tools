@@ -172,7 +172,7 @@ def bz_search_handler():
     Search handler, for the moment, only supports push to try,
     and then to branch. It cannot push directly to branch.
     """
-    bugs = bz.get_matching_bugs('whiteboard', '[autoland.*]')
+    bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
         print bug_id, tag
@@ -371,6 +371,7 @@ class SearchThread(threading.Thread):
             next = time.time() + 120
             while time.time() < next:
                 patchset = db.PatchSetGetNext()
+                if patchset == None: break
                 if len(patchset) > 1:
                     patchset = patchset[0]
                 log_msg('Pulled patchset %s out of the queue' % (patchset),

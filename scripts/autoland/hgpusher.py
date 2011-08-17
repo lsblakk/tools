@@ -214,14 +214,14 @@ def process_patchset(data):
     if try_run:
         # comment to bug with link to the try run on self-serve
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
-                % (revision, os.path.join(config['self_serve'],
+                % (revision, os.path.join(config['self_serve_url'],
                                           'try/rev/%s' % (revision))) )
     else:
         comment.append('Successfully applied and pushed patchset.\n\tRevision: %s\n\tBranch: %s\n\tPatches: %s'
                 % (revision, data['branch'],
                    ', '.join(map(lambda x: x['id'], data['patches']))))
         comment.append('To monitor the commit, see: %s'
-                % (os.path.join(config['self_serve'],
+                % (os.path.join(config['self_serve_url'],
                    '%s/rev/%s' % (data['branch'], revision))))
     log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
     bz.publish_comment('\n'.join(comment), data['bug_id'])
