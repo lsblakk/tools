@@ -236,8 +236,8 @@ class SchedulerDBPoller():
 
         message = """Try run for %s is complete.
 Detailed breakdown of the results available here:
-    http://tbpl.mozilla.org/?tree=Try&rev=%s
-Results (out of %d total builds):\n""" % (revision, revision, report['total_builds'])
+    http://tbpl.allizom.org/?tree=%s&usebuildbot=1&rev=%s
+Results (out of %d total builds):\n""" % (revision, self.branch.title(), revision, report['total_builds'])
         for key, value in report.items():
             if value > 0 and key != 'total_builds':
                 message += "    %s: %d\n" % (key, value)

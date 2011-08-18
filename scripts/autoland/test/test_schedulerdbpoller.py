@@ -96,7 +96,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         report = self.poller.CalculateResults(buildrequests)
         message = self.poller.GenerateResultReportMessage(revision, report)
-        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
+        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
     def testLoadCacheNoFile(self):
         revisions = self.poller.LoadCache(FILENAME)
@@ -155,7 +155,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testPollByRevision(self):
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
     def testPollByTimeRange(self):
         incomplete = self.poller.PollByTimeRange(None, None)
