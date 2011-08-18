@@ -21,7 +21,7 @@ print config
 bz = bz_utils.bz_util(config['bz_api_url'], config['bz_attachment_url'],
         config['bz_username'], config['bz_password'])
 mq = mq_utils.mq_util()
-db = DBHandler('mysql:///autoland')
+db = DBHandler(config['databases_autoland_db_url'])
 
 def log_msg(message, log_to=log.error):
     """
