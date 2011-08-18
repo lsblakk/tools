@@ -384,7 +384,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 if has_revision and not post:
                     log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
-                    if message != None and dry_run == False:
+                    if message != None and self.dry_run == False:
                         # Put comment in the bug
                         if self.dry_run:
                             log.debug("DRY_RUN: Posting to https://bugzilla.mozilla.org/show_bug.cgi?id=%s " % bug)
@@ -452,7 +452,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                                 log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                         else:
                             # Comment in the bug
-                            r = self.bz.publish_comment(message, bug)
+                            r = self.bz.publish_comment(rev_report[revision]['message'], bug)
                             if r and not has_revision:
                                 self.WriteToBuglist(revision, bug)
                                 log.debug("BZ POST SUCCESS bugs:%s" % info['bugs'])
