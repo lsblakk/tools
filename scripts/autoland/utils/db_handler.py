@@ -1,4 +1,7 @@
-import json
+try:
+    import json
+except ImportError:
+    import simplejson as json
 from sqlalchemy import MetaData, create_engine
 from sqlalchemy import outerjoin, or_, select, not_, and_
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \

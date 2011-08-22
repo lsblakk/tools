@@ -54,7 +54,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
     # TODO - make this work with the bz_util class
     def testGetBugFromComments(self):
         message = "try: -b do -p linux,linuxqt,linux64,macosx64,win32,macosx -u reftest,crashtest,mochitests -t none --post-to-bugzilla b664095"
-        bugs = bz_utils.bugs_from_comments(message)
+        bugs = self.poller.bz.bugs_from_comments(message)
         self.assertEquals(bugs, [664095])
 
     # Push type should be try because commit message has 'try: ' 
@@ -155,7 +155,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testPollByRevision(self):
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
     def testPollByTimeRange(self):
         incomplete = self.poller.PollByTimeRange(None, None)
@@ -210,16 +210,12 @@ if __name__ == '__main__':
 
 """
 TODO:
-** Dry-run mode doesn't actually work: I want to see what would get posted - do not actually write to the bug, do not actually write to postedbugs.log
 ** Make a note in the bug comment message when builds were cancelled via self-serve
-** Retry when there's only 1 or 2 warnings on tests - send again via self-serve and mark incomplete so as to wait for results
 ** when writing incomplete to the file, keep the oldest timestamp for that revisions?
     ie: don't just write to incomplete everytime with the same 10 min interval datetime
     for each line (loaded time setting in the rev_report?)
     *** Write a file for each revision and just append the status line so there's history,
         then delete the revision's file when it is complete
-** make a verbose mode
 ** more tests - there must be stuff missing
-** incorporate mq_util - send a message if autoland & complete
 ** Make it impossible to override the cache file on cruncher with one in the repo -- don't check in any cache files!!!
 """
