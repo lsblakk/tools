@@ -6,7 +6,7 @@ import logging as log
 import logging.handlers
 
 from utils import mq_utils, bz_utils, common
-from utils.db_handler import DBHandler, PatchSet
+from utils.db_handler import DBHandler, PatchSet, Branch
 
 base_dir = common.get_base_dir(__file__)
 
@@ -245,6 +245,9 @@ def message_handler(message):
         }
     """
     msg = message['payload']
+    if not 'type' in msg:
+        log_msg('Got bad mq message: %s' % (msg))
+        return
     if msg['type'] == 'job':
         if 'try_run' not in msg:
             msg['try_run'] = 1

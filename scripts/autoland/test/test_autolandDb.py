@@ -4,7 +4,7 @@ import datetime
 sys.path.append('..')
 from utils.db_handler import Branch, PatchSet, DBHandler
 
-TEST_DB = 'sqlite:///test/autoland.sqlite'
+TEST_DB = 'sqlite:///autoland.sqlite'
 
 class TestAutolandDbHandler(unittest.TestCase):
     def setUp(self):
