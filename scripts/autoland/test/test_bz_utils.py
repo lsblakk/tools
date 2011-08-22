@@ -80,7 +80,7 @@ class TestBzUtils(unittest.TestCase):
         dt = str(datetime.datetime.utcnow())
         random.shuffle(comment)
         comment = str(comment) + dt
-        self.assertTrue(bz.publish_comment(comment, bug))
+        self.assertTrue(bz.notify_bug(comment, bug))
         self.assertTrue(bz.has_comment(comment, bug))
         self.assertTrue(bz.has_recent_comment(dt, bug))
 

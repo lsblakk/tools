@@ -1,5 +1,8 @@
 import sys, os, traceback, urllib2, urllib, re
-import json
+try:
+    import json
+except ImportError:
+    import simplejson as json
 from argparse import ArgumentParser
 import ConfigParser
 import utils.bz_utils as bz_utils
@@ -183,7 +186,7 @@ class SchedulerDBPoller():
             br = value.to_dict()
             for comment in br['comments']:
                 if bugs == []:
-                    bugs = bz_utils.bugs_from_comments(comment)
+                    bugs = self.bz.bugs_from_comments(comment)
         return bugs
     
     def ProcessPushType(self, revision, buildrequests):
@@ -242,7 +245,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             if value > 0 and key != 'total_builds':
                 message += "    %s: %d\n" % (key, value)
         if author != None:
-            message += "Builds available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s" % locals()
+            message += "Builds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s" % locals()
         return message
     
     def CheckBugCommentTimeout(self, revision, filename=POSTED_BUGS):
@@ -302,7 +305,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 for revision, results in incomplete.items():
                     f.write("%s|%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), revision, results))
                 f.close()
-                if self.verbos:
+                if self.verbose:
                     log.debug("WROTE TO %s: %s" % (filename,incomplete))
             except:
                 traceback.print_exc(file=sys.stdout)
@@ -438,22 +441,22 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             # For completed buildruns determine handling for the completed revision
             if info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) > 0:
                 for bug in info['bugs']:
-                    has_revision, post = self.CheckBugCommentTimeout(revision)
+                    posted = self.bz.has_recent_comment(revision, bug)
                     if self.dry_run:
-                        if has_revision and not post:
+                        if posted:
                             log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                         else:
                             log.debug("DRY-RUN: POST TO BUG: %s\n%s" % (bug, info['message']))
                             if not has_revision:
                                 self.WriteToBuglist(revision, bug)
                     else:
-                        if has_revision and not post:
+                        if posted:
                             if self.verbose:
                                 log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                         else:
                             # Comment in the bug
-                            r = self.bz.publish_comment(rev_report[revision]['message'], bug)
-                            if r and not has_revision:
+                            r = self.bz.notify_bug(rev_report[revision]['message'], bug)
+                            if r:
                                 self.WriteToBuglist(revision, bug)
                                 log.debug("BZ POST SUCCESS bugs:%s" % info['bugs'])
                             elif not r:
@@ -522,7 +525,7 @@ if __name__ == '__main__':
     if options.revision:
         poller = SchedulerDBPoller(options.branch, options.config, options.flagcheck, options.dry_run, options.verbose)
         result, posted_to_bug = poller.PollByRevision(options.revision)
-        if self.verbose:
+        if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
     else:
         # Validation on the timestamps provided
@@ -538,7 +541,7 @@ if __name__ == '__main__':
         else:
             poller = SchedulerDBPoller(options.branch, options.config, options.flagcheck, options.dry_run, options.verbose)
             incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
-            if self.verbose:
+            if options.verbose:
                 log.debug("Time range run complete: INCOMPLETE %s" % incomplete)
 
     sys.exit(0)

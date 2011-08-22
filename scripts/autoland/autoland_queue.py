@@ -134,12 +134,12 @@ def get_patchset(bug_id, try_run, patches=[]):
             else:   # push to branch
                 if not reviews: # No reviews, fail
                     # comment that no reviews on patch x
-                    bz.publish_comment('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']))
+                    bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']))
                     return None
                 for review in reviews:
                     if review['result'] != '+': # Bad review, fail
                         # comment bad review
-                        bz.publish_comment('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']))
+                        bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']))
                         return None
                     review['reviewer'] = bz.get_user_info(review['reviewer'])
                 patch['reviews'] = reviews
@@ -151,14 +151,14 @@ def get_patchset(bug_id, try_run, patches=[]):
         # Some specified patches left over
         # comment that it couldn't get all specified patches
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
-        c = bz.publish_comment('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))))
+        c = bz.notify_bug('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))))
         if c:
             log_msg('Comment publised to bug %s' % (bug_id), log.DEBUG)
         else:
             log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
     if len(patchset) == 0:
-        c = bz.publish_comment('Autoland Failure\nThe bug has no patches posted, there is nothing to push.')
+        c = bz.notify_bug('Autoland Failure\nThe bug has no patches posted, there is nothing to push.')
         if c:
             log_msg('Commend published to bug %s' % (bug_id), log.DEBUG)
         else:
@@ -181,13 +181,13 @@ def bz_search_handler():
             # Strange that it showed up if None
             continue
         elif not valid_autoland_tag(tag):
-            bz.publish_comment('Poorly formed whiteboard tag %s.' %(tag))
+            bz.notify_bug('Poorly formed whiteboard tag %s.' %(tag))
             log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue
         branch = get_branch_from_tag(tag)
         if db.BranchQuery(Branch(name=branch)) == None:
-            bz.publish_comment('Bad autoland tag: branch %s does not exist.' % (branch))
+            bz.notify_bug('Bad autoland tag: branch %s does not exist.' % (branch))
             log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue

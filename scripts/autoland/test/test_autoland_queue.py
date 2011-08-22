@@ -62,13 +62,13 @@ class TestAutolandQueue(unittest.TestCase):
 
     def testGetPatchSet(self):
         with mock.patch('utils.bz_utils.bz_util.request') as bz_rq:
-            with mock.patch('utils.bz_utils.bz_util.publish_comment') as bz_pc:
-                def publish_comment(comment):
+            with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
+                def notify_bug(comment):
                     print comment
                     return False
                 def sf(path):
                     return json.loads(open(return_values.pop(), 'r').read())
-                bz_pc.side_effect = publish_comment
+                bz_pc.side_effect = notify_bug
                 bz_rq.side_effect = sf
                 return_values = []
 
@@ -161,7 +161,7 @@ class TestAutolandQueue(unittest.TestCase):
                         '[autoland:12345,23456]','[autoland-try:123]',
                         '[bad-autoland-tag]','[autoland\in:valid]']:
                     bugs.append((id, tag))
-            with mock.patch('utils.bz_utils.bz_util.publish_comment') as bz_pc:
+            with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
                 def pc(comment):
                     print comment
                     return True

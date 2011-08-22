@@ -187,7 +187,7 @@ def process_patchset(data):
         log_msg(msg)
         comment.append(msg)
         log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-        bz.publish_comment('\n'.join(comment), data['bug_id'])
+        bz.notify_bug('\n'.join(comment), data['bug_id'])
         return False
 
     if not clone_branch(data['branch'], data['branch_url']):
@@ -206,7 +206,7 @@ def process_patchset(data):
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
         log_msg('commenting "%s" to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-        bz.publish_comment('\n'.join(comment), data['bug_id'])
+        bz.notify_bug('\n'.join(comment), data['bug_id'])
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
         return False
@@ -224,7 +224,7 @@ def process_patchset(data):
                 % (os.path.join(config['self_serve_url'],
                    '%s/rev/%s' % (data['branch'], revision))))
     log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-    bz.publish_comment('\n'.join(comment), data['bug_id'])
+    bz.notify_bug('\n'.join(comment), data['bug_id'])
     return revision
 
 def clone_branch(branch, branch_url):
