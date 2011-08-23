@@ -12,7 +12,7 @@ sys.path.append('..')
 import hgpusher
 from utils import mq_utils
 
-test_dir = os.path.join(os.getcwd(), 'test/')
+test_dir = os.path.join(os.getcwd(), 'test_hgpusher/')
 if os.access(test_dir, os.F_OK):
     shutil.rmtree(test_dir)
 
