@@ -6,7 +6,7 @@ import logging as log
 import logging.handlers
 
 from utils import mq_utils, bz_utils, common
-from utils.db_handler import DBHandler, PatchSet
+from utils.db_handler import DBHandler, PatchSet, Branch
 
 base_dir = common.get_base_dir(__file__)
 
@@ -21,7 +21,7 @@ print config
 bz = bz_utils.bz_util(config['bz_api_url'], config['bz_attachment_url'],
         config['bz_username'], config['bz_password'])
 mq = mq_utils.mq_util()
-db = DBHandler('mysql:///autoland')
+db = DBHandler(config['databases_autoland_db_url'])
 
 def log_msg(message, log_to=log.error):
     """
@@ -245,6 +245,9 @@ def message_handler(message):
         }
     """
     msg = message['payload']
+    if not 'type' in msg:
+        log_msg('Got bad mq message: %s' % (msg))
+        return
     if msg['type'] == 'job':
         if 'try_run' not in msg:
             msg['try_run'] = 1

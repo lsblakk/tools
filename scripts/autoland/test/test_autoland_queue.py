@@ -178,6 +178,7 @@ class TestAutolandQueue(unittest.TestCase):
                             def psi(ps):
                                 db.append(ps)
                             db_psi.side_effect = psi
+                            DBHandler.BranchQuery = mock.Mock(return_value=True)
                             bz_search_handler()
         jobs = []
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
