@@ -373,7 +373,8 @@ class PatchSet(object):
         import datetime
         self.id = id
         self.bug_id = bug_id
-        self.patches = patches
+        # Patches needs to be a string so that sqlalchemy can insert it
+        self.patches = str(patches)
         self.revision = str(revision) if revision != False else revision
         self.branch = str(branch) if branch != False else branch
         self.try_run = try_run
@@ -389,9 +390,10 @@ class PatchSet(object):
         return self.toDict().items()
 
     def patchList(self):
+	import re
         if not self.patches:
             return []
-        return self.patches
+        return re.split(',', self.patches)
 
     def toDict(self):
         d = {}

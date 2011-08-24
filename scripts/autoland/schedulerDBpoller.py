@@ -392,7 +392,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                         if self.dry_run:
                             log.debug("DRY_RUN: Posting to https://bugzilla.mozilla.org/show_bug.cgi?id=%s " % bug)
                         else:
-                            r = self.bz.publish_comment(message, bug)
+                            r = self.bz.notify_bug(message, bug)
                             if r and not has_revision:
                                 self.WriteToBuglist(revision, bug)
                                 log.debug("BZ POST SUCCESS r: %s bug: https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % (r, bug))
