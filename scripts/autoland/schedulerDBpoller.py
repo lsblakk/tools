@@ -30,7 +30,7 @@ log.addHandler(handler)
 
 class SchedulerDBPoller():
 
-    def __init__(self, branch, config, flagcheck=True,
+    def __init__(self, branch, cache_dir, config, flagcheck=True,
                 user=None, password=None, dry_run=False, verbose=False, cache_filename=None):
 
         self.config = ConfigParser.ConfigParser()
@@ -47,6 +47,7 @@ class SchedulerDBPoller():
 
         self.self_serve_api_url = self.config.get('self_serve', 'url')
         self.branch = branch
+        self.cache_dir = cache_dir
         self.flagcheck = flagcheck
         self.dry_run = dry_run
         self.verbose = verbose
@@ -276,37 +277,49 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 f.close()
                 if self.verbose:
                     log.debug("WROTE TO %s: %s" % (filename, revision))
+
+                # clear out the cache file so we're not tracking it anymore
+                cache_file = os.path.join(self.cache_dir, revision)
+                if os.path.exists(cache_file):
+                    os.remove(cache_file)
+                    if self.verbose:
+                        log.debug("REMOVING %s CACHE FILE" % cache_file)
             except:
                 traceback.print_exc(file=sys.stdout)
         
     
-    def LoadCache(self, filename):
-        """Search for existing cache file for revision, return dict of revisions in the file"""
+    def LoadCache(self):
+        """Search for existing cache dir, return dict of revisions (filenames) in the dir"""
         revisions = {}
         if self.verbose:
             log.debug("Checking for existing cache file...")
-        if os.path.isfile(filename):
-            f = open(filename, 'r')
-            for line in f.readlines():
-                (time,revision,status) = line.split("|")
+            
+        if os.path.isdir(self.cache_dir):
+            cache_revs = os.listdir(self.cache_dir)
+            for revision in cache_revs:
                 revisions[revision] = {}
-            f.close()
             if self.verbose:
-                log.debug("READ FROM %s: %s" % (filename, revisions))
+                log.debug("REVISIONS IN CACHE %s" % (filename, revisions))
         return revisions
     
-    def WriteToCache(self, filename, incomplete):
-        """ Writes a dictionary of incomplete builds' info to the specified filename."""
-        if self.dry_run:
-            log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, incomplete))
+    def WriteToCache(self, incomplete):
+        """ Writes a results of incomplete build results to file, named by revision"""
+
+        if not os.path.isdir(self.cache_dir):
+            os.mkdir(self.cache_dir)
         else:
             try:
-                f = open(filename, 'w')
                 for revision, results in incomplete.items():
-                    f.write("%s|%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), revision, results))
-                f.close()
-                if self.verbose:
-                    log.debug("WROTE TO %s: %s" % (filename,incomplete))
+                    filename = os.path.join(self.cache_dir, revision)
+                    if self.dry_run:
+                        log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, results))
+                    else:
+                        f = open(filename, 'a')
+                        f.write("%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
+                        if self.verbose:
+                            log.debug("WROTE TO %s: %s" % (filename, results))
+                        f.close()
+                
             except:
                 traceback.print_exc(file=sys.stdout)
     
@@ -412,7 +425,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
         rev_report = self.GetRevisions(starttime,endtime)
         # Add in any revisions currently in cache for a complete list to poll schedulerdb about
         if os.path.exists(self.cache_filename):
-            rev_report.update(self.LoadCache(self.cache_filename))
+            rev_report.update(self.LoadCache())
     
         # Check each revision's buildrequests to determine: completeness, type
         for revision in rev_report.keys():
@@ -486,7 +499,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             elif info['is_complete'] and info['push_type'] == None and self.verbose:
                 log.debug("Nothing to do for %s - no one cares about it" % revision)
 
-        self.WriteToCache(self.cache_filename, incomplete)
+        self.WriteToCache(incomplete)
         return incomplete
 
 
@@ -502,6 +515,7 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--config-file", dest="config", help="config file to use for accessing db", required=True)
     parser.add_argument("-u", "--user", dest="user", help="username for buildapi ldap posting", required=True)
     parser.add_argument("-p", "--password", dest="password", help="password for buildapi ldap posting", required=True)
+    parser.add_argument("-h", "--cache-dir", dest="cache_dir", help="working dir for tracking incomplete revisions")
     parser.add_argument("-r", "--revision", dest="revision", help="a specific revision to poll")
     parser.add_argument("-s", "--start-time", dest="starttime", help="unix timestamp to start polling from")
     parser.add_argument("-e", "--end-time", dest="endtime", help="unix timestamp to poll until")
@@ -511,6 +525,7 @@ if __name__ == '__main__':
 
     parser.set_defaults(
         branch="try",
+        cache_dir="cache",
         revision=None,
         starttime = time() - POLLING_INTERVAL,
         endtime = time(),
@@ -523,7 +538,7 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if options.revision:
-        poller = SchedulerDBPoller(options.branch, options.config, options.flagcheck, options.dry_run, options.verbose)
+        poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.flagcheck, options.dry_run, options.verbose)
         result, posted_to_bug = poller.PollByRevision(options.revision)
         if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
@@ -539,7 +554,7 @@ if __name__ == '__main__':
             log.debug("Too large of a time interval between start and end times, please try a smaller polling interval")
             sys.exit(1)
         else:
-            poller = SchedulerDBPoller(options.branch, options.config, options.flagcheck, options.dry_run, options.verbose)
+            poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.flagcheck, options.dry_run, options.verbose)
             incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
             if options.verbose:
                 log.debug("Time range run complete: INCOMPLETE %s" % incomplete)

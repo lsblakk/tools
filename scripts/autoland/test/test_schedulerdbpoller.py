@@ -1,4 +1,4 @@
-import unittest, os, sys
+import unittest, os, sys, shutil
 from time import time
 import ConfigParser
 sys.path.append('..')
@@ -8,8 +8,8 @@ from schedulerDBpoller import SchedulerDBPoller
 from utils.db_handler import DBHandler
 
 CONFIG_FILE = 'test/test_config.ini'
-FILENAME = "test_cache"
 BUGLIST="test_buglist"
+CACHE_DIR="test_cache"
 # These are all the revisions in the scheduler.sqlite that has been generated for this
 # test suite.  Some of them have had their content altered from the real schedulerdb
 # to provide alternate test data.
@@ -24,10 +24,12 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def setUp(self):
         # Clean up from previous runs
-        if os.path.exists(FILENAME):
-            os.remove(FILENAME)
+        if os.path.isdir(CACHE_DIR):
+            shutil.rmtree(CACHE_DIR)
+        if os.path.exists(BUGLIST):
+            os.remove(BUGLIST)
 
-        self.poller = SchedulerDBPoller("try", CONFIG_FILE)
+        self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
         self.maxDiff = None
 
     # Buildrequests that have a number
@@ -51,8 +53,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         bugs = self.poller.GetBugNumbers(buildrequests)
         self.assertEquals(bugs, [9949])
 
-    # Test bz_utils
-    # TODO - make this work with the bz_util class
     def testGetBugFromComments(self):
         message = "try: -b do -p linux,linuxqt,linux64,macosx64,win32,macosx -u reftest,crashtest,mochitests -t none --post-to-bugzilla b664095"
         bugs = self.poller.bz.bugs_from_comments(message)
@@ -65,7 +65,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.ProcessPushType(revision, buildrequests)
         self.assertEquals(type, "try")
- 
+
+    def testPushTypeTryNoFlagcheck(self):
+        revision = '83c09dc13bb8'
+        buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
+        self.poller.flagcheck = False
+        type = self.poller.ProcessPushType(revision, buildrequests)
+        self.assertEquals(type, "try")
+
     # Push type should be None since there is incorrect try syntax in this commit message
     def testPushTypeNone(self):
         revision = '08b6a1ab405b'
@@ -104,13 +111,15 @@ class SchedulerDBPollerTests(unittest.TestCase):
         message = self.poller.GenerateResultReportMessage(revision, report)
         self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
-    def testLoadCacheNoFile(self):
-        revisions = self.poller.LoadCache(FILENAME)
+    def testLoadCacheNoFiles(self):
+        if os.path.isdir(CACHE_DIR):
+            shutil.rmtree(CACHE_DIR)
+        revisions = self.poller.LoadCache()
         self.assertEquals(revisions, {})
 
     def testWriteAndLoadCache(self):
-        self.poller.WriteToCache(FILENAME, {'1234': {}, '2345': {}, '3456': {}})
-        revisions = self.poller.LoadCache(FILENAME)
+        self.poller.WriteToCache({'1234': {}, '2345': {}, '3456': {}})
+        revisions = self.poller.LoadCache()
         self.assertEquals(revisions, {'1234': {}, '2345': {}, '3456': {}})
 
     def testCheckBugCommentTimeout(self):
