@@ -4,7 +4,7 @@ import datetime
 sys.path.append('..')
 from utils.db_handler import Branch, PatchSet, DBHandler
 
-TEST_DB = 'sqlite:///autoland.sqlite'
+TEST_DB = 'sqlite:///test/autoland.sqlite'
 
 class TestAutolandDbHandler(unittest.TestCase):
     def setUp(self):
@@ -16,6 +16,7 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.BranchDelete(Branch(name='mozilla-central'))
         b.id = self.db.BranchInsert(b)  # Insert
         b_query = self.db.BranchQuery(Branch(id=b.id))  # Query
+        print self.db.BranchQuery
         self.assertEqual(b.toDict(), b_query[0].toDict())
         self.db.BranchDelete(b) # Delete
         b_query = self.db.BranchQuery(Branch(id=b.id))
@@ -34,7 +35,9 @@ class TestAutolandDbHandler(unittest.TestCase):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='mozilla-central',
             try_run=1, to_branch=0)
         ps1.id = self.db.PatchSetInsert(ps1)
-        ps_query = self.db.PatchSetQuery(PatchSet(id=ps1.id))[0]
+        ps_query = self.db.PatchSetQuery(PatchSet(id=ps1.id))
+        if ps_query:
+            ps_query = ps_query[0]
         self.assertNotEqual(ps_query.toDict(), None)
         self.db.PatchSetDelete(ps_query)
 
