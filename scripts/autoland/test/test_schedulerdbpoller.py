@@ -1,10 +1,11 @@
 import unittest, os, sys
-sys.path.append('..')
-from schedulerDBpoller import SchedulerDBPoller
-from utils.db_handler import DBHandler
-import utils.bz_utils as bz_utils
 from time import time
 import ConfigParser
+sys.path.append('..')
+import utils.bz_utils as bz_utils
+from autoland_queue import PatchSet
+from schedulerDBpoller import SchedulerDBPoller
+from utils.db_handler import DBHandler
 
 CONFIG_FILE = 'test/test_config.ini'
 FILENAME = "test_cache"
@@ -74,7 +75,12 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     # Push type should be Auto since the revision is being tracked in AutolandDB
     def testPushTypeAutoland(self):
-        revision = 'b8e5f09eead1'
+        revision='b8e5f09eead1'
+        ps1 = PatchSet(revision=revision)
+        ps1.id = self.poller.autoland_db.PatchSetInsert(ps1)
+        ps_query = self.poller.autoland_db.PatchSetQuery(PatchSet(id=ps1.id))[0]
+        print ps_query
+        print ps1.id
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.ProcessPushType(revision, buildrequests)
         self.assertEquals(type, "auto")
@@ -210,6 +216,7 @@ if __name__ == '__main__':
 
 """
 TODO:
+* Makefile & setup script for test environment
 ** Make a note in the bug comment message when builds were cancelled via self-serve
 ** when writing incomplete to the file, keep the oldest timestamp for that revisions?
     ie: don't just write to incomplete everytime with the same 10 min interval datetime

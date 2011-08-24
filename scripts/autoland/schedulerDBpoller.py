@@ -42,8 +42,8 @@ class SchedulerDBPoller():
         self.mq.set_exchange(self.config.get('mq', 'exchange'))
         
         # Set up bz
-        self.bz = bz_utils.bz_util(self.config.get('bz_api', 'url'), None,
-        self.config.get('bz_api', 'username'), self.config.get('bz_api', 'password'))
+        self.bz = bz_utils.bz_util(self.config.get('bz', 'url'), None,
+        self.config.get('bz', 'username'), self.config.get('bz', 'password'))
 
         self.self_serve_api_url = self.config.get('self_serve', 'url')
         self.branch = branch

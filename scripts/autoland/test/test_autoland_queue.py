@@ -45,7 +45,7 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual('moz-cen', get_branch_from_tag('[autoland-moz-cen]'))
 
     def testGetReviews(self):
-        bug = open('bug1.json', 'r').read()
+        bug = open('test/bug1.json', 'r').read()
         bug = json.loads(bug)
         expected = []
         expected.append([])
@@ -75,9 +75,9 @@ class TestAutolandQueue(unittest.TestCase):
                 # Full patch set
                 # Try run = True
                 for i in range(6):
-                    return_values.append('mjessome.json')
-                    return_values.append('lsblakk.json')
-                return_values.append('bug2.json')
+                    return_values.append('test/mjessome.json')
+                    return_values.append('test/lsblakk.json')
+                return_values.append('test/bug2.json')
                 patchset = get_patchset('bug1', try_run=True)
                 self.assertEquals(len(patchset), 6)
                 patches = [531180, 531181, 532000,
@@ -91,9 +91,9 @@ class TestAutolandQueue(unittest.TestCase):
                 # 3 patches of 6
                 # Try run = True
                 for i in range(3):
-                    return_values.append('mjessome.json')
-                    return_values.append('lsblakk.json')
-                return_values.append('bug2.json')
+                    return_values.append('test/mjessome.json')
+                    return_values.append('test/lsblakk.json')
+                return_values.append('test/bug2.json')
                 patches = [531180, 531181, 534107]
                 patchset = get_patchset('bug2', try_run=True, patches=patches)
                 self.assertEqual(len(patchset), len(patches))
@@ -105,7 +105,7 @@ class TestAutolandQueue(unittest.TestCase):
                 # 3 patches that aren't real
                 # Try run = True
                 return_values = []
-                return_values.append('bug2.json')
+                return_values.append('test/bug2.json')
                 patchset = get_patchset('bug3', try_run=True, patches=[1,2,3])
                 self.assertEqual(patchset, None)
 
@@ -113,9 +113,9 @@ class TestAutolandQueue(unittest.TestCase):
                 # Try run = True
                 return_values = []
                 for i in range(2):
-                    return_values.append('mjessome.json')
-                    return_values.append('lsblakk.json')
-                return_values.append('bug2.json')
+                    return_values.append('test/mjessome.json')
+                    return_values.append('test/lsblakk.json')
+                return_values.append('test/bug2.json')
                 patches = [531180, 4, 534042, 9]
                 patchset = get_patchset('bug4', try_run=True, patches=patches)
                 self.assertEqual(patchset, None)
@@ -124,9 +124,9 @@ class TestAutolandQueue(unittest.TestCase):
                 # Try run = False
                 # One patch has no review, another has both + and -
                 return_values = []
-                return_values.append('mjessome.json')
-                return_values.append('mjessome.json')
-                return_values.append('bug1.json')
+                return_values.append('test/mjessome.json')
+                return_values.append('test/mjessome.json')
+                return_values.append('test/bug1.json')
                 patchset = get_patchset('bug5', try_run=False)
                 self.assertEqual(patchset, None)
 
@@ -135,9 +135,9 @@ class TestAutolandQueue(unittest.TestCase):
                 # All non-obsolete patches have review
                 return_values = []
                 for i in range(6):
-                    return_values.append('mjessome.json')
-                    return_values.append('lsblakk.json')
-                return_values.append('bug2.json')
+                    return_values.append('test/mjessome.json')
+                    return_values.append('test/lsblakk.json')
+                return_values.append('test/bug2.json')
                 patchset = get_patchset('bug6', try_run=False)
                 patches = [531180, 531181, 532000,
                            534041, 534042, 534107]
