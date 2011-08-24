@@ -146,7 +146,7 @@ class DBHandler(object):
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
-        if len(rows) == 1:
+        if len(rows) != 0:
             return True
         return False
 
