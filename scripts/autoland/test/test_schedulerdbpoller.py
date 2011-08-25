@@ -1,4 +1,4 @@
-import unittest, os, sys, shutil
+import unittest, os, sys, shutil, mock
 from time import time
 import ConfigParser
 sys.path.append('..')
@@ -24,15 +24,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def setUp(self):
         # Clean up from previous runs
-        if os.path.isdir(CACHE_DIR):
-            shutil.rmtree(CACHE_DIR)
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
 
         self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
+        self.poller.verbose = True
+        self.poller.bz.notify_bug = mock.Mock(return_value=1)
         self.maxDiff = None
 
-    # Buildrequests that have a number
     def testGetBugNumbers(self):
         bugs = {}
         for revision in REVISIONS:
@@ -58,8 +57,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         bugs = self.poller.bz.bugs_from_comments(message)
         self.assertEquals(bugs, [664095])
 
-    # Push type should be try because commit message has 'try: ' 
-    # TODO check for '--post-to-bugzilla' once that is enabled
     def testPushTypeTry(self):
         revision = '83c09dc13bb8'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
@@ -86,8 +83,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         ps1 = PatchSet(revision=revision)
         ps1.id = self.poller.autoland_db.PatchSetInsert(ps1)
         ps_query = self.poller.autoland_db.PatchSetQuery(PatchSet(id=ps1.id))[0]
-        print ps_query
-        print ps1.id
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.ProcessPushType(revision, buildrequests)
         self.assertEquals(type, "auto")
@@ -111,13 +106,13 @@ class SchedulerDBPollerTests(unittest.TestCase):
         message = self.poller.GenerateResultReportMessage(revision, report)
         self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
-    def testLoadCacheNoFiles(self):
-        if os.path.isdir(CACHE_DIR):
-            shutil.rmtree(CACHE_DIR)
-        revisions = self.poller.LoadCache()
-        self.assertEquals(revisions, {})
-
     def testWriteAndLoadCache(self):
+        incomplete = {'1234': {}, '2345': {}, '3456': {}}
+        if os.path.isdir(CACHE_DIR):
+            revisions = os.listdir(CACHE_DIR)
+            for rev in revisions:
+                if rev not in incomplete.keys():
+                    os.remove(os.path.join(CACHE_DIR,rev))
         self.poller.WriteToCache({'1234': {}, '2345': {}, '3456': {}})
         revisions = self.poller.LoadCache()
         self.assertEquals(revisions, {'1234': {}, '2345': {}, '3456': {}})
@@ -134,12 +129,20 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.poller.WriteToBuglist('1234', '9949', BUGLIST)
         (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
         self.assertTrue(has_revision)
+    
+    def testWriteToBuglistDryRun(self):
+        if os.path.exists(BUGLIST):
+            os.remove(BUGLIST)
+        self.poller.dry_run = True
+        self.poller.WriteToBuglist('1234', '9949', BUGLIST)
+        (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
+        self.assertFalse(has_revision)
 
     def testCalculateBuildRequestStatusComplete(self):
-        revision = '157ac288e589'
+        revision = '9465683dcfe5'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         (results, is_complete) = self.poller.CalculateBuildRequestStatus(buildrequests)
-        self.assertTrue(is_complete)
+        self.assertEquals(is_complete, True)
 
     def testCalculateBuildRequestStatusIncomplete(self):
         revision = '6f8727aab415'
@@ -168,15 +171,43 @@ class SchedulerDBPollerTests(unittest.TestCase):
         revisions = self.poller.GetRevisions()
         self.assertEquals(revisions.keys()[:5],[u'9465683dcfe5', u'163e8764498e', u'72e79e2d4c48', u'aa4cedbd66ab', u'82f950327fa8'])
 
-    def testPollByRevision(self):
+    def testPollByRevisionComplete(self):
         output = self.poller.PollByRevision('83c09dc13bb8')
         self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
+    def testPollByRevisionIncomplete(self):
+        output = self.poller.PollByRevision('6f8727aab415')
+        self.assertEqual((None, False), output)
+
+    def testDryRunPollByRevisionComplete(self):
+        self.poller.dry_run = True
+        output = self.poller.PollByRevision('83c09dc13bb8')
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+
+    def testDryRunPollByRevisionComplete(self):
+        self.poller.dry_run = True
+        output = self.poller.PollByRevision('83c09dc13bb8')
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+
+    def testDryRunPollByRevisionIncomplete(self):
+        self.poller.dry_run = True
+        output = self.poller.PollByRevision('6f8727aab415')
+        self.assertEqual((None, False), output)
+
     def testPollByTimeRange(self):
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
-        # TODO need a mock SelfServeRetry so that this one returns 'retrying'
-        # self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'failure')
+        self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
+        
+
+    def testPollByTimeRangeDryRun(self):
+        self.poller.dry_run = True
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
+        incomplete = self.poller.PollByTimeRange(None, None)
+        self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
+        self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
 
     def testOrangeFactorRetriesWithoutDupes(self):
         # SAMPLE DATA without having duplicate buildernames - test retrying
@@ -184,9 +215,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
         # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
         # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
         # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
+        
+        revision='e6ae55cd2f5d'
+        ps1 = PatchSet(revision=revision)
+        ps1.id = self.poller.autoland_db.PatchSetInsert(ps1)
 
         # TODO: need a mock return of SelfServeRetry so that I can get an incomplete on retry
-        revisions = {'9465683dcfe5': (True, 'failure'), '83c09dc13bb8': (True, 'failure'), '6f8727aab415': (True, 'failure'), 'e6ae55cd2f5d': (True, 'success')}
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
+        revisions = {'83c09dc13bb8': (True, 'failure'), '9465683dcfe5': (False, 'retrying'), 'e6ae55cd2f5d': (True, 'success'), '6f8727aab415': (True, 'failure')}
         orange_revs = {}
         for revision in revisions.keys():
             buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
@@ -210,10 +246,9 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEqual(orange_revs, revisions)
 
     def testSelfServeRetry(self):
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         results = self.poller.SelfServeRetry(4801896)
-        # need a mock class here to return result['status'] == 'OK' {u'status': u'OK', u'request_id': 19354}
-        # currently just returns HTTP Error 401: Authorization Required because the login info isn't checked in
-        self.assertEquals(results, {})
+        self.assertEquals(results, {u'status': u'OK', u'request_id': 19354})
 
     def testOrangeFactorHandling(self):
         revision = '83c09dc13bb8'
@@ -226,12 +261,8 @@ if __name__ == '__main__':
 """
 TODO:
 * Makefile & setup script for test environment
-** Make a note in the bug comment message when builds were cancelled via self-serve
-** when writing incomplete to the file, keep the oldest timestamp for that revisions?
-    ie: don't just write to incomplete everytime with the same 10 min interval datetime
-    for each line (loaded time setting in the rev_report?)
-    *** Write a file for each revision and just append the status line so there's history,
-        then delete the revision's file when it is complete
-** more tests - there must be stuff missing
-** Make it impossible to override the cache file on cruncher with one in the repo -- don't check in any cache files!!!
+* Set up an archiving script for postedbug.log on cruncher - so we have history of usage
+* Make a note in the bug comment message when builds were cancelled via self-serve
+* Function to check top entry in a cache file and test time against a possibly hung build
+* Make it impossible to override the cache files on cruncher with one in the repo -- don't check in any cache files!!!
 """

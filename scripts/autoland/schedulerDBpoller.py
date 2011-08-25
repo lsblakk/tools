@@ -31,7 +31,7 @@ log.addHandler(handler)
 class SchedulerDBPoller():
 
     def __init__(self, branch, cache_dir, config, flagcheck=True,
-                user=None, password=None, dry_run=False, verbose=False, cache_filename=None):
+                user=None, password=None, dry_run=False, verbose=False):
 
         self.config = ConfigParser.ConfigParser()
         self.config.read(config)
@@ -51,7 +51,6 @@ class SchedulerDBPoller():
         self.flagcheck = flagcheck
         self.dry_run = dry_run
         self.verbose = verbose
-        self.cache_filename = cache_filename
         self.user = user
         self.password = password
 
@@ -258,12 +257,14 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 log.debug("Reading postedbug list, comparing to contents...")
             f = open(filename, 'r')
             for line in f.readlines():
-                (bug, rev,timestamp, human_time) = line.split("|")
+                (bug, rev, timestamp, human_time) = line.split("|")
                 if revision == rev:
                     has_revision = True
                     # checking elapsed time is greater than the polling interval so as not to spam bugs
                     post = time() - POLLING_INTERVAL > timestamp
             f.close()
+        if self.verbose:
+            log.debug("REV %s ON FILE, POSTING: %s" % (has_revision, post))
         return (has_revision, post)
     
     def WriteToBuglist(self, revision, bug, filename=POSTED_BUGS):
@@ -296,32 +297,32 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             
         if os.path.isdir(self.cache_dir):
             cache_revs = os.listdir(self.cache_dir)
+            print cache_revs
             for revision in cache_revs:
                 revisions[revision] = {}
             if self.verbose:
-                log.debug("REVISIONS IN CACHE %s" % (filename, revisions))
+                log.debug("REVISIONS IN CACHE %s" % (revisions))
         return revisions
     
     def WriteToCache(self, incomplete):
         """ Writes a results of incomplete build results to file, named by revision"""
-
         if not os.path.isdir(self.cache_dir):
             os.mkdir(self.cache_dir)
-        else:
-            try:
-                for revision, results in incomplete.items():
-                    filename = os.path.join(self.cache_dir, revision)
-                    if self.dry_run:
-                        log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, results))
-                    else:
-                        f = open(filename, 'a')
-                        f.write("%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
-                        if self.verbose:
-                            log.debug("WROTE TO %s: %s" % (filename, results))
-                        f.close()
-                
-            except:
-                traceback.print_exc(file=sys.stdout)
+            if self.verbose:
+                log.debug("CREATED DIR: %s" % self.cache_dir)
+        try:
+            for revision, results in incomplete.items():
+                filename = os.path.join(self.cache_dir, revision)
+                if self.dry_run:
+                    log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, results))
+                else:
+                    f = open(filename, 'a')
+                    f.write("%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
+                    if self.verbose:
+                        log.debug("WROTE TO %s: %s" % (filename, results))
+                    f.close()
+        except:
+            traceback.print_exc(file=sys.stdout)
     
     def CalculateBuildRequestStatus(self, buildrequests):
         """ Accepts buildrequests and calculates their results
@@ -341,7 +342,6 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             'misc': 0,
             'status_string': "",
         }
-        is_complete = False
         for key,value in buildrequests.items():
             # get the status for each buildrequest item and build the rev_revision['log']for the revision
             status['total_builds'] +=1
@@ -350,21 +350,23 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             if br['status_str'].lower() in status.keys():
                 status[br['status_str'].lower()] += 1
     
-        # Calculate completeness -- check against the timeout threshold
+        # Calculate completeness and check against timeout threshold to account for delay in test sendchanges
         total_complete = status['misc'] + status['interrupted'] + status['cancelled'] + status['complete']
         if status['total_builds'] == total_complete:
+            is_complete = True
             timeout_complete = []
             for key,value in buildrequests.items():
                 br = value.to_dict()
                 if br['finish_time']:
                     timeout_complete.append(time() - br['finish_time'] > COMPLETION_THRESHOLD)
-                for c in timeout_complete:
-                    # TODO - what am I doing here?
-                    if not c:
-                        is_complete = False
-            is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
-            if self.verbose:
-                log.debug("REV %s COMPLETED -- CALCULATIONS: %s: %s total_complete: %s" % (br['revision'],status['status_string'],is_complete, total_complete))
+                for passed_timeout in timeout_complete:
+                    if not passed_timeout:
+                        is_complete = False # let's wait longer to make sure it's really done
+            if is_complete:
+                # one more check before it's really complete - any oranges to retry?
+                is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
+        else:
+            is_complete = False
         return (status,is_complete)
     
     def GetRevisions(self, starttime=None, endtime=None):
@@ -412,20 +414,24 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                                 posted_to_bug = True
                             else:
                                 log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
-        else:
-            log.debug("Something is not matching up:\nis_complete: %s\ntype: %s\nbugs: %s" %
-                        (is_complete, type, bugs))
+        # It's a try run but no bug number(s) gets discarded with log note for debugging
+        elif is_complete and type == "try" and len(bugs) == 0 and self.verbose:
+            log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
+        elif is_complete and type == None and self.verbose:
+            log.debug("Nothing to do for %s - no one cares about it" % revision)
+        elif not is_complete:
+            # Cache it
+            incomplete = {}
+            incomplete[revision] = status
+            self.WriteToCache(incomplete)
+            
         return (message, posted_to_bug)
     
     def PollByTimeRange(self, starttime, endtime):
-        if self.cache_filename == None:
-            self.cache_filename = self.branch + "_cache"
-    
         # Get all the unique revisions in the specified timeframe range
         rev_report = self.GetRevisions(starttime,endtime)
         # Add in any revisions currently in cache for a complete list to poll schedulerdb about
-        if os.path.exists(self.cache_filename):
-            rev_report.update(self.LoadCache())
+        rev_report.update(self.LoadCache())
     
         # Check each revision's buildrequests to determine: completeness, type
         for revision in rev_report.keys():
@@ -455,24 +461,25 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             if info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) > 0:
                 for bug in info['bugs']:
                     posted = self.bz.has_recent_comment(revision, bug)
-                    if self.dry_run:
-                        if posted:
+                    if posted:
+                        if self.verbose:
+                            log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
+                        if self.dry_run:
                             log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
-                        else:
-                            log.debug("DRY-RUN: POST TO BUG: %s\n%s" % (bug, info['message']))
-                            if not has_revision:
-                                self.WriteToBuglist(revision, bug)
                     else:
-                        if posted:
-                            if self.verbose:
-                                log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
+                        if self.dry_run:
+                            log.debug("DRY-RUN: POSTING TO BUG %s" % bug)
+                            r = False
                         else:
                             # Comment in the bug
                             r = self.bz.notify_bug(rev_report[revision]['message'], bug)
-                            if r:
-                                self.WriteToBuglist(revision, bug)
-                                log.debug("BZ POST SUCCESS bugs:%s" % info['bugs'])
-                            elif not r:
+                        if r:
+                            self.WriteToBuglist(revision, bug)
+                            log.debug("BZ POST SUCCESS bugs:%s" % info['bugs'])
+                        elif not r:
+                            if self.dry_run:
+                                log.debug("DRY-RUN: NO BUG POST RESULTS")
+                            else:
                                 log.debug("BZ POST FAIL bugs:%s, writing to cache for retrying later" % info['bugs'])
                                 # put it back (only once per revision) into the cache file to try again later
                                 if not incomplete.has_key(revision):
