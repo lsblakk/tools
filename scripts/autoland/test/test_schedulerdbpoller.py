@@ -30,6 +30,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
         self.poller.verbose = True
         self.poller.bz.notify_bug = mock.Mock(return_value=1)
+        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         self.maxDiff = None
 
     def testGetBugNumbers(self):
@@ -139,7 +140,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertFalse(has_revision)
 
     def testCalculateBuildRequestStatusComplete(self):
-        revision = '9465683dcfe5'
+        revision = 'e6ae55cd2f5d'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         (results, is_complete) = self.poller.CalculateBuildRequestStatus(buildrequests)
         self.assertEquals(is_complete, True)
@@ -184,18 +185,12 @@ class SchedulerDBPollerTests(unittest.TestCase):
         output = self.poller.PollByRevision('83c09dc13bb8')
         self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
-    def testDryRunPollByRevisionComplete(self):
-        self.poller.dry_run = True
-        output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
-
     def testDryRunPollByRevisionIncomplete(self):
         self.poller.dry_run = True
         output = self.poller.PollByRevision('6f8727aab415')
         self.assertEqual((None, False), output)
 
     def testPollByTimeRange(self):
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
         self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
@@ -203,10 +198,8 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testPollByTimeRangeDryRun(self):
         self.poller.dry_run = True
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
 
     def testOrangeFactorRetriesWithoutDupes(self):
@@ -220,8 +213,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         ps1 = PatchSet(revision=revision)
         ps1.id = self.poller.autoland_db.PatchSetInsert(ps1)
 
-        # TODO: need a mock return of SelfServeRetry so that I can get an incomplete on retry
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         revisions = {'83c09dc13bb8': (True, 'failure'), '9465683dcfe5': (False, 'retrying'), 'e6ae55cd2f5d': (True, 'success'), '6f8727aab415': (True, 'failure')}
         orange_revs = {}
         for revision in revisions.keys():
@@ -246,9 +237,13 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEqual(orange_revs, revisions)
 
     def testSelfServeRetry(self):
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         results = self.poller.SelfServeRetry(4801896)
         self.assertEquals(results, {u'status': u'OK', u'request_id': 19354})
+
+    def testSelfServeRetryFail(self):
+        clean_poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
+        results = clean_poller.SelfServeRetry(4801896)
+        self.assertEquals(results, {})
 
     def testOrangeFactorHandling(self):
         revision = '83c09dc13bb8'
