@@ -178,8 +178,10 @@ class TestAutolandQueue(unittest.TestCase):
                             def psi(ps):
                                 db.append(ps)
                             db_psi.side_effect = psi
+                            old_bq = DBHandler.BranchQuery
                             DBHandler.BranchQuery = mock.Mock(return_value=True)
                             bz_search_handler()
+                            DBHandler.BranchQuery = old_bq
         jobs = []
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
             'patches':[], 'bug_id':10411})
@@ -199,6 +201,11 @@ class TestAutolandQueue(unittest.TestCase):
 
     def testMessageHandler(self):
         from message_gen import messages
+        orig = []
+        orig.append(DBHandler.PatchSetInsert)
+        orig.append(DBHandler.PatchSetQuery)
+        orig.append(DBHandler.PatchSetUpdate)
+        orig.append(DBHandler.PatchSetDelete)
         DBHandler.PatchSetInsert = mock.Mock(return_value=True)
         DBHandler.PatchSetQuery = mock.Mock(return_value=PatchSet(id=1))
         DBHandler.PatchSetUpdate = mock.Mock(return_value=True)
@@ -214,6 +221,10 @@ class TestAutolandQueue(unittest.TestCase):
         args.extend(DBHandler.PatchSetUpdate.call_args_list)
         for arg in map(lambda x: x[0][0], args):
             self.assertEqual(type(arg), PatchSet)
+        DBHandler.PatchSetInsert = orig[0]
+        DBHandler.PatchSetQuery = orig[1]
+        DBHandler.PatchSetUpdate = orig[2]
+        DBHandler.PatchSetDelete = orig[3]
 
 if __name__ == '__main__':
     unittest.main()

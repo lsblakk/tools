@@ -12,7 +12,8 @@ sys.path.append('..')
 import hgpusher
 from utils import mq_utils
 
-test_dir = os.path.join(os.getcwd(), 'test_hgpusher/')
+top_dir = os.getcwd()
+test_dir = os.path.join(top_dir, 'test_hgpusher/')
 if os.access(test_dir, os.F_OK):
     shutil.rmtree(test_dir)
 
@@ -27,6 +28,9 @@ class TestHgPusher(unittest.TestCase):
             os.mkdir('work_dir')
         os.chdir(test_dir)
         hgpusher.config['hg_base_url'] = test_dir
+
+    def tearDown(self):
+        os.chdir(top_dir)
 
     def testValidDictionaryStructure(self):
         lower = {}
@@ -56,7 +60,7 @@ class TestHgPusher(unittest.TestCase):
         self.assertTrue(hgpusher.valid_job_message(msg))
 
     def testCloneBranchPass(self):
-        subprocess.Popen(['sh', '../gen_hgrepo.sh'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh'])
         sleep(1)
         os.chdir('work_dir')
         rev = hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo'))
@@ -68,7 +72,7 @@ class TestHgPusher(unittest.TestCase):
             raise
         os.chdir(test_dir)
         shutil.rmtree('work_dir/active/repo')
-        subprocess.Popen(['sh', '../gen_hgrepo.sh', '--clean'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh', '--clean'])
 
     def testCloneBranchFail(self):
         os.chdir('work_dir')
@@ -78,7 +82,7 @@ class TestHgPusher(unittest.TestCase):
         os.chdir(test_dir)
 
     def testProcessPatchset(self):
-        subprocess.Popen(['sh', '../gen_hgrepo.sh'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh'])
         sleep(1)
         print "RUNNING TEST"
         os.chdir('work_dir')
@@ -163,7 +167,7 @@ class TestHgPusher(unittest.TestCase):
         self.assertNotEqual(active_revision,
                 hgpusher.get_revision(os.path.join(test_dir,
                     'work_dir/clean/repo')))
-        subprocess.Popen(['sh', '../gen_hgrepo.sh', '--clean'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh', '--clean'])
 
     def testHasSufficientPermissions(self):
         p = [ { 'author' : { 'email' : 'bad@email.com'},
@@ -190,7 +194,7 @@ class TestHgPusher(unittest.TestCase):
         self.assertNotEqual(out, '')
 
     def testHasValidHeader(self):
-        subprocess.Popen(['sh', '../gen_headers.sh'])
+        subprocess.Popen(['sh', '../test/gen_headers.sh'])
         sleep(1)    # pause to allow processing
         valid_patches = []
         bad_patches = []
@@ -205,21 +209,21 @@ class TestHgPusher(unittest.TestCase):
                 self.assertEquals(hgpusher.has_valid_header(f, False), True)
             except AssertionError:
                 print 'Error with file: %s' % (f)
-                run_cmd(['sh', '../gen_headers.sh', '--clean'])
+                run_cmd(['sh', '../test/gen_headers.sh', '--clean'])
                 raise
         for f in bad_patches:
             try:
                 self.assertEquals(hgpusher.has_valid_header(f, False), False)
             except AssertionError:
                 print 'Error with file: %s' % (f)
-                run_cmd(['sh', '../gen_headers.sh', '--clean'])
+                run_cmd(['sh', '../test/gen_headers.sh', '--clean'])
                 raise
-        subprocess.Popen(['sh', '../gen_headers.sh', '--clean'])
+        subprocess.Popen(['sh', '../test/gen_headers.sh', '--clean'])
 
     def testCloneDuplicate(self):
         # Simply make sure that both checkouts have
         # the same revision number
-        subprocess.Popen(['sh', '../gen_hgrepo.sh'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh'])
         if os.access('work_dir/active/repo', os.F_OK):
             shutil.rmtree('work_dir/active/repo')
         sleep(2)
@@ -237,7 +241,7 @@ class TestHgPusher(unittest.TestCase):
                 shutil.rmtree('active/repo')
         os.chdir(test_dir)
         shutil.rmtree('work_dir/clean/repo')
-        subprocess.Popen(['sh', '../gen_hgrepo.sh', '--clean'])
+        subprocess.Popen(['sh', '../test/gen_hgrepo.sh', '--clean'])
         self.assertTrue(rev[0] == rev[1])
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
 mq = mq_utils.mq_util()
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
-bz = bz_utils.bz_util(config['bz_api_url'], config['bz_attachment_url'],
+bz = bz_utils.bz_util(config['bz_url'], config['bz_attachment_url'],
         config['bz_username'], config['bz_password'])
 ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
         config['ldap_bind_dn'], config['ldap_password'])
