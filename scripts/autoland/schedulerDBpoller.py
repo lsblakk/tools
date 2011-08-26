@@ -405,11 +405,13 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                     if message != None and self.dry_run == False:
                         # Put comment in the bug
                         if self.dry_run:
+                            # TODO: grab the bugzilla url from config so that this works in staging too
                             log.debug("DRY_RUN: Posting to https://bugzilla.mozilla.org/show_bug.cgi?id=%s " % bug)
                         else:
                             r = self.bz.notify_bug(message, bug)
                             if r and not has_revision:
                                 self.WriteToBuglist(revision, bug)
+                                # TODO: grab the bugzilla url from config so that this works in staging too
                                 log.debug("BZ POST SUCCESS r: %s bug: https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % (r, bug))
                                 posted_to_bug = True
                             else:
@@ -498,7 +500,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 if r:
                     self.WriteToBuglist(revision, info['bugs'][0])
                 if len(info['bugs']) == 1:
-                    msg = { 'type'  : rev_report[revision]['status']['status_str'],
+                    msg = { 'type'  : rev_report[revision]['status']['status_string'],
                             'action': 'try.push',
                             'bugid' : info['bugs'][0],
                             'revision': revision }
