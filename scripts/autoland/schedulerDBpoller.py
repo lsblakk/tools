@@ -522,13 +522,13 @@ if __name__ == '__main__':
     parser.add_argument("-c", "--config-file", dest="config", help="config file to use for accessing db", required=True)
     parser.add_argument("-u", "--user", dest="user", help="username for buildapi ldap posting", required=True)
     parser.add_argument("-p", "--password", dest="password", help="password for buildapi ldap posting", required=True)
-    parser.add_argument("-h", "--cache-dir", dest="cache_dir", help="working dir for tracking incomplete revisions")
     parser.add_argument("-r", "--revision", dest="revision", help="a specific revision to poll")
     parser.add_argument("-s", "--start-time", dest="starttime", help="unix timestamp to start polling from")
     parser.add_argument("-e", "--end-time", dest="endtime", help="unix timestamp to poll until")
     parser.add_argument("-f", "--flagcheck", dest="flagcheck", help="check for the --post-to-bugzilla flag in comments", action='store_true')
     parser.add_argument("-n", "--dry-run", dest="dry_run", help="flag for turning off actually posting to bugzilla", action='store_true')
     parser.add_argument("-v", "--verbose", dest="verbose", help="turn on verbose output", action='store_true')
+    parser.add_argument("--cache-dir", dest="cache_dir", help="working dir for tracking incomplete revisions")
 
     parser.set_defaults(
         branch="try",
