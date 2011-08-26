@@ -255,6 +255,9 @@ if __name__ == '__main__':
 
 """
 TODO:
+* Test the argparser for schedulerdbpoller
+* There's a 10 minute gap between schedulerdbpoller runs so you could have an autoland push start & stop in that time with no report back
+** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
 * Makefile & setup script for test environment
 * Set up an archiving script for postedbug.log on cruncher - so we have history of usage
 * Make a note in the bug comment message when builds were cancelled via self-serve

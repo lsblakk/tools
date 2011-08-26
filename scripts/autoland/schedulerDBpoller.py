@@ -492,7 +492,11 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             # Autoland revision is complete, send message to the autoland_queue
             elif info['is_complete'] and info['push_type'] == "auto":
                 if self.verbose:
-                    log.debug("Autoland wants to know about %s - message being sent" % revision)
+                    log.debug("Autoland wants to know about %s - bug comment & message being sent" % revision)
+                # Comment in the bug
+                r = self.bz.notify_bug(rev_report[revision]['message'], info['bugs'][0])
+                if r:
+                    self.WriteToBuglist(revision, info['bugs'][0])
                 if len(info['bugs']) == 1:
                     msg = { 'type'  : rev_report[revision]['status']['status_str'],
                             'action': 'try.push',
