@@ -256,6 +256,7 @@ if __name__ == '__main__':
 """
 TODO:
 * Test the argparser for schedulerdbpoller
+* Why does every second whiteboard tag not trigger builds?
 * Got a double posting in the bug - need to check, if not in the cache files do I still gather up revisions that are complete?  Is that how this is happening?
 * Clean up cache files for revisions that are no longer tracked, right now only writing to buglist takes out the file once it's complete
 * More handling around the bug posting in the if type = "auto" section - also tests for this part
