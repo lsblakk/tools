@@ -317,6 +317,9 @@ class DBHandler(object):
                 AND patch_sets.completion_time IS NULL
                 AND patch_sets.push_time IS NULL
             ''' # This gets extended below
+        # XXX: This may not work correctly for a try run when
+        # mozilla central is either enabled or above threshold...
+
         # if the try threshold is already full, only pull non-try
         b = self.BranchQuery(Branch(name='try'))
         if b == None:
@@ -330,7 +333,7 @@ class DBHandler(object):
                               AND NOT push_time IS NULL
                               AND completion_time IS NULL''').fetchone()
         try_count = 0 if try_count == None else try_count[0]
-        if b.threshold < try_count:
+        if b.threshold < try_count or b.status != 'enabled':
             next_q += 'AND patch_sets.try_run = 0'
         next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
@@ -370,11 +373,14 @@ class PatchSet(object):
     def __init__(self, id=False, bug_id=False, patches=False, revision=False,
             branch=False, try_run=False, to_branch=False, creation_time=False,
             push_time=False, completion_time=False):
-        import datetime
+        import datetime, re
         self.id = id
         self.bug_id = bug_id
         # Patches needs to be a string so that sqlalchemy can insert it
-        self.patches = str(patches)
+        if patches:
+	    self.patches = re.sub('\[|\]', '', str(patches))
+        else:
+            self.patches = False
         self.revision = str(revision) if revision != False else revision
         self.branch = str(branch) if branch != False else branch
         self.try_run = try_run
@@ -393,13 +399,14 @@ class PatchSet(object):
 	import re
         if not self.patches:
             return []
-        return re.split(',', self.patches)
+        return map(lambda x: int(x), re.split(',', self.patches))
 
     def toDict(self):
+        import re
         d = {}
         if not isinstance(self.id,bool): d['id'] = self.id
         if self.bug_id != False: d['bug_id'] = self.bug_id
-        if self.patches != False: d['patches'] = self.patches
+        if self.patches != False: d['patches'] = re.sub('\[|\]', '', str(self.patches))
         if self.revision != False: d['revision'] = self.revision
         if self.branch != False: d['branch'] = self.branch
         if self.try_run in [1,0]: d['try_run'] = self.try_run

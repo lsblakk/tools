@@ -85,6 +85,7 @@ class mq_util():
             self.connect()
         self.channel.exchange_declare(exchange=self.exchange)
         self.channel.queue_declare(queue=queue, durable=True)
+        print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         for key in routing_keys:
             self.channel.basic_publish(exchange=self.exchange, routing_key = key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(

@@ -4,6 +4,7 @@ import re
 import threading
 import logging as log
 import logging.handlers
+import datetime
 
 from utils import mq_utils, bz_utils, common
 from utils.db_handler import DBHandler, PatchSet, Branch
@@ -121,8 +122,8 @@ def get_patchset(bug_id, try_run, patches=[]):
     for attachment in bug_data['attachments']:
         # if it is a patch (is_patch), and is not (is_obsolete)
         if attachment['is_patch'] and not attachment['is_obsolete'] \
-                and (not patches or attachment['id'] in patches):
-            patch = {'id':attachment['id'],
+                and (not patches or int(attachment['id']) in patches):
+            patch = {'id':int(attachment['id']),
                      'author':bz.get_user_info(attachment['attacher']['name']),
                      'reviews':[]}
 
@@ -134,12 +135,12 @@ def get_patchset(bug_id, try_run, patches=[]):
             else:   # push to branch
                 if not reviews: # No reviews, fail
                     # comment that no reviews on patch x
-                    bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']))
+                    bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
                     return None
                 for review in reviews:
                     if review['result'] != '+': # Bad review, fail
                         # comment bad review
-                        bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']))
+                        bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
                         return None
                     review['reviewer'] = bz.get_user_info(review['reviewer'])
                 patch['reviews'] = reviews
@@ -151,14 +152,14 @@ def get_patchset(bug_id, try_run, patches=[]):
         # Some specified patches left over
         # comment that it couldn't get all specified patches
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
-        c = bz.notify_bug('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))))
+        c = bz.notify_bug('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))), bug_id)
         if c:
             log_msg('Comment publised to bug %s' % (bug_id), log.DEBUG)
         else:
             log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
     if len(patchset) == 0:
-        c = bz.notify_bug('Autoland Failure\nThe bug has no patches posted, there is nothing to push.')
+        c = bz.notify_bug('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
         if c:
             log_msg('Commend published to bug %s' % (bug_id), log.DEBUG)
         else:
@@ -172,12 +173,16 @@ def bz_search_handler():
     Search handler, for the moment, only supports push to try,
     and then to branch. It cannot push directly to branch.
     """
-    bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
+    bugs = []
+    try:
+        bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
+    except urllib2.HTTPError, e:
+        log_msg("Error while polling bugzilla: %s" % (e))
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
         print bug_id, tag
 
-        if tag == None or tag == '[autoland-in-queue]':
+        if tag == None or re.search('in-queue', tag) != None:
             # Strange that it showed up if None
             continue
         elif not valid_autoland_tag(tag):
@@ -191,10 +196,8 @@ def bz_search_handler():
             log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue
-        log_msg('Found and processing tag %s' % (tag), log.DEBUG)
-        bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
-                '[autoland-in-queue]', bug_id)
 
+        log_msg('Found and processing tag %s' % (tag), log.DEBUG)
         # get the explicitly listed patches
         patch_group = []
         r = re.compile('\d+')
@@ -212,8 +215,11 @@ def bz_search_handler():
             ps.branch = branch
         ps.patches = patch_group
         ps.bug_id = bug_id
-
+        log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
+
+        bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
+                '[autoland-in-queue]', bug_id)
 
 
 def message_handler(message):
@@ -282,7 +288,7 @@ def message_handler(message):
     elif msg['type'] == 'success':
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             ps.revision = msg['revision']
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
@@ -334,7 +340,7 @@ def message_handler(message):
 class MessageThread(threading.Thread):
     """Threaded message listener"""
     def run(self):
-        mq.listen(config['mq_queue'], message_handler)
+        mq.listen(config['mq_queue'], message_handler, routing_keys=[config['mq_db_topic']])
 
 class SearchThread(threading.Thread):
     """
@@ -374,32 +380,37 @@ class SearchThread(threading.Thread):
             next = time.time() + 120
             while time.time() < next:
                 patchset = db.PatchSetGetNext()
-                if patchset == None: break
-                if len(patchset) > 1:
-                    patchset = patchset[0]
+                if patchset == None:
+                        time.sleep(10)
+                        continue
                 log_msg('Pulled patchset %s out of the queue' % (patchset),
                         log.DEBUG)
                 patches = get_patchset(patchset.bug_id, patchset.try_run,
                                        patchset.patchList())
                 # get branch information so that message can contain branch_url
-                branch = BranchQuery(Branch(name=patchset.branch))
+                branch = db.BranchQuery(Branch(name=patchset.branch))
                 if not branch:
                     # error, branch non-existent
                     log_msg('ERROR: Could not find %s in branches table.' % (patchset.branch))
                     db.PatchSetDelete(patchset)
                     continue
+                branch = branch[0]
+                print branch
                 message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                         'branch_url':branch.repo_url,
                         'branch':patchset.branch, 'try_run':patchset.try_run,
                         'patchsetid':patchset.id, 'patches':patches }
                 if patchset.try_run == 1:
-                    tb = BranchQuery(Branch(name='try'))
-                    message['push_url'] = branch.repo_url
+                    tb = db.BranchQuery(Branch(name='try'))
+                    if tb: tb = tb[0]
+                    else: continue
+                    message['push_url'] = tb.repo_url
+                log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])
-                patchset.push_time = datetime.utcnow()
+                patchset.push_time = datetime.datetime.utcnow()
                 db.PatchSetUpdate(patchset)
-                time.sleep(1)
+                time.sleep(10)
 
 def main():
     mq.set_host(config['mq_host'])
@@ -418,8 +429,10 @@ def main():
         time.sleep(10)
     if not th_messages.is_alive():
         print "Messaging thread died."
+        exit(1)
     elif not th_search.is_alive():
         print "Bugzilla searching thread died."
+        exit(1)
     exit(0)
 
 if __name__ == '__main__':
