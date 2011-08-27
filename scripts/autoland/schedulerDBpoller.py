@@ -504,8 +504,8 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                             'action': 'try.push',
                             'bugid' : info['bugs'][0],
                             'revision': revision }
-                    self.mq.send_message(msg, config.get('mq', 'queue'),
-                        routing_keys=[config.get('mq', 'autoland_db')])
+                    self.mq.send_message(msg, self.config.get('mq', 'queue'),
+                        routing_keys=[self.config.get('mq', 'autoland_db')])
                 else:
                     log.debug("Don't know what to do with %d bugs. Autoland works with only one bug right now." % len(info['bugs']))
             # Complete but neither PushToTry nor Autoland, throw it away
