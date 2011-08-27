@@ -17,7 +17,7 @@ LOGFILE='schedulerDBpoller.log'
 POSTED_BUGS='postedbugs.log'
 POLLING_INTERVAL=14400 # 4 hours
 MAX_POLLING_INTERVAL=172800 # 48 hours
-COMPLETION_THRESHOLD=600 # 10 minutes
+COMPLETION_THRESHOLD=0 # 10 minutes
 MAX_ORANGE = 2
 
 # console logging, formatted

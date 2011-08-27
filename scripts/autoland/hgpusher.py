@@ -115,7 +115,7 @@ def import_patch(repo, patch, try_run):
     cmd = ['import', '-R']
     cmd.append(repo)
     if try_run:
-        cmd.extend(['-m "try: -p linux -b o -u none -n"'])
+        cmd.extend(['-m "try: -p win32 -b o -u none -n Bug 10480"'])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -141,9 +141,9 @@ def process_patchset(data):
         return False
     if 'push_url' in data:
         push_url = data['push_url']
-    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s %s\n\tDestination: %s'
+    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
-               ('try' if try_run else ''), push_url )]
+               (' => try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)

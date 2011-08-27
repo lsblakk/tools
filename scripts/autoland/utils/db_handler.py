@@ -318,7 +318,7 @@ class DBHandler(object):
                 AND patch_sets.push_time IS NULL
             ''' # This gets extended below
         # XXX: This may not work correctly for a try run when
-        # mozilla central is either enabled or above threshold...
+        # mozilla central is either disabled or above threshold...
 
         # if the try threshold is already full, only pull non-try
         b = self.BranchQuery(Branch(name='try'))

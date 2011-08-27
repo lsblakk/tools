@@ -425,7 +425,6 @@ def main():
     th_search.start()
 
     while th_messages.is_alive() and th_search.is_alive():
-        # Query for any hung/non-finished jobs that probably should be
         time.sleep(10)
     if not th_messages.is_alive():
         print "Messaging thread died."
