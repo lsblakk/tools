@@ -85,6 +85,7 @@ class mq_util():
             self.connect()
         self.channel.exchange_declare(exchange=self.exchange)
         self.channel.queue_declare(queue=queue, durable=True)
+        print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         for key in routing_keys:
             self.channel.basic_publish(exchange=self.exchange, routing_key = key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
@@ -123,11 +124,12 @@ class mq_util():
                 log.info('[RabbitMQ] Listening on %s.' % (routing_keys))
                 self.channel.exchange_declare(exchange=self.exchange)
                 result = self.channel.queue_declare(queue=queue, durable=True)
+                que_name = result.method.queue
                 for key in routing_keys:
-                    self.channel.queue_bind(queue=queue,
+                    self.channel.queue_bind(queue=result.method.queue,
                             exchange=self.exchange, routing_key=key)
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(callback_wrapper, queue=queue)
+                self.channel.basic_consume(callback_wrapper, queue=queue_name)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None

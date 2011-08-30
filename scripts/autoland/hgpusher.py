@@ -115,7 +115,7 @@ def import_patch(repo, patch, try_run):
     cmd = ['import', '-R']
     cmd.append(repo)
     if try_run:
-        cmd.extend(['-m', '"try:"'])
+        cmd.extend(['-m "try: -p win32 -b o -u none -n Bug 10480"'])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -129,7 +129,7 @@ def process_patchset(data):
     """
     class RETRY(Exception):
         pass
-    active_repo = os.path.join(config['work_dir'],
+    active_repo = os.path.join(
                     'active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
     if not 'branch_url' in data:
@@ -141,9 +141,9 @@ def process_patchset(data):
         return False
     if 'push_url' in data:
         push_url = data['push_url']
-    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s %s\n\tDestination: %s'
-            % (', '.join(map(lambda x: x['id'], data['patches'])), data['branch'],
-               ('try' if try_run else ''), push_url )]
+    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
+            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
+               (' => try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
@@ -154,7 +154,7 @@ def process_patchset(data):
             log_msg("Getting patch %s" % (patch['id']), None)
             # store patches in 'patches/' below work_dir
             patch_file = bz.get_patch(patch['id'],
-                    os.path.join(config['work_dir'],'patches'),create_path=True)
+                    os.path.join('patches'),create_path=True)
             if not patch_file:
                 msg = 'Patch %s could not be fetched.' % (patch['id'])
                 log_msg(msg)
@@ -181,7 +181,8 @@ def process_patchset(data):
                 raise RETRY
         return True
 
-    if not has_sufficient_permissions(data['patches'], data['branch']):
+    if not has_sufficient_permissions(data['patches'],
+            data['branch'] if not try_run else 'try'):
         msg = 'Insufficient permissions to push to %s' \
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
@@ -191,14 +192,14 @@ def process_patchset(data):
         return False
 
     if not clone_branch(data['branch'], data['branch_url']):
-            return False
+        return False
 
     try:
         retry(apply_and_push, cleanup=cleanup_wrapper,
                 retry_exceptions=(RETRY,),
                 args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
-                            ssh_key=config['hg_ssh_key']))
+                            ssh_key=config['hg_ssh_key'], force=True))
         revision = get_revision(active_repo)
         shutil.rmtree(active_repo)
     except (HgUtilError, RETRY) as error:
@@ -234,9 +235,10 @@ def clone_branch(branch, branch_url):
     remote = branch_url
     # Set up the clean repository if it doesn't exist,
     # otherwise, it will be updated.
-    clean = os.path.join(config['work_dir'], 'clean')
+    clean = os.path.join('clean')
     clean_repo = os.path.join(clean, branch)
     if not os.access(clean, os.F_OK):
+        log_msg(os.getcwd())
         os.mkdir(clean)
     try:
         mercurial(remote, clean_repo)
@@ -245,7 +247,7 @@ def clone_branch(branch, branch_url):
                 % (remote, error))
         return None
     # Clone that clean repository to active and return that revision
-    active = os.path.join(config['work_dir'], 'active')
+    active = os.path.join('active')
     active_repo = os.path.join(active, branch)
     if not os.access(active, os.F_OK):
         os.mkdir(active)
@@ -302,7 +304,6 @@ def message_handler(message):
     """
     Handles all incoming messages.
     """
-    os.chdir(config['work_dir'])
     data = message['payload']
     if 'job_type' not in data:
         log_msg('[HgPusher] Erroneous message: %s' % (message))
@@ -315,7 +316,7 @@ def message_handler(message):
             # comment?
             return
 
-        clone_revision = clone_branch(data['branch_url'], data['branch'])
+        clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
             # Handle clone error
             log_msg('[HgPusher] Clone error...')
@@ -330,7 +331,7 @@ def message_handler(message):
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
                     'revision': patch_revision }
             mq.send_message(msg, config['mq_queue'],
-                    routing_keys=[config['mq_db_queue']])
+                    routing_keys=[config['mq_db_topic']])
 
         else:
             # comment already posted in process_patchset
