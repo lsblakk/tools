@@ -1,0 +1,53 @@
+0. When put into staging, an issue popped up with the message queue:
+   messages sent from autoland_queue => hgpusher are sometimes received by
+   autoland_queue, or not received by hgpusher. I took a look at the queues
+   and topics being used, and they all seem to be correct so I have so far
+   been unable to find out what's going wrong.
+1. The use case of "Flag bug for landing --> Wait for review --> land":
+    -  Will not currently work, due to an early design mistake. The fix is
+       fairly straight forward, but will require some time. I can redesign
+       this and implement ASAP. I've outlined the necessary changes below:
+        - When a tag is found by autoland_queue.py:bz_search_handler(),
+          the bug needs to be checked for reviews in the case that it is
+          a to-branch landing.
+        - As it stands right now, the tag is pulled and entered into the queue
+          and then when popped off the queue, the reviews are checked. 
+        - autoland_queue.py:get_patchset() performs checking on the reviews
+          based on try/branch. get_patchset() fails out and comments on bad
+          reviews. This is NOT what we want.
+        - We want to check the patch in autoland_queue.py:bz_search_handler()
+          for the proper review permissions, and if they are not there, we
+          simply ignore it until out next poll.
+        - OPTIONS:
+              o  change autoland_queue.py:get_patchset() to have a toggle on
+                 comment posting, and use the get_patchset function to check.
+              o  rewrite autoland_queue.py:get_patchset() to return a
+                 pass/fail state, for example:
+                    return (False, 'Autoland Failure Comment')
+                 and only post the comment in the correct cases.
+              o  I'm sure there are better ideas out there
+        - NOTE: Check patch headers at this point, so users aren't waiting
+                a while just for a failure.
+2. A lot of this code needs to be cleaned up a bit. Some improvements I would
+   like to make are:
+    - Either a wrapper for or modifications to bz.notify_bug() that will check
+      for failure, and log them for later posting.
+    - Bugzilla represents its numbers as strings, but internally the autoland
+      tools represent them as integers. There is quite a bit of type
+      conversion and it would be nice to change that. Either convert at the
+      earliest point, or internally store as strings. I prefer the former.
+    - Simply fix some of the messy program flow, and code reuse problems.
+    - After x # of retries on apply/push in hgpusher.py:apply_patchset(),
+      clean_repo should be blown away and cloned again.
+    - Get tests using a static test config, rather than the default config
+      file.
+    - After landing on branch, should set attachment flag checked-in+
+3. The whole enforcement of "full headers" on patches might be a bit difficult
+   & disliked, possibly leading to many issues with developers/bugzilla spam.
+   They are not required on try runs, however they are for landing to branch.
+4. There is a possible issue with db_handler.py:PatchSetGetNext(), where the
+   SQL query might not pull a try run if mozilla-central (or whatever branch
+   is in the branch field) is either above threshold or disabled.
+5. autoland_queue needs to poll the database for jobs that have either:
+    a) been in the queue for a long time
+    b) been running for an outrageous amount of time without response
