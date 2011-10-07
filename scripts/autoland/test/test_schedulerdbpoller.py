@@ -255,6 +255,10 @@ if __name__ == '__main__':
 
 """
 TODO:
+* can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
+* can't post if bug is invalid, need to check for this and not just retry
+* timer on how long we wait to consider complete (not just completed builds, but > N hours)
+* ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
 * Test the argparser for schedulerdbpoller
 * Why does every second whiteboard tag not trigger builds?
 * Got a double posting in the bug - need to check, if not in the cache files do I still gather up revisions that are complete?  Is that how this is happening?
