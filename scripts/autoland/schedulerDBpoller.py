@@ -197,17 +197,18 @@ class SchedulerDBPoller():
         None: if it's not "try" and AutolandDB isn't tracking it """
     
         type = None
-        for key,value in buildrequests.items():
-            br = value.to_dict()
-            for comments in br['comments']:
-                if self.flagcheck and type == None:
-                    if 'try: ' in comments and '--post-to-bugzilla' in comments:
-                        type = "try"
-                else:
-                    if 'try: ' in comments:
-                        type = "try"
         if self.autoland_db.AutolandQuery(revision):
             type = "auto"
+        else:
+            for key,value in buildrequests.items():
+                br = value.to_dict()
+                for comments in br['comments']:
+                    if self.flagcheck and type == None:
+                        if 'try: ' in comments and '--post-to-bugzilla' in comments:
+                            type = "try"
+                    else:
+                        if 'try: ' in comments:
+                            type = "try"
         return type
     
     def CalculateResults(self, buildrequests):
@@ -239,7 +240,7 @@ class SchedulerDBPoller():
 
         message = """Try run for %s is complete.
 Detailed breakdown of the results available here:
-    http://tbpl.allizom.org/?tree=%s&usebuildbot=1&rev=%s
+    https://tbpl.mozilla.org/?tree=%s&rev=%s
 Results (out of %d total builds):\n""" % (revision, self.branch.title(), revision, report['total_builds'])
         for key, value in report.items():
             if value > 0 and key != 'total_builds':
@@ -254,6 +255,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
         has_revision = False
         if os.path.isfile(filename):
             if self.verbose:
+                # TODO - check this against the actual bug, not postedbugs.log
                 log.debug("Reading postedbug list, comparing to contents...")
             f = open(filename, 'r')
             for line in f.readlines():
@@ -263,8 +265,12 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                     # checking elapsed time is greater than the polling interval so as not to spam bugs
                     post = time() - POLLING_INTERVAL > timestamp
             f.close()
-        if self.verbose:
-            log.debug("REV %s ON FILE, POSTING: %s" % (has_revision, post))
+        else:
+            log.info("No postedbug file present.")
+        if self.verbose and has_revision:
+            log.debug("REV %s IN FILE, POSTING: %s" % (has_revision, post))
+        else:
+            log.debug("REV %s NOT IN POSTED_BUGS, POSTING: %s" % (revision, post))
         return (has_revision, post)
     
     def WriteToBuglist(self, revision, bug, filename=POSTED_BUGS):
@@ -491,15 +497,15 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             # It's a try run but no bug number(s) gets discarded with log note for debugging
             elif info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) == 0 and self.verbose:
                 log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
-            # Autoland revision is complete, send message to the autoland_queue
+            # Autoland revision is complete, send message to the autoland_queue and post to bug
             elif info['is_complete'] and info['push_type'] == "auto":
                 if self.verbose:
                     log.debug("Autoland wants to know about %s - bug comment & message being sent" % revision)
-                # Comment in the bug
-                r = self.bz.notify_bug(rev_report[revision]['message'], info['bugs'][0])
-                if r:
-                    self.WriteToBuglist(revision, info['bugs'][0])
+                # Comment in the bug and send message to autoland queue
                 if len(info['bugs']) == 1:
+                    r = self.bz.notify_bug(rev_report[revision]['message'], info['bugs'][0])
+                    if r:
+                        self.WriteToBuglist(revision, info['bugs'][0])
                     msg = { 'type'  : rev_report[revision]['status']['status_string'],
                             'action': 'try.push',
                             'bugid' : info['bugs'][0],
@@ -507,7 +513,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                     self.mq.send_message(msg, self.config.get('mq', 'queue'),
                         routing_keys=[self.config.get('mq', 'db_topic')])
                 else:
-                    log.debug("Don't know what to do with %d bugs. Autoland works with only one bug right now." % len(info['bugs']))
+                    log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(info['bugs']))
             # Complete but neither PushToTry nor Autoland, throw it away
             elif info['is_complete'] and info['push_type'] == None and self.verbose:
                 log.debug("Nothing to do for %s - no one cares about it" % revision)
@@ -556,7 +562,7 @@ if __name__ == '__main__':
         if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
     else:
-        # Validation on the timestamps provided
+        # TODO Validation on the timestamps provided
         if options.starttime > time():
             log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, time.localtime()))
             sys.exit(1)

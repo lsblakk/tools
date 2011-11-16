@@ -184,6 +184,7 @@ class bz_util():
             results = 1
             log.debug("Getting bug %s", bug_num)
             try:
+                # TODO why do request here when check_request does the same thing again?
                 bug = self.request("/bug/%s" % bug_num)
                 # Add the comment
                 log.debug("Adding comment to bug %s", bug_num)

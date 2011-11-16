@@ -8,7 +8,7 @@ from schedulerDBpoller import SchedulerDBPoller
 from utils.db_handler import DBHandler
 
 CONFIG_FILE = 'test/test_config.ini'
-BUGLIST="test_buglist"
+BUGLIST="postedbugs.log"
 CACHE_DIR="test_cache"
 # These are all the revisions in the scheduler.sqlite that has been generated for this
 # test suite.  Some of them have had their content altered from the real schedulerdb
@@ -105,7 +105,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         report = self.poller.CalculateResults(buildrequests)
         message = self.poller.GenerateResultReportMessage(revision, report)
-        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
+        self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
     def testWriteAndLoadCache(self):
         incomplete = {'1234': {}, '2345': {}, '3456': {}}
@@ -173,23 +173,32 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEquals(revisions.keys()[:5],[u'9465683dcfe5', u'163e8764498e', u'72e79e2d4c48', u'aa4cedbd66ab', u'82f950327fa8'])
 
     def testPollByRevisionComplete(self):
+        # First time should return True as there is not a postedbugs.log
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', True), output)
+        # Run CheckBugCommentTimeout again now and there should be a False on posting for this
+        # revision, as we have now posted to the bug
+        has_revision,post = self.poller.CheckBugCommentTimeout('83c09dc13bb8', filename=BUGLIST)
+        self.assertFalse(post)
 
     def testPollByRevisionIncomplete(self):
         output = self.poller.PollByRevision('6f8727aab415')
         self.assertEqual((None, False), output)
 
+    #### what am I really testing here for dry-run?
+    ## test that nothing gets written to postedbugs.log
+    ## test that no bug comments get sent?
     def testDryRunPollByRevisionComplete(self):
         self.poller.dry_run = True
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    http://tbpl.allizom.org/?tree=Try&usebuildbot=1&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
 
     def testDryRunPollByRevisionIncomplete(self):
         self.poller.dry_run = True
         output = self.poller.PollByRevision('6f8727aab415')
         self.assertEqual((None, False), output)
-
+    #### remove ^^ ?
+    
     def testPollByTimeRange(self):
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
@@ -254,21 +263,27 @@ if __name__ == '__main__':
     unittest.main()
 
 """
-TODO:
-* can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
+TODO Before landing:
+* need to send bug comments using the same stuff Marc uses
 * can't post if bug is invalid, need to check for this and not just retry
 * timer on how long we wait to consider complete (not just completed builds, but > N hours)
-* ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
-* Test the argparser for schedulerdbpoller
-* Why does every second whiteboard tag not trigger builds?
+* Tests/Validation for the argparser of schedulerdbpoller
 * Got a double posting in the bug - need to check, if not in the cache files do I still gather up revisions that are complete?  Is that how this is happening?
 * Clean up cache files for revisions that are no longer tracked, right now only writing to buglist takes out the file once it's complete
+
+
+
+TODO - AUTOLAND enhancements
+** bug 695076 is getting hit a lot - need to kick things out of the queue
+* can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
+* ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
+* Why does every second whiteboard tag not trigger builds?
 * More handling around the bug posting in the if type = "auto" section - also tests for this part
 * There's a 10 minute gap between schedulerdbpoller runs so you could have an autoland push start & stop in that time with no report back
 ** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
 * Makefile & setup script for test environment
 * Set up an archiving script for postedbug.log on cruncher - so we have history of usage
 * Make a note in the bug comment message when builds were cancelled via self-serve
-* Function to check top entry in a cache file and test time against a possibly hung build
+* Nagios check top entry in cache files and warn about possibly hung builds
 * Make it impossible to override the cache files on cruncher with one in the repo -- don't check in any cache files!!!
 """
