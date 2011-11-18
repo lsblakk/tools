@@ -1,4 +1,4 @@
-import unittest, os, sys, shutil, mock
+import unittest, os, sys, shutil, mock, urllib2
 from time import time
 import ConfigParser
 sys.path.append('..')
@@ -26,11 +26,11 @@ class SchedulerDBPollerTests(unittest.TestCase):
         # Clean up from previous runs
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
-
+            
         self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
         self.poller.verbose = True
         self.poller.bz.notify_bug = mock.Mock(return_value=1)
-        self.poller.SelfServeRetry = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
+        self.poller.SelfServeRebuild = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         self.maxDiff = None
 
     def testGetBugNumbers(self):
@@ -107,16 +107,26 @@ class SchedulerDBPollerTests(unittest.TestCase):
         message = self.poller.GenerateResultReportMessage(revision, report)
         self.assertEquals(message,'Try run for 157ac288e589 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=157ac288e589\nResults (out of 11 total builds):\n    success: 10\n    warnings: 1\n')
 
-    def testWriteAndLoadCache(self):
-        incomplete = {'1234': {}, '2345': {}, '3456': {}}
+    def testCreateCacheDir(self):
         if os.path.isdir(CACHE_DIR):
             revisions = os.listdir(CACHE_DIR)
             for rev in revisions:
-                if rev not in incomplete.keys():
+                os.remove(os.path.join(CACHE_DIR,rev))
+        os.rmdir(CACHE_DIR)
+        self.assertRaises(AssertionError, self.poller.WriteToCache, None)
+                    
+    def testWriteAndLoadCache(self):
+        ## remove test_cache dir here, but it needs to be emptied first
+        if os.path.isdir(CACHE_DIR):
+            revisions = os.listdir(CACHE_DIR)
+            for rev in revisions:
+                if rev != '6f8727aab415':
                     os.remove(os.path.join(CACHE_DIR,rev))
-        self.poller.WriteToCache({'1234': {}, '2345': {}, '3456': {}})
+        incomplete = {}
+        incomplete['6f8727aab415'] = self.poller.PollByRevision('6f8727aab415')
+        self.poller.WriteToCache(incomplete)
         revisions = self.poller.LoadCache()
-        self.assertEquals(revisions, {'1234': {}, '2345': {}, '3456': {}})
+        self.assertEquals(revisions, {'6f8727aab415': {}})
 
     def testCheckBugCommentTimeout(self):
         if os.path.exists(BUGLIST):
@@ -127,14 +137,24 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testWriteToBuglist(self):
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
+        # create a couple of cache file to test that writing to buglist removes the cache file
+        # only for the one that is written to buglist
+        incomplete = {}
+        incomplete['1234'] = {}
+        incomplete['2345'] = {}
+        self.poller.WriteToCache(incomplete)
         self.poller.WriteToBuglist('1234', '9949', BUGLIST)
         (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
+        revisions = self.poller.LoadCache()
+        self.assertEquals(revisions, {'2345': {}, '6f8727aab415': {}})
         self.assertTrue(has_revision)
     
     def testWriteToBuglistDryRun(self):
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
         self.poller.dry_run = True
+        # make sure that a dry-run does not write to buglist\
+        # TODO - this doesn't seem to do what I think it does
         self.poller.WriteToBuglist('1234', '9949', BUGLIST)
         (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
         self.assertFalse(has_revision)
@@ -175,15 +195,19 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testPollByRevisionComplete(self):
         # First time should return True as there is not a postedbugs.log
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', True), output)
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', True), (output['message'], output['posted_to_bug']))
         # Run CheckBugCommentTimeout again now and there should be a False on posting for this
         # revision, as we have now posted to the bug
         has_revision,post = self.poller.CheckBugCommentTimeout('83c09dc13bb8', filename=BUGLIST)
         self.assertFalse(post)
+        # Run the PollByRevision again to test 'it was already written there recently'
+        output = self.poller.PollByRevision('83c09dc13bb8')
+        self.assertFalse(output['posted_to_bug'])
+        self.assertTrue(output['is_complete'])
 
     def testPollByRevisionIncomplete(self):
         output = self.poller.PollByRevision('6f8727aab415')
-        self.assertEqual((None, False), output)
+        self.assertEqual((None, False), (output['message'], output['posted_to_bug']))
 
     #### what am I really testing here for dry-run?
     ## test that nothing gets written to postedbugs.log
@@ -191,13 +215,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testDryRunPollByRevisionComplete(self):
         self.poller.dry_run = True
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), output)
+        # TODO replace this with something to make sure there are no new entries to the test_cache when you run this
+        # TODO make sure nothing goes to the bug
+        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', False), (output['message'], output['posted_to_bug']))
 
     def testDryRunPollByRevisionIncomplete(self):
         self.poller.dry_run = True
         output = self.poller.PollByRevision('6f8727aab415')
-        self.assertEqual((None, False), output)
-    #### remove ^^ ?
+        self.assertEqual((None, False), (output['message'], output['posted_to_bug']))
     
     def testPollByTimeRange(self):
         incomplete = self.poller.PollByTimeRange(None, None)
@@ -229,6 +254,25 @@ class SchedulerDBPollerTests(unittest.TestCase):
             orange_revs[revision] = self.poller.OrangeFactorHandling(buildrequests)
         self.assertEqual(orange_revs, revisions)
 
+    def testOrangeFactorRetriesWithSelfServeFail(self):
+        # SAMPLE DATA without having duplicate buildernames - test retrying failure
+        # 9465683dcfe5 {'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
+        # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
+        # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
+        # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
+        
+        clean_poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
+        revision='e6ae55cd2f5d'
+        ps1 = PatchSet(revision=revision)
+        ps1.id = clean_poller.autoland_db.PatchSetInsert(ps1)
+
+        revisions = {'83c09dc13bb8': (True, 'failure'), '9465683dcfe5': (True, 'failure'), 'e6ae55cd2f5d': (True, 'success'), '6f8727aab415': (True, 'failure')}
+        orange_revs = {}
+        for revision in revisions.keys():
+            buildrequests = clean_poller.scheduler_db.GetBuildRequests(revision)
+            orange_revs[revision] = clean_poller.OrangeFactorHandling(buildrequests)
+        self.assertEqual(orange_revs, revisions)
+
     def testOrangeFactorRetriesWithDupes(self):
         # SAMPLE DATA with duplicate buildernames (already retried, now what is the result?)
         # One warn, one pass on one dupe buildername- should return (True, 'success')
@@ -245,14 +289,15 @@ class SchedulerDBPollerTests(unittest.TestCase):
             orange_revs[revision] = self.poller.OrangeFactorHandling(buildrequests)
         self.assertEqual(orange_revs, revisions)
 
-    def testSelfServeRetry(self):
-        results = self.poller.SelfServeRetry(4801896)
+    def testSelfServeRebuildPass(self):
+        results = self.poller.SelfServeRebuild(4801896)
+        # Using the Mock return value
         self.assertEquals(results, {u'status': u'OK', u'request_id': 19354})
 
-    def testSelfServeRetryFail(self):
+    def testSelfServeRebuildFail(self):
         clean_poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
-        results = clean_poller.SelfServeRetry(4801896)
-        self.assertEquals(results, {})
+        # Assert that an HTTPError returns when using the real self-serve
+        self.assertRaises(urllib2.HTTPError, clean_poller.SelfServeRebuild, 4801896)
 
     def testOrangeFactorHandling(self):
         revision = '83c09dc13bb8'
@@ -260,17 +305,19 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEquals(self.poller.OrangeFactorHandling(buildrequests), (True, 'failure'))
 
 if __name__ == '__main__':
-    unittest.main()
+    unittest.main(verbosity=2)
 
 """
 TODO Before landing:
-* need to send bug comments using the same stuff Marc uses
-* can't post if bug is invalid, need to check for this and not just retry
-* timer on how long we wait to consider complete (not just completed builds, but > N hours)
-* Tests/Validation for the argparser of schedulerdbpoller
-* Got a double posting in the bug - need to check, if not in the cache files do I still gather up revisions that are complete?  Is that how this is happening?
-* Clean up cache files for revisions that are no longer tracked, right now only writing to buglist takes out the file once it's complete
+* bugzilla posting tests, no double posts!
+** This also means including handling for security bugs and for 400 errors (bad bug typing)
 
+* Set a timer on how long we wait/retry to consider complete (not just completed builds, but > N hours)
+* Tests/Validation for the argparser of schedulerdbpoller
+* Clean up cache files for revisions that are no longer tracked, right now only writing to buglist takes out the file once it's complete
+* Better handling for which bug to post to (add a flag?) see: http://hg.mozilla.org/try/rev/d45763120aad where it thought to post to 700835 and not 699134
+* only write to file for things that are try or autoland - no need to keep the ones with no bugs in them
+* if self-serve retry fails - test that the build comes back as complete
 
 
 TODO - AUTOLAND enhancements

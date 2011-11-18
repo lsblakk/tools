@@ -58,7 +58,8 @@ class TestBzUtils(unittest.TestCase):
         self.assertTrue(bz.remove_whiteboard_tag('\[bz_utils test2\]', bug))
 
     def testWhiteBoardTagFail(self):
-        bug = 10469
+        # TODO - this needs to handle 400 bad request to test retries and timeout for put_request
+        bug = 104699
         dt = str(datetime.datetime.utcnow())
         match = bz.get_matching_bugs('whiteboard', dt)
         self.assertFalse((bug, dt) in match)
@@ -66,11 +67,12 @@ class TestBzUtils(unittest.TestCase):
         self.assertFalse(bz.has_recent_comment(dt, bug))
 
     def testCommentFail(self):
-        bug = 10469
+        bug = 104699
         comment = list(string.printable)
         dt = str(datetime.datetime.utcnow())
         random.shuffle(comment)
         comment = ''.join(comment) + dt
+        self.assertTrue(bz.notify_bug(comment, bug))
         self.assertFalse(bz.has_comment(comment, bug))
         self.assertFalse(bz.has_recent_comment(dt, bug))
 

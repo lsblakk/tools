@@ -13,6 +13,12 @@ class bz_util():
         self.username = username
         self.password = password
 
+# add a check_bug so that other functions can clear that it exists before doing a request
+# change return codes so that schedulerdbpoller knows when to quit - raise the exceptions up from request to all the other functions
+
+# Catch these exceptions: 
+# bug doesn't exist
+# bug can't be accessed
     def request(self, path, data=None, method=None):
         """
         Request a page through the bugzilla api.
@@ -31,10 +37,15 @@ class bz_util():
         req = urllib2.Request(url, data, {'Accept': 'application/json', 'Content-Type': 'application/json'})
         if method:
             req.get_method = lambda: method
-
-        result = urllib2.urlopen(req)
-        data = result.read()
-        return json.loads(data)
+        try:
+            result = urllib2.urlopen(req)
+            data = result.read()
+            page = json.loads(data)
+        except urllib2.URLError, e:
+            log.error(e)
+            page = {}
+            
+        return page
 
     def put_request(self, path, data, retries, interval):
         """
@@ -42,10 +53,11 @@ class bz_util():
         """
         for i in range(retries):
             # PUT the changes
-            result = self.request(path, method='PUT', data=data)
+            result = self.request(path, data, 'PUT')
             if 'ok' in result and result['ok'] == 1:
                 return result
             time.sleep(interval)
+        log.debug(result)
         raise Exception('PutError')
 
     def get_patch(self, patch_id, path='.', create_path=False, overwrite_patch=False):
@@ -180,12 +192,14 @@ class bz_util():
             assert 200 <= e.code < 300, e
     
     def notify_bug(self, message, bug_num, retries=5):
+        post_results = None
         for i in range(retries):
             results = 1
             log.debug("Getting bug %s", bug_num)
             try:
-                # TODO why do request here when check_request does the same thing again?
+                # Make sure we can reach this bug
                 bug = self.request("/bug/%s" % bug_num)
+                log.debug("BUG: %s" % bug)
                 # Add the comment
                 log.debug("Adding comment to bug %s", bug_num)
                 self.check_request("/bug/%s/comment" % bug_num,
@@ -198,6 +212,7 @@ class bz_util():
                 else:
                     raise
             break
+        log.debug("RESULTS: %s" % results)
         return results
 
     def has_comment(self, text, bugid):

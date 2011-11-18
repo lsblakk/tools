@@ -1,8 +1,10 @@
-import sys, os, traceback, urllib2, urllib, re
-try:
-    import json
-except ImportError:
-    import simplejson as json
+import sys
+import os
+import traceback
+import urllib2
+import urllib
+import re
+import json
 from argparse import ArgumentParser
 import ConfigParser
 import utils.bz_utils as bz_utils
@@ -17,7 +19,7 @@ LOGFILE='schedulerDBpoller.log'
 POSTED_BUGS='postedbugs.log'
 POLLING_INTERVAL=14400 # 4 hours
 MAX_POLLING_INTERVAL=172800 # 48 hours
-COMPLETION_THRESHOLD=0 # 10 minutes
+COMPLETION_THRESHOLD=600 # 10 minutes
 MAX_ORANGE = 2
 
 # console logging, formatted
@@ -41,8 +43,8 @@ class SchedulerDBPoller():
         self.mq.set_host(self.config.get('mq', 'host'))
         self.mq.set_exchange(self.config.get('mq', 'exchange'))
         
-        # Set up bz
-        self.bz = bz_utils.bz_util(self.config.get('bz', 'url'), None,
+        # Set up bugzilla api connection
+        self.bz = bz_utils.bz_util(self.config.get('bz', 'api_url'), None,
         self.config.get('bz', 'username'), self.config.get('bz', 'password'))
 
         self.self_serve_api_url = self.config.get('self_serve', 'url')
@@ -53,6 +55,7 @@ class SchedulerDBPoller():
         self.verbose = verbose
         self.user = user
         self.password = password
+        self.bz_url = self.config.get('bz', 'url')
 
         self.scheduler_db = DBHandler(self.config.get('databases', 'scheduler_db_url'))
         self.autoland_db = DBHandler(self.config.get('databases', 'autoland_db_url'))
@@ -63,9 +66,12 @@ class SchedulerDBPoller():
             * Check if the buildername with warning result is duplicated in requests
             * If not, triggers a rebuild using self-serve API of that buildernames's buildid
             * If yes, check the results of the pair and report back success/fail based on:
-            ** orange:green == Success, intermittent orange
-            ** orange:orange == Failed on retry
-        returns is_complete and final_status (success, failure, None) based on retries
+                orange:green == Success, intermittent orange
+                orange:orange == Failed on retry
+        
+        returns: 
+            is_complete {True,False} 
+            final_status {'success', 'failure', None}
         """
         is_complete = None
         final_status = None
@@ -111,21 +117,20 @@ class SchedulerDBPoller():
                                 if self.verbose:
                                     log.debug("There's a success, incrementing retry_pass")
                                 retry_pass += 1
-                    # Unique buildername with warnings, trigger a rebuild
+                    # Unique buildername with warnings, attempt a rebuild
                     else:
                         for result, branch, bid in info:
                             if result == 'warnings':
                                 if self.verbose:
                                     log.debug("Attempting to retry branch: %s bid: %s" % (branch, bid))
-                                post = self.SelfServeRetry(bid)
-                                if post != {}:
+                                try:
+                                    post = self.SelfServeRebuild(bid)
                                     is_complete = False
                                     final_status = "retrying"
-                                else:
+                                except:
                                     is_complete = True
                                     final_status = "failure"
-                                    if self.verbose:
-                                        log.debug("Unsuccessful attempt to rebuild branch: %s bid: %s" % (branch, bid))
+                                    log.error("FAIL: Unsuccessful attempt to rebuild branch: %s bid: %s" % (branch, bid))
                 # Passed on Retry
                 if retry_count != 0 and retry_pass == retry_count:
                     is_complete = True
@@ -143,31 +148,29 @@ class SchedulerDBPoller():
 
         return is_complete, final_status
     
-    def SelfServeRetry(self, buildid):
-        """ Uses self-serve API to retrigger the buildid/branch sent in with a POST request"""
+    def SelfServeRebuild(self, buildid):
+        """ Uses self-serve API to retrigger the buildid/branch sent in with a POST request"""        
+        password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
+        password_mgr.add_password(None,
+                                  uri=self.self_serve_api_url,
+                                  user=self.user,
+                                  passwd=self.password)
+        auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
+        opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())       
+        opener.addheaders = [
+         ('Content-Type', 'application/json'),
+         ('Accept', 'application/json'),
+         ]
+        urllib2.install_opener(opener)
+        data = urllib.urlencode({"build_id": buildid})
+        url = self.self_serve_api_url + "/" + self.branch
         try:
-            password_mgr = urllib2.HTTPPasswordMgrWithDefaultRealm()
-            password_mgr.add_password(None,
-                                      uri=self.self_serve_api_url,
-                                      # works with autolanduser@mozilla.com
-                                      user=self.user,
-                                      passwd=self.password)
-            auth_handler = urllib2.HTTPBasicAuthHandler(password_mgr)
-            opener = urllib2.build_opener(auth_handler, urllib2.HTTPSHandler())       
-            opener.addheaders = [
-             ('Content-Type', 'application/json'),
-             ('Accept', 'application/json'),
-             ]
-            urllib2.install_opener(opener)
-            data = urllib.urlencode({"build_id": buildid})
-            url = self.self_serve_api_url + "/" + self.branch
             req = urllib2.Request(url, data)
             req.method = "POST"
-            result = json.loads(opener.open(req).read())
-        except Exception, e:
-            log.debug("Exception on attempted rebuild for %s:%s -- %s" % (self.branch, buildid, e))
-            result = {}
-        return result
+            return json.loads(opener.open(req).read())
+        except urllib2.HTTPError, e:
+            log.debug("FAIL attempted rebuild for %s:%s -- %s" % (self.branch, buildid, e))
+            raise
     
     def GetSingleAuthor(self, buildrequests):
         """Look through a list of buildrequests and return only one author from the changes if one exists"""
@@ -176,8 +179,11 @@ class SchedulerDBPoller():
           br = value.to_dict()
           if author == None:
               author = br['authors']
+        # if there's one author return it
         if len(author) == 1:
             return ''.join(author)
+        elif author != None:
+            log.error("More than one author for: %s" % br)
     
     def GetBugNumbers(self, buildrequests):
         """Look through a list of buildrequests and return bug number(s) from the change comments"""
@@ -249,30 +255,6 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             message += "Builds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s" % locals()
         return message
     
-    def CheckBugCommentTimeout(self, revision, filename=POSTED_BUGS):
-        """ Checks that at least 4 hours have elapsed since the last post to a bug for a rev in the buglist"""
-        post = False
-        has_revision = False
-        if os.path.isfile(filename):
-            if self.verbose:
-                # TODO - check this against the actual bug, not postedbugs.log
-                log.debug("Reading postedbug list, comparing to contents...")
-            f = open(filename, 'r')
-            for line in f.readlines():
-                (bug, rev, timestamp, human_time) = line.split("|")
-                if revision == rev:
-                    has_revision = True
-                    # checking elapsed time is greater than the polling interval so as not to spam bugs
-                    post = time() - POLLING_INTERVAL > timestamp
-            f.close()
-        else:
-            log.info("No postedbug file present.")
-        if self.verbose and has_revision:
-            log.debug("REV %s IN FILE, POSTING: %s" % (has_revision, post))
-        else:
-            log.debug("REV %s NOT IN POSTED_BUGS, POSTING: %s" % (revision, post))
-        return (has_revision, post)
-    
     def WriteToBuglist(self, revision, bug, filename=POSTED_BUGS):
         """ Writes a bug number and timestamp of complete build info to the BUGLIST."""
         if self.dry_run:
@@ -317,21 +299,29 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             if self.verbose:
                 log.debug("CREATED DIR: %s" % self.cache_dir)
         try:
+            assert isinstance(incomplete, dict)
+        except AssertionError, e:
+            log.error("Incomplete should be type:dict")
+            raise
+        try:
             for revision, results in incomplete.items():
                 filename = os.path.join(self.cache_dir, revision)
                 if self.dry_run:
-                    log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, results))
+                    log.debug("DRY RUN: WOULD WRITE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
                 else:
                     f = open(filename, 'a')
                     f.write("%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
                     if self.verbose:
-                        log.debug("WROTE TO %s: %s" % (filename, results))
+                        log.debug("WROTE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
                     f.close()
         except:
-            traceback.print_exc(file=sys.stdout)
+            log.error(traceback.print_exc(file=sys.stdout))
+            raise
     
     def CalculateBuildRequestStatus(self, buildrequests):
-        """ Accepts buildrequests and calculates their results
+        """ Accepts buildrequests and calculates their results, calls OrangeFactorHandling
+            to ensure completeness of results, makes sure that COMPLETION_THRESHOLD is met
+            before declaring a build finished (this is for delays in test triggerings)
         
         returns a tuple of:
             status (dict)
@@ -349,14 +339,11 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             'status_string': "",
         }
         for key,value in buildrequests.items():
-            # get the status for each buildrequest item and build the rev_revision['log']for the revision
             status['total_builds'] +=1
             br = value.to_dict()
-            # Do the tallying of statuses
             if br['status_str'].lower() in status.keys():
                 status[br['status_str'].lower()] += 1
-    
-        # Calculate completeness and check against timeout threshold to account for delay in test sendchanges
+
         total_complete = status['misc'] + status['interrupted'] + status['cancelled'] + status['complete']
         if status['total_builds'] == total_complete:
             is_complete = True
@@ -367,18 +354,24 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                     timeout_complete.append(time() - br['finish_time'] > COMPLETION_THRESHOLD)
                 for passed_timeout in timeout_complete:
                     if not passed_timeout:
-                        is_complete = False # let's wait longer to make sure it's really done
+                        is_complete = False # we'll wait a bit and make sure no tests are coming
+                        break
             if is_complete:
-                # one more check before it's really complete - any oranges to retry?
+                # one more check before it's _really complete_ - any oranges to retry?
                 is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
         else:
+            # TODO - this is where to kick things out that have bugs which can't be posted to
+            # or if something's been in the retry queue for N amount of time
+            # check how long since builds started
             is_complete = False
+            log.debug("Need to kick out things that don't meet the usual complete check here")
+
         return (status,is_complete)
     
     def GetRevisions(self, starttime=None, endtime=None):
         """ Gets the buildrequests between starttime & endtime, returns a dict keyed by revision
-        with the buildrequests per revision"""
-    
+        with the buildrequests per revision
+        """
         rev_dict = {}
         buildrequests = self.scheduler_db.GetBuildRequests(None, self.branch, starttime, endtime)
         for key, value in buildrequests.items():
@@ -389,51 +382,58 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 rev_dict[revision] = {}
         return rev_dict
     
-    def PollByRevision(self, revision):
-        message = None
-        posted_to_bug = False
+    def PollByRevision(self, revision, caching=True):
+        """ Run a single revision through the polling process to determine if it is complete, 
+            or not, returns information on the revision in a dict which includes the message
+            that can be posted to a bug (if not in dryrun mode), whether the message was 
+            successfully posted, and the current status of the builds
+        """
+        info = {
+            'message': None,
+            'posted_to_bug': False,
+            'status': None,
+            'is_complete': False,
+        }
         buildrequests = self.scheduler_db.GetBuildRequests(revision, self.branch)
         type = self.ProcessPushType(revision, buildrequests)
         bugs = self.GetBugNumbers(buildrequests)
-        status, is_complete = self.CalculateBuildRequestStatus(buildrequests)
+        info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests)
         if self.verbose:
-            log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (status, bugs, type, is_complete))
-        if is_complete and type == "try" and len(bugs) > 0:
+            log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (info['status'], bugs, type, info['is_complete']))
+        if info['is_complete'] and type == "try" and len(bugs) > 0:
             results = self.CalculateResults(buildrequests)
-            message = self.GenerateResultReportMessage(revision, results, self.GetSingleAuthor(buildrequests))
+            info['message'] = self.GenerateResultReportMessage(revision, results, self.GetSingleAuthor(buildrequests))
             if self.verbose:
-                log.debug("POLL_BY_REVISION: MESSAGE: %s" % message)
+                log.debug("POLL_BY_REVISION: MESSAGE: %s" % info['message'])
             for bug in bugs:
-                has_revision, post = self.CheckBugCommentTimeout(revision)
-                if has_revision and not post:
+                # if we have posted to the bug for this revision, but the timeout has passed
+                # we could post again
+                posted = self.bz.has_recent_comment(revision, bug)
+                if posted:
                     log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
-                    if message != None and self.dry_run == False:
-                        # Put comment in the bug
-                        if self.dry_run:
-                            # TODO: grab the bugzilla url from config so that this works in staging too
-                            log.debug("DRY_RUN: Posting to https://bugzilla.mozilla.org/show_bug.cgi?id=%s " % bug)
+                    if info['message'] != None and self.dry_run == False:
+                        # Comment in the bug
+                        r = self.bz.notify_bug(info['message'], bug)
+                        if r:
+                            self.WriteToBuglist(revision, bug)
+                            log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
+                            info['posted_to_bug'] = True
                         else:
-                            r = self.bz.notify_bug(message, bug)
-                            if r and not has_revision:
-                                self.WriteToBuglist(revision, bug)
-                                # TODO: grab the bugzilla url from config so that this works in staging too
-                                log.debug("BZ POST SUCCESS r: %s bug: https://bugzilla.mozilla.org/show_bug.cgi?id=%s" % (r, bug))
-                                posted_to_bug = True
-                            else:
-                                log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
+                            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (info['message'], bug))
         # It's a try run but no bug number(s) gets discarded with log note for debugging
-        elif is_complete and type == "try" and len(bugs) == 0 and self.verbose:
+        elif info['is_complete'] and type == "try" and len(bugs) == 0 and self.verbose:
             log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
-        elif is_complete and type == None and self.verbose:
+        elif info['is_complete'] and type == None and self.verbose:
             log.debug("Nothing to do for %s - no one cares about it" % revision)
-        elif not is_complete:
+        elif not info['is_complete']:
             # Cache it
+            log.debug("Writing %s to cache" % revision)
             incomplete = {}
-            incomplete[revision] = status
+            incomplete[revision] = info['status']
             self.WriteToCache(incomplete)
             
-        return (message, posted_to_bug)
+        return info
     
     def PollByTimeRange(self, starttime, endtime):
         # Get all the unique revisions in the specified timeframe range
@@ -476,14 +476,14 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                             log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                     else:
                         if self.dry_run:
-                            log.debug("DRY-RUN: POSTING TO BUG %s" % bug)
+                            log.debug("DRY_RUN: Would post to %s%s " % (self.bz_url, bug))
                             r = False
                         else:
                             # Comment in the bug
                             r = self.bz.notify_bug(rev_report[revision]['message'], bug)
                         if r:
                             self.WriteToBuglist(revision, bug)
-                            log.debug("BZ POST SUCCESS bugs:%s" % info['bugs'])
+                            log.debug("BZ POST SUCCESS: %s%s " % (self.bz_url, info['bugs']))
                         elif not r:
                             if self.dry_run:
                                 log.debug("DRY-RUN: NO BUG POST RESULTS")
