@@ -44,8 +44,9 @@ class SchedulerDBPoller():
         self.mq.set_exchange(self.config.get('mq', 'exchange'))
         
         # Set up bugzilla api connection
-        self.bz = bz_utils.bz_util(self.config.get('bz', 'api_url'), None,
-        self.config.get('bz', 'username'), self.config.get('bz', 'password'))
+        self.bz_url = self.config.get('bz', 'url')
+        self.bz = bz_utils.bz_util(self.config.get('bz', 'api_url'), self.config.get('bz', 'url'),
+        None, self.config.get('bz', 'username'), self.config.get('bz', 'password'))
 
         self.self_serve_api_url = self.config.get('self_serve', 'url')
         self.branch = branch
@@ -55,7 +56,6 @@ class SchedulerDBPoller():
         self.verbose = verbose
         self.user = user
         self.password = password
-        self.bz_url = self.config.get('bz', 'url')
 
         self.scheduler_db = DBHandler(self.config.get('databases', 'scheduler_db_url'))
         self.autoland_db = DBHandler(self.config.get('databases', 'autoland_db_url'))
@@ -382,7 +382,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 rev_dict[revision] = {}
         return rev_dict
     
-    def PollByRevision(self, revision, caching=True):
+    def PollByRevision(self, revision, hours=4, bugs=None):
         """ Run a single revision through the polling process to determine if it is complete, 
             or not, returns information on the revision in a dict which includes the message
             that can be posted to a bug (if not in dryrun mode), whether the message was 
@@ -393,10 +393,12 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             'posted_to_bug': False,
             'status': None,
             'is_complete': False,
+            'discard': False,
         }
         buildrequests = self.scheduler_db.GetBuildRequests(revision, self.branch)
         type = self.ProcessPushType(revision, buildrequests)
-        bugs = self.GetBugNumbers(buildrequests)
+        if bugs == None:
+            bugs = self.GetBugNumbers(buildrequests)
         info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests)
         if self.verbose:
             log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (info['status'], bugs, type, info['is_complete']))
@@ -408,25 +410,26 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             for bug in bugs:
                 # if we have posted to the bug for this revision, but the timeout has passed
                 # we could post again
-                posted = self.bz.has_recent_comment(revision, bug)
+                posted = self.bz.has_recent_comment(revision, bug, hours)
                 if posted:
                     log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
                     if info['message'] != None and self.dry_run == False:
                         # Comment in the bug
                         r = self.bz.notify_bug(info['message'], bug)
-                        if r:
+                        if r == 1:
                             self.WriteToBuglist(revision, bug)
                             log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
                             info['posted_to_bug'] = True
                         else:
                             log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (info['message'], bug))
-        # It's a try run but no bug number(s) gets discarded with log note for debugging
-        elif info['is_complete'] and type == "try" and len(bugs) == 0 and self.verbose:
-            log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
-        elif info['is_complete'] and type == None and self.verbose:
-            log.debug("Nothing to do for %s - no one cares about it" % revision)
-        elif not info['is_complete']:
+                            info['posted_to_bug'] = False
+                            # TODO - write to the cache file how many tries (set a limit for this?)
+        # No bug number(s) or no try syntax, but complete gets flagged for discard
+        elif info['is_complete']:
+            log.debug("Nothing to do here" % revision)
+            info['discard'] = True
+        else:
             # Cache it
             log.debug("Writing %s to cache" % revision)
             incomplete = {}

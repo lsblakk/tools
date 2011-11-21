@@ -29,7 +29,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
             
         self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
         self.poller.verbose = True
-        self.poller.bz.notify_bug = mock.Mock(return_value=1)
+        #self.poller.bz.notify_bug = mock.Mock(return_value=1)
         self.poller.SelfServeRebuild = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         self.maxDiff = None
 
@@ -38,7 +38,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         for revision in REVISIONS:
             buildrequests = self.poller.scheduler_db.GetBuildRequests(revision, "try")
             bugs[revision] = self.poller.GetBugNumbers(buildrequests)
-        self.assertEquals(bugs, {'9465683dcfe5': [9949], '83c09dc13bb8': [609845], 'b8e5f09eead1': [], '6f8727aab415': [95846], 'e53d9b5ad8f8': [], 'e6ae55cd2f5d': [], '32d9b56c5ea6': [], '157ac288e589': [9949], 'eb85e9fe0be7': [], '77d3c3cd755d': [], '020f7584545b': [], 'b60a0c153400': [], '08b6a1ab405b': [], '365c4b2067f3': [], '7acd48c25b5c': [12345, 234456, 244677], '965f9271f2cf': [], '7fb7e88a1739': [], '87e7b2736018': [], 'c815c02a8bbc': [], 'cc750feffa41': [], 'd1653821d023': [], '5fe5c08a5737': [], '34a6c1275fd0': [], '8da8f0209359': [], 'e743e3347c09': [], '867c3741e16d': [], '6242c0b1ef60': [], '924976bc4bf9': [], '127c2f71d6b0': []})
+        self.assertEquals(bugs, {'9465683dcfe5': [9949], '83c09dc13bb8': [9949], 'b8e5f09eead1': [], '6f8727aab415': [95846], 'e53d9b5ad8f8': [], 'e6ae55cd2f5d': [], '32d9b56c5ea6': [], '157ac288e589': [9949], 'eb85e9fe0be7': [], '77d3c3cd755d': [], '020f7584545b': [], 'b60a0c153400': [], '08b6a1ab405b': [], '365c4b2067f3': [], '7acd48c25b5c': [12345, 234456, 244677], '965f9271f2cf': [], '7fb7e88a1739': [], '87e7b2736018': [], 'c815c02a8bbc': [], 'cc750feffa41': [], 'd1653821d023': [], '5fe5c08a5737': [], '34a6c1275fd0': [], '8da8f0209359': [], 'e743e3347c09': [], '867c3741e16d': [], '6242c0b1ef60': [], '924976bc4bf9': [], '127c2f71d6b0': []})
 
     def testGetSingleAuthor(self):
         authors = {}
@@ -95,7 +95,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEquals(type, "try")
 
     def testProcessPushTypeFlagcheckNoFlag(self):
-        revision = '157ac288e589'
+        revision = 'cc750feffa41'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.ProcessPushType(revision, buildrequests)
         self.assertEquals(type, None)
@@ -128,26 +128,19 @@ class SchedulerDBPollerTests(unittest.TestCase):
         revisions = self.poller.LoadCache()
         self.assertEquals(revisions, {'6f8727aab415': {}})
 
-    def testCheckBugCommentTimeout(self):
-        if os.path.exists(BUGLIST):
-            os.remove(BUGLIST)
-        (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
-        self.assertEquals(has_revision, False)
-
     def testWriteToBuglist(self):
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
         # create a couple of cache file to test that writing to buglist removes the cache file
         # only for the one that is written to buglist
-        incomplete = {}
-        incomplete['1234'] = {}
-        incomplete['2345'] = {}
+        incomplete = {
+            '1234': {},
+            '2345': {},
+            }
         self.poller.WriteToCache(incomplete)
         self.poller.WriteToBuglist('1234', '9949', BUGLIST)
-        (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
         revisions = self.poller.LoadCache()
         self.assertEquals(revisions, {'2345': {}, '6f8727aab415': {}})
-        self.assertTrue(has_revision)
     
     def testWriteToBuglistDryRun(self):
         if os.path.exists(BUGLIST):
@@ -156,8 +149,8 @@ class SchedulerDBPollerTests(unittest.TestCase):
         # make sure that a dry-run does not write to buglist\
         # TODO - this doesn't seem to do what I think it does
         self.poller.WriteToBuglist('1234', '9949', BUGLIST)
-        (has_revision, post) = self.poller.CheckBugCommentTimeout('1234', BUGLIST)
-        self.assertFalse(has_revision)
+        #  Write a function to check the buglist?
+        #self.assertFalse(has_revision)
 
     def testCalculateBuildRequestStatusComplete(self):
         revision = 'e6ae55cd2f5d'
@@ -176,14 +169,23 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         bugs = self.poller.GetBugNumbers(buildrequests)
         report = self.poller.CalculateResults(buildrequests)
-        message = self.poller.GenerateResultReportMessage(revision, report)
+        # Test Passing
         if len(bugs) > 0:
             for bug in bugs:
-                # UNCOMMENT to check sandbox bugzilla posting, commented out to avoid spamming the bug
-                #r = bz_utils.bz_notify_bug(self.config.get('bz_api', 'url'), self.config.get('bz_api', 'sandbox_bug'), message, self.config.get('bz_api', 'username'), self.config.get('bz_api', 'password'))
-                r = True
-        self.assertTrue(r)
-
+                posted = self.poller.bz.has_recent_comment('157ac288e589', bug)
+                if not posted:
+                    message = "There should not be a post for rev 157ac288e589 in the last 4 hours"
+                else:
+                    message = "There should be a post for rev 157ac288e589 in the last 4 hours"
+                r = self.poller.bz.notify_bug(message , bug)
+                self.assertTrue(r)
+        # Test Failing
+        output = self.poller.PollByRevision('157ac288e589', 4, [909090])
+        self.assertFalse(output['posted_to_bug'])
+        # Test No One Cares
+        output = self.poller.PollByRevision('cc750feffa41', 4)
+        self.assertTrue(output['discard'])
+        
     def testDBGetBuildRequests(self):
         buildrequests = self.poller.scheduler_db.GetBuildRequests()
         self.assertNotEquals(buildrequests,{})
@@ -193,17 +195,21 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEquals(revisions.keys()[:5],[u'9465683dcfe5', u'163e8764498e', u'72e79e2d4c48', u'aa4cedbd66ab', u'82f950327fa8'])
 
     def testPollByRevisionComplete(self):
-        # First time should return True as there is not a postedbugs.log
+        message = u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8'
+        posted = self.poller.bz.has_recent_comment('83c09dc13bb8', 9949)
+        if not posted:
+            # if this test hasn't been run in 4 hours this will return True
+            output = self.poller.PollByRevision('83c09dc13bb8')
+            self.assertEqual((message, True), (output['message'], output['posted_to_bug']))
+
+        # we have posted to the bug so this should be false
         output = self.poller.PollByRevision('83c09dc13bb8')
-        self.assertEqual((u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8', True), (output['message'], output['posted_to_bug']))
-        # Run CheckBugCommentTimeout again now and there should be a False on posting for this
-        # revision, as we have now posted to the bug
-        has_revision,post = self.poller.CheckBugCommentTimeout('83c09dc13bb8', filename=BUGLIST)
-        self.assertFalse(post)
-        # Run the PollByRevision again to test 'it was already written there recently'
-        output = self.poller.PollByRevision('83c09dc13bb8')
+        self.assertEqual((message, False), (output['message'], output['posted_to_bug']))
         self.assertFalse(output['posted_to_bug'])
         self.assertTrue(output['is_complete'])
+        # now override and post to the bug anyway
+        output = self.poller.PollByRevision('83c09dc13bb8', 0)
+        self.assertEqual((message, True), (output['message'], output['posted_to_bug']))
 
     def testPollByRevisionIncomplete(self):
         output = self.poller.PollByRevision('6f8727aab415')

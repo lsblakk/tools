@@ -7,8 +7,9 @@ except ImportError:
     import json
 
 class bz_util():
-    def __init__(self, api_url, attachment_url=None, username=None, password=None):
+    def __init__(self, api_url, url, attachment_url=None, username=None, password=None):
         self.api_url = api_url
+        self.url = url
         self.attachment_url = attachment_url
         self.username = username
         self.password = password
@@ -19,6 +20,7 @@ class bz_util():
 # Catch these exceptions: 
 # bug doesn't exist
 # bug can't be accessed
+
     def request(self, path, data=None, method=None):
         """
         Request a page through the bugzilla api.
@@ -43,8 +45,11 @@ class bz_util():
             page = json.loads(data)
         except urllib2.URLError, e:
             log.error(e)
-            page = {}
-            
+            raise
+        except ValueError, e:
+            log.error(e)
+            raise
+
         return page
 
     def put_request(self, path, data, retries, interval):
