@@ -1,23 +1,17 @@
-import sys
-import os
-import traceback
-import urllib2
-import urllib
-import re
-import json
+import sys, os, traceback, urllib2, urllib, re, json
+from time import time, strftime, strptime, localtime, mktime, gmtime
 from argparse import ArgumentParser
+from utils.db_handler import DBHandler
 import ConfigParser
 import utils.bz_utils as bz_utils
 import utils.mq_utils as mq_utils
-from utils.db_handler import DBHandler
-from time import time, strftime, localtime
-
 import logging, logging.handlers
 
 FORMAT="%(asctime)s - %(module)s - %(funcName)s - %(message)s"
 LOGFILE='schedulerDBpoller.log'
 POSTED_BUGS='postedbugs.log'
 POLLING_INTERVAL=14400 # 4 hours
+TIMEOUT=21600 # 6 hours
 MAX_POLLING_INTERVAL=172800 # 48 hours
 COMPLETION_THRESHOLD=600 # 10 minutes
 MAX_ORANGE = 2
@@ -32,7 +26,7 @@ log.addHandler(handler)
 
 class SchedulerDBPoller():
 
-    def __init__(self, branch, cache_dir, config, flagcheck=True,
+    def __init__(self, branch, cache_dir, config,
                 user=None, password=None, dry_run=False, verbose=False):
 
         self.config = ConfigParser.ConfigParser()
@@ -51,7 +45,6 @@ class SchedulerDBPoller():
         self.self_serve_api_url = self.config.get('self_serve', 'url')
         self.branch = branch
         self.cache_dir = cache_dir
-        self.flagcheck = flagcheck
         self.dry_run = dry_run
         self.verbose = verbose
         self.user = user
@@ -59,6 +52,28 @@ class SchedulerDBPoller():
 
         self.scheduler_db = DBHandler(self.config.get('databases', 'scheduler_db_url'))
         self.autoland_db = DBHandler(self.config.get('databases', 'autoland_db_url'))
+
+    def revisionTimedOut(self, revision, timeout=TIMEOUT):
+        """ Read the cache file for a revision and return if the build has timed out """
+        timed_out = False
+        now = time()
+        revisions = self.LoadCache()
+        if revision in revisions.keys():
+            filename = os.path.join(self.cache_dir, revision)
+            if os.path.exists(filename):
+                try:
+                    f = open(filename, 'r')
+                    entries = f.readlines()
+                    f.close()
+                except IOError as e:
+                    log.error("Couldn't open cache file for rev: %s" % revision)
+                    raise
+                first_entry = mktime(strptime(entries[0].split('|')[0], "%a, %d %b %Y %H:%M:%S %Z"))
+                diff = now - first_entry
+                if diff > timeout:
+                    log.debug("Timeout on rev: %s " % revision)
+                    timed_out = True
+        return timed_out
 
     def OrangeFactorHandling(self, buildrequests):
         """ Checks buildrequests results if all success except # warnings is <= MAX_ORANGE
@@ -140,7 +155,7 @@ class SchedulerDBPoller():
                     is_complete = True
                     final_status = "failure"
         else:
-            # There are too many warnings there's nothing to be done
+            # too many warnings, no point retrying builds
             if self.verbose:
                 log.debug("Too many warnings! Final = failure")
             is_complete = True
@@ -191,16 +206,22 @@ class SchedulerDBPoller():
         for key,value in buildrequests.items():
             br = value.to_dict()
             for comment in br['comments']:
+                # want the bug that is in the syntax if it's a try push and not from autoland
+                if 'try: ' in comment:
+                    comment = comment.split('try: ')[1]
                 if bugs == []:
                     bugs = self.bz.bugs_from_comments(comment)
         return bugs
     
     def ProcessPushType(self, revision, buildrequests):
-        """ Search buildrequest comments for try syntax and query autoland_db about a revision returns type as "try", "auto", or None
-    
-        try: if "try: --post-to-bugzilla" is present in the comments of a buildrequest
-        auto: if a check against AutolandDB returns True
-        None: if it's not "try" and AutolandDB isn't tracking it """
+        """ Search buildrequest comments for try syntax and query autoland_db 
+            
+       returns type as "try", "auto", or None
+        
+            try: if "try: --post-to-bugzilla" is present in the comments of a buildrequest
+            auto: if a check against AutolandDB returns True
+            None: if no try request and AutolandDB isn't tracking it
+        """
     
         type = None
         if self.autoland_db.AutolandQuery(revision):
@@ -209,16 +230,12 @@ class SchedulerDBPoller():
             for key,value in buildrequests.items():
                 br = value.to_dict()
                 for comments in br['comments']:
-                    if self.flagcheck and type == None:
-                        if 'try: ' in comments and '--post-to-bugzilla' in comments:
-                            type = "try"
-                    else:
-                        if 'try: ' in comments:
-                            type = "try"
+                    if 'try: ' in comments and '--post-to-bugzilla' in comments:
+                        type = "try"
         return type
     
     def CalculateResults(self, buildrequests):
-        """ Returns dictionary of the results for the buildrequests passed in"""
+        """ Returns dictionary of the results for the buildrequests passed in """
     
         results = {
             'success': 0,
@@ -247,16 +264,20 @@ class SchedulerDBPoller():
         message = """Try run for %s is complete.
 Detailed breakdown of the results available here:
     https://tbpl.mozilla.org/?tree=%s&rev=%s
-Results (out of %d total builds):\n""" % (revision, self.branch.title(), revision, report['total_builds'])
+Results (out of %d total builds):\n""" % (revision, self.branch.title(), 
+                                            revision, report['total_builds'])
         for key, value in report.items():
             if value > 0 and key != 'total_builds':
                 message += "    %s: %d\n" % (key, value)
         if author != None:
-            message += "Builds (or logs if builds failed) available at http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s" % locals()
+            message += """Builds (or logs if builds failed) available at:
+http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)s""" % locals()
         return message
     
     def WriteToBuglist(self, revision, bug, filename=POSTED_BUGS):
-        """ Writes a bug number and timestamp of complete build info to the BUGLIST."""
+        """ Writes a bug #, timestamp, and build's info to the BUGLIST to track what has been posted 
+            Also cleans up, removing the cache file for the revision once it's been posted
+        """
         if self.dry_run:
             log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, revision))
         else:
@@ -278,7 +299,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
         
     
     def LoadCache(self):
-        """Search for existing cache dir, return dict of revisions (filenames) in the dir"""
+        """ Search for cache dir, return dict of all filenames (revisions) in the dir """
         revisions = {}
         if self.verbose:
             log.debug("Checking for existing cache file...")
@@ -293,7 +314,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
         return revisions
     
     def WriteToCache(self, incomplete):
-        """ Writes a results of incomplete build results to file, named by revision"""
+        """ Writes results of incomplete build to cache dir in a file that is named with the revision """
         if not os.path.isdir(self.cache_dir):
             os.mkdir(self.cache_dir)
             if self.verbose:
@@ -318,10 +339,13 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             log.error(traceback.print_exc(file=sys.stdout))
             raise
     
-    def CalculateBuildRequestStatus(self, buildrequests):
+    def CalculateBuildRequestStatus(self, buildrequests, revision=None):
         """ Accepts buildrequests and calculates their results, calls OrangeFactorHandling
             to ensure completeness of results, makes sure that COMPLETION_THRESHOLD is met
             before declaring a build finished (this is for delays in test triggerings)
+            
+            If a revision is passed in, the revision will be checked for timeout in revisionTimedOut
+            and factored into the is_complete value
         
         returns a tuple of:
             status (dict)
@@ -360,11 +384,12 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 # one more check before it's _really complete_ - any oranges to retry?
                 is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
         else:
-            # TODO - this is where to kick things out that have bugs which can't be posted to
-            # or if something's been in the retry queue for N amount of time
-            # check how long since builds started
-            is_complete = False
-            log.debug("Need to kick out things that don't meet the usual complete check here")
+            # if revision, check timeout
+            if revision != None:
+                is_complete = self.revisionTimedOut(revision)
+                status['status_string'] = 'timed out'
+            else:
+                is_complete = False
 
         return (status,is_complete)
     
@@ -381,7 +406,31 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
             if not rev_dict.has_key(revision):
                 rev_dict[revision] = {}
         return rev_dict
-    
+
+    def ProcessCompletedRevision(self, revision, message, bug, status_str, type):
+        """ Posts to bug and also sends a message to the autoland queue if type == 'auto' """
+        bug_post = False
+        if self.verbose:
+            log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
+        if status_str == 'timed out':
+            message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
+        r = self.bz.notify_bug(message, bug)
+        if r:
+            self.WriteToBuglist(revision, bug)
+            log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
+            bug_post = True
+        else:
+            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
+            bug_post = False
+        if type == 'auto':
+            msg = { 'type'  : status_str,
+                    'action': 'try.push',
+                    'bugid' : bug,
+                    'revision': revision }
+            self.mq.send_message(msg, self.config.get('mq', 'queue'),
+                routing_keys=[self.config.get('mq', 'db_topic')])
+        return bug_post
+
     def PollByRevision(self, revision, hours=4, bugs=None):
         """ Run a single revision through the polling process to determine if it is complete, 
             or not, returns information on the revision in a dict which includes the message
@@ -399,7 +448,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
         type = self.ProcessPushType(revision, buildrequests)
         if bugs == None:
             bugs = self.GetBugNumbers(buildrequests)
-        info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests)
+        info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests, revision)
         if self.verbose:
             log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (info['status'], bugs, type, info['is_complete']))
         if info['is_complete'] and type == "try" and len(bugs) > 0:
@@ -416,18 +465,19 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 else:
                     if info['message'] != None and self.dry_run == False:
                         # Comment in the bug
-                        r = self.bz.notify_bug(info['message'], bug)
-                        if r == 1:
-                            self.WriteToBuglist(revision, bug)
-                            log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
-                            info['posted_to_bug'] = True
-                        else:
-                            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (info['message'], bug))
-                            info['posted_to_bug'] = False
-                            # TODO - write to the cache file how many tries (set a limit for this?)
+                        info['posted_to_bug'] = self.ProcessCompletedRevision(revision, 
+                                                        info['message'], bug, 
+                                                        info['status']['status_string'], type)
+        # Autoland - send completion message to the autoland_queue and post to bug
+        elif info['is_complete'] and type == "auto":
+            if len(bugs) == 1:
+                info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
+                                                        bugs, info['status']['status_string'], type)
+            else:
+                log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(bugs))
         # No bug number(s) or no try syntax, but complete gets flagged for discard
         elif info['is_complete']:
-            log.debug("Nothing to do here" % revision)
+            log.debug("Nothing to do here for %s" % revision)
             info['discard'] = True
         else:
             # Cache it
@@ -468,7 +518,9 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                 incomplete[revision] = {'status': info['status'],
                                         'bugs': info['bugs'],
                                         }
-            # For completed buildruns determine handling for the completed revision
+
+            # Completed buildruns handling
+            # Try syntax has --post-to-bugzilla so we want to post to bug
             if info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) > 0:
                 for bug in info['bugs']:
                     posted = self.bz.has_recent_comment(revision, bug)
@@ -483,67 +535,80 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(), revisio
                             r = False
                         else:
                             # Comment in the bug
-                            r = self.bz.notify_bug(rev_report[revision]['message'], bug)
-                        if r:
-                            self.WriteToBuglist(revision, bug)
-                            log.debug("BZ POST SUCCESS: %s%s " % (self.bz_url, info['bugs']))
-                        elif not r:
-                            if self.dry_run:
-                                log.debug("DRY-RUN: NO BUG POST RESULTS")
-                            else:
-                                log.debug("BZ POST FAIL bugs:%s, writing to cache for retrying later" % info['bugs'])
+                            if not self.ProcessCompletedRevision(revision, 
+                                                  rev_report[revision]['message'], 
+                                                  info['bugs'], 
+                                                  rev_report[revision]['status']['status_string'], 
+                                                  info['push_type']):
                                 # put it back (only once per revision) into the cache file to try again later
                                 if not incomplete.has_key(revision):
                                     incomplete[revision] = {'status': info['status'],
                                                             'bugs': info['bugs'],
                                                             }
-            # It's a try run but no bug number(s) gets discarded with log note for debugging
-            elif info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) == 0 and self.verbose:
-                log.debug("Try run for %s but no bug number(s) - nothing to do here" % revision)
-            # Autoland revision is complete, send message to the autoland_queue and post to bug
+
+            # Autoland - send completion message to the autoland_queue and post to bug
             elif info['is_complete'] and info['push_type'] == "auto":
-                if self.verbose:
-                    log.debug("Autoland wants to know about %s - bug comment & message being sent" % revision)
-                # Comment in the bug and send message to autoland queue
                 if len(info['bugs']) == 1:
-                    r = self.bz.notify_bug(rev_report[revision]['message'], info['bugs'][0])
-                    if r:
-                        self.WriteToBuglist(revision, info['bugs'][0])
-                    msg = { 'type'  : rev_report[revision]['status']['status_string'],
-                            'action': 'try.push',
-                            'bugid' : info['bugs'][0],
-                            'revision': revision }
-                    self.mq.send_message(msg, self.config.get('mq', 'queue'),
-                        routing_keys=[self.config.get('mq', 'db_topic')])
+                    self.ProcessCompletedRevision(revision, 
+                                                  rev_report[revision]['message'], 
+                                                  info['bugs'], 
+                                                  rev_report[revision]['status']['status_string'], 
+                                                  info['push_type'])
                 else:
                     log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(info['bugs']))
-            # Complete but neither PushToTry nor Autoland, throw it away
-            elif info['is_complete'] and info['push_type'] == None and self.verbose:
-                log.debug("Nothing to do for %s - no one cares about it" % revision)
+            # Complete but to be discarded
+            elif info['is_complete']:
+                log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
 
+        # Store the incompletes for the next run
         self.WriteToCache(incomplete)
         return incomplete
 
-
 if __name__ == '__main__':
     """
-        Accepts a revision/branch and polls the schedulerdb for all the buildrequests of that revision
-        Determines the results of that revision/branch buildset and then posts to the bug with results
-        when that is determined to be complete. If not complete, the revision/branch and bugID are held
-        in an incomplete cache file to be checked again at regular intervals.
+        Poll the schedulerdb for all the buildrequests of a certain timerange or a single
+        revision. Determine the results of that revision/timerange's buildsets and then posts to 
+        the bug with results for any that are complete (if it's a try-syntax push, then checks for
+        --post-to-bugzilla flag). Any revision(s) builds that are not complete are written to a 
+        cache file named by revision for checking again later.
     """
     parser = ArgumentParser()
-    parser.add_argument("-b", "--branch", dest="branch", help="the branch revision to poll", required=True)
-    parser.add_argument("-c", "--config-file", dest="config", help="config file to use for accessing db", required=True)
-    parser.add_argument("-u", "--user", dest="user", help="username for buildapi ldap posting", required=True)
-    parser.add_argument("-p", "--password", dest="password", help="password for buildapi ldap posting", required=True)
-    parser.add_argument("-r", "--revision", dest="revision", help="a specific revision to poll")
-    parser.add_argument("-s", "--start-time", dest="starttime", help="unix timestamp to start polling from")
-    parser.add_argument("-e", "--end-time", dest="endtime", help="unix timestamp to poll until")
-    parser.add_argument("-f", "--flagcheck", dest="flagcheck", help="check for the --post-to-bugzilla flag in comments", action='store_true')
-    parser.add_argument("-n", "--dry-run", dest="dry_run", help="flag for turning off actually posting to bugzilla", action='store_true')
-    parser.add_argument("-v", "--verbose", dest="verbose", help="turn on verbose output", action='store_true')
-    parser.add_argument("--cache-dir", dest="cache_dir", help="working dir for tracking incomplete revisions")
+    parser.add_argument("-b", "--branch", 
+                        dest="branch", 
+                        help="the branch revision to poll", 
+                        required=True)
+    parser.add_argument("-c", "--config-file", 
+                        dest="config",
+                        help="config file to use for accessing db", 
+                        required=True)
+    parser.add_argument("-u", "--user", 
+                        dest="user", 
+                        help="username for buildapi ldap posting", 
+                        required=True)
+    parser.add_argument("-p", "--password", 
+                        dest="password", 
+                        help="password for buildapi ldap posting", 
+                        required=True)
+    parser.add_argument("-r", "--revision", 
+                        dest="revision", 
+                        help="a specific revision to poll")
+    parser.add_argument("-s", "--start-time", 
+                        dest="starttime", 
+                        help="unix timestamp to start polling from")
+    parser.add_argument("-e", "--end-time", 
+                        dest="endtime", 
+                        help="unix timestamp to poll until")
+    parser.add_argument("-n", "--dry-run", 
+                        dest="dry_run", 
+                        help="flag for turning off actually posting to bugzilla", 
+                        action='store_true')
+    parser.add_argument("-v", "--verbose", 
+                        dest="verbose", 
+                        help="turn on verbose output", 
+                        action='store_true')
+    parser.add_argument("--cache-dir", 
+                        dest="cache_dir", 
+                        help="working dir for tracking incomplete revisions")
 
     parser.set_defaults(
         branch="try",
@@ -560,12 +625,11 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if options.revision:
-        poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.flagcheck, options.dry_run, options.verbose)
+        poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.dry_run, options.verbose)
         result, posted_to_bug = poller.PollByRevision(options.revision)
         if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
     else:
-        # TODO Validation on the timestamps provided
         if options.starttime > time():
             log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, time.localtime()))
             sys.exit(1)
@@ -576,7 +640,7 @@ if __name__ == '__main__':
             log.debug("Too large of a time interval between start and end times, please try a smaller polling interval")
             sys.exit(1)
         else:
-            poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.flagcheck, options.dry_run, options.verbose)
+            poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.dry_run, options.verbose)
             incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
             if options.verbose:
                 log.debug("Time range run complete: INCOMPLETE %s" % incomplete)

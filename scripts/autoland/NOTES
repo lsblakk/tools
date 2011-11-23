@@ -1,3 +1,4 @@
+## Marc Notes
 0. When put into staging, an issue popped up with the message queue:
    messages sent from autoland_queue => hgpusher are sometimes received by
    autoland_queue, or not received by hgpusher. I took a look at the queues
@@ -51,3 +52,25 @@
 5. autoland_queue needs to poll the database for jobs that have either:
     a) been in the queue for a long time
     b) been running for an outrageous amount of time without response
+
+# Lukas Notes
+## TODO Before landing:
+* bugzilla posting tests, no double posts!
+** This also means including handling for security bugs and for 400 errors (bad bug typing)
+* Tests/Validation for the argparser of schedulerdbpoller -- do I need this?
+* only write to file for things that are try or autoland - no need to keep the ones with no bugs in them
+* if self-serve retry fails - test that the build comes back as complete
+
+## TODO - AUTOLAND enhancements
+* LDAP tests use Marc's email and he doesn't have LDAP anymore
+** bug 695076 is getting hit a lot - need to kick things out of the queue
+* can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
+* ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
+* Why does every second whiteboard tag not trigger builds?
+* There's a 10 minute gap between schedulerdbpoller runs so you could have an autoland push start & stop in that time with no report back
+** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
+* Makefile & setup script for test environment
+* Set up an archiving script for postedbug.log on cruncher - so we have history of usage
+* Make a note in the bug comment message when builds were cancelled via self-serve
+* Nagios check top entry in cache files and warn about possibly hung builds
+
