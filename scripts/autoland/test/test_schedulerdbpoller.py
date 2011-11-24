@@ -229,7 +229,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testDryRunPollByRevisionComplete_TrySyntax(self):
         print 'testDryRunPollByRevisionComplete_TrySyntax()'
         self.poller.dry_run = True
-        output = self.poller.PollByRevision('83c09dc13bb8')
+        output = self.poller.PollByRevision('83c09dc13bb8', 0)
         # make sure nothing goes to the bug
         self.assertFalse(output['posted_to_bug'])
     
@@ -237,14 +237,14 @@ class SchedulerDBPollerTests(unittest.TestCase):
         print 'testPollByTimeRange()'
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
-        self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
+        self.assertEquals(incomplete['9465683dcfe5']['status']['status_string'], 'retrying')
 
     def testPollByTimeRangeDryRun(self):
         print 'testPollByTimeRangeDryRun()'
         self.poller.dry_run = True
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
-        self.assertEquals(incomplete['abbc6df9a187']['status']['status_string'], 'retrying')
+        self.assertEquals(incomplete['9465683dcfe5']['status']['status_string'], 'retrying')
 
     def testOrangeFactorRetriesWithoutDupes(self):
         print 'testOrangeFactorRetriesWithoutDupes()'

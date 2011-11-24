@@ -1,4 +1,8 @@
-import sys, os, traceback, urllib2, urllib, re, json
+try:
+    import json
+except ImportError:
+    import simplejson as json
+import sys, os, traceback, urllib2, urllib, re
 from time import time, strftime, strptime, localtime, mktime, gmtime
 from argparse import ArgumentParser
 from utils.db_handler import DBHandler
@@ -65,7 +69,7 @@ class SchedulerDBPoller():
                     f = open(filename, 'r')
                     entries = f.readlines()
                     f.close()
-                except IOError as e:
+                except IOError, e:
                     log.error("Couldn't open cache file for rev: %s" % revision)
                     raise
                 first_entry = mktime(strptime(entries[0].split('|')[0], "%a, %d %b %Y %H:%M:%S %Z"))
@@ -416,9 +420,9 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
         r = self.bz.notify_bug(message, bug)
         if r:
-            self.WriteToBuglist(revision, bug)
             log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
             bug_post = True
+            self.WriteToBuglist(revision, bug)
         else:
             log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
             bug_post = False
@@ -468,10 +472,15 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                         info['posted_to_bug'] = self.ProcessCompletedRevision(revision, 
                                                         info['message'], bug, 
                                                         info['status']['status_string'], type)
+                    elif self.dry_run:
+                        log.info("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
         # Autoland - send completion message to the autoland_queue and post to bug
         elif info['is_complete'] and type == "auto":
             if len(bugs) == 1:
-                info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
+                if self.dry_run:
+                    log.info("DRY RUN: Would post %s to bug %s and notify Autoland message queue" % (info['message'], bug))
+                else:
+                    info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
                                                         bugs, info['status']['status_string'], type)
             else:
                 log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(bugs))
@@ -480,11 +489,14 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             log.debug("Nothing to do here for %s" % revision)
             info['discard'] = True
         else:
-            # Cache it
-            log.debug("Writing %s to cache" % revision)
-            incomplete = {}
-            incomplete[revision] = info['status']
-            self.WriteToCache(incomplete)
+            if bugs != None and not self.dry_run:
+                # Cache it
+                log.debug("Writing %s to cache" % revision)
+                incomplete = {}
+                incomplete[revision] = info['status']
+                self.WriteToCache(incomplete)
+            else:
+                info['discard'] = True
             
         return info
     
@@ -513,55 +525,46 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         for revision,info in rev_report.items():
             if self.verbose:
                 log.debug("PROCESSING --- REV: %s: INFO: %s" % (revision, info))
-            # Incomplete gets added to dict for later processing
+            # Incomplete builds that are autoland or have bugs get added to dict for re-checking later
             if not info['is_complete']:
-                incomplete[revision] = {'status': info['status'],
-                                        'bugs': info['bugs'],
-                                        }
+                if info['push_type'] == "auto" or len(info['bugs']) == 1:
+                    incomplete[revision] = {'status': info['status'],
+                                            'bugs': info['bugs'],
+                                            }
 
-            # Completed buildruns handling
             # Try syntax has --post-to-bugzilla so we want to post to bug
-            if info['is_complete'] and info['push_type'] == "try" and len(info['bugs']) > 0:
-                for bug in info['bugs']:
-                    posted = self.bz.has_recent_comment(revision, bug)
-                    if posted:
-                        if self.verbose:
-                            log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
-                        if self.dry_run:
-                            log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
-                    else:
-                        if self.dry_run:
-                            log.debug("DRY_RUN: Would post to %s%s " % (self.bz_url, bug))
-                            r = False
-                        else:
-                            # Comment in the bug
-                            if not self.ProcessCompletedRevision(revision, 
-                                                  rev_report[revision]['message'], 
-                                                  info['bugs'], 
-                                                  rev_report[revision]['status']['status_string'], 
-                                                  info['push_type']):
-                                # put it back (only once per revision) into the cache file to try again later
-                                if not incomplete.has_key(revision):
-                                    incomplete[revision] = {'status': info['status'],
-                                                            'bugs': info['bugs'],
-                                                            }
-
-            # Autoland - send completion message to the autoland_queue and post to bug
-            elif info['is_complete'] and info['push_type'] == "auto":
-                if len(info['bugs']) == 1:
-                    self.ProcessCompletedRevision(revision, 
-                                                  rev_report[revision]['message'], 
-                                                  info['bugs'], 
-                                                  rev_report[revision]['status']['status_string'], 
-                                                  info['push_type'])
+            if info['is_complete'] and info['push_type'] != None and len(info['bugs']) == 1:
+                bug = info['bugs'][0]
+                posted = self.bz.has_recent_comment(revision, bug)
+                if posted:
+                    if self.verbose:
+                        log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
+                    if self.dry_run:
+                        log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
-                    log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(info['bugs']))
+                    if self.dry_run:
+                        log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
+                    else:
+                        # Comment in the bug
+                        if not self.ProcessCompletedRevision(revision, 
+                                              rev_report[revision]['message'], 
+                                              info['bugs'], 
+                                              rev_report[revision]['status']['status_string'], 
+                                              info['push_type']):
+                            # If bug post didn't happen put it back (once per revision) into cache to try again later
+                            if not incomplete.has_key(revision):
+                                incomplete[revision] = {'status': info['status'],
+                                                        'bugs': info['bugs'],
+                                                        }
+            elif len(info['bugs']) > 1:
+                log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(info['bugs']))
             # Complete but to be discarded
             elif info['is_complete']:
                 log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
 
-        # Store the incompletes for the next run
+        # Store the incompletes for the next run if there's a bug or it's autoland post
         self.WriteToCache(incomplete)
+
         return incomplete
 
 if __name__ == '__main__':
