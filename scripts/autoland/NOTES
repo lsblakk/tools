@@ -4,7 +4,8 @@
    autoland_queue, or not received by hgpusher. I took a look at the queues
    and topics being used, and they all seem to be correct so I have so far
    been unable to find out what's going wrong.
-1. The use case of "Flag bug for landing --> Wait for review --> land":
+1. # DONE
+   The use case of "Flag bug for landing --> Wait for review --> land":
     -  Will not currently work, due to an early design mistake. The fix is
        fairly straight forward, but will require some time. I can redesign
        this and implement ASAP. I've outlined the necessary changes below:
@@ -20,7 +21,8 @@
           for the proper review permissions, and if they are not there, we
           simply ignore it until out next poll.
         - OPTIONS:
-              o  change autoland_queue.py:get_patchset() to have a toggle on
+              o  # XXX: Implemented this.
+                 change autoland_queue.py:get_patchset() to have a toggle on
                  comment posting, and use the get_patchset function to check.
               o  rewrite autoland_queue.py:get_patchset() to return a
                  pass/fail state, for example:
@@ -31,18 +33,21 @@
                 a while just for a failure.
 2. A lot of this code needs to be cleaned up a bit. Some improvements I would
    like to make are:
-    - Either a wrapper for or modifications to bz.notify_bug() that will check
+    - # Next on todo list:
+      Either a wrapper for or modifications to bz.notify_bug() that will check
       for failure, and log them for later posting.
     - Bugzilla represents its numbers as strings, but internally the autoland
       tools represent them as integers. There is quite a bit of type
       conversion and it would be nice to change that. Either convert at the
       earliest point, or internally store as strings. I prefer the former.
     - Simply fix some of the messy program flow, and code reuse problems.
-    - After x # of retries on apply/push in hgpusher.py:apply_patchset(),
-      clean_repo should be blown away and cloned again.
     - Get tests using a static test config, rather than the default config
       file.
     - After landing on branch, should set attachment flag checked-in+
+    # DONE:
+    - After x retries on apply/push in hgpusher.py:apply_patchset(),
+      clean_repo should be blown away and cloned again.
+    - Add a config flag for poll frequency in autoland_queue.
 3. The whole enforcement of "full headers" on patches might be a bit difficult
    & disliked, possibly leading to many issues with developers/bugzilla spam.
    They are not required on try runs, however they are for landing to branch.
