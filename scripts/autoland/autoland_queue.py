@@ -18,7 +18,6 @@ LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
 
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
-print config
 bz = bz_utils.bz_util(config['bz_url'], config['bz_attachment_url'],
         config['bz_username'], config['bz_password'])
 mq = mq_utils.mq_util()
@@ -80,7 +79,7 @@ def get_reviews(attachment):
                 break
     return reviews
 
-def get_patchset(bug_id, try_run, patches=[]):
+def get_patchset(bug_id, try_run, patches=[], review_comment=True):
     """
     If patches specified, only fetch the information on those specific
     patches from the bug.
@@ -95,6 +94,12 @@ def get_patchset(bug_id, try_run, patches=[]):
     which have R+ on any R that is set. If there are any non-obsolete
     bugs that have R-, the push will fail since the bug may not be
     complete.
+
+    The review_comment parameter defaults to True, and is used to specify
+    if a comment should be posted on review failures on not. This has a
+    somewhat specific use case:
+        When checking if a flagged job should be picked up and put into the
+        queue, no comment should be posted if there are missing/bad reviews.
 
     Return value is of the JSON structure:
         [
@@ -135,12 +140,14 @@ def get_patchset(bug_id, try_run, patches=[]):
             else:   # push to branch
                 if not reviews: # No reviews, fail
                     # comment that no reviews on patch x
-                    bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
+                    if review_comment:
+                        bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
                     return None
                 for review in reviews:
                     if review['result'] != '+': # Bad review, fail
                         # comment bad review
-                        bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
+                        if review_comment:
+                            bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
                         return None
                     review['reviewer'] = bz.get_user_info(review['reviewer'])
                 patch['reviews'] = reviews
@@ -161,7 +168,7 @@ def get_patchset(bug_id, try_run, patches=[]):
     if len(patchset) == 0:
         c = bz.notify_bug('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
         if c:
-            log_msg('Commend published to bug %s' % (bug_id), log.DEBUG)
+            log_msg('Comment published to bug %s' % (bug_id), log.DEBUG)
         else:
             log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
@@ -178,6 +185,7 @@ def bz_search_handler():
         bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
     except urllib2.HTTPError, e:
         log_msg("Error while polling bugzilla: %s" % (e))
+
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
         print bug_id, tag
@@ -215,6 +223,15 @@ def bz_search_handler():
             ps.branch = branch
         ps.patches = patch_group
         ps.bug_id = bug_id
+
+        # check patch reviews & permissions
+        patches = get_patchset(ps.bug_id, ps.try_run,
+                               ps.patchList(), review_comment=False)
+        if patches == None:
+            # do not have all the necessary permissions, let the job
+            # sit in Bugzilla so it can be picked up again later.
+            continue
+
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
 
@@ -377,7 +394,7 @@ class SearchThread(threading.Thread):
         while(1):
             # check if bugzilla has any requested jobs
             bz_search_handler()
-            next = time.time() + 120
+            next = time.time() + config['bz_poll_frequency']
             while time.time() < next:
                 patchset = db.PatchSetGetNext()
                 if patchset == None:
@@ -385,6 +402,8 @@ class SearchThread(threading.Thread):
                         continue
                 log_msg('Pulled patchset %s out of the queue' % (patchset),
                         log.DEBUG)
+                # Check permissions & patch set again, in case it has changed
+                # since the job was put on the queue
                 patches = get_patchset(patchset.bug_id, patchset.try_run,
                                        patchset.patchList())
                 # get branch information so that message can contain branch_url

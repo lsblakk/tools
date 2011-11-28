@@ -129,8 +129,12 @@ def process_patchset(data):
     """
     class RETRY(Exception):
         pass
-    active_repo = os.path.join(
-                    'active/%s' % (data['branch']))
+
+    # attempts must be manually counted since apply_and_push doesn't check for
+    # errors on "changer", and retry doesn't keep an attempt count
+    attempts = 0
+
+    active_repo = os.path.join('active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
     if not 'branch_url' in data:
         # TODO: Log bad message
@@ -147,9 +151,19 @@ def process_patchset(data):
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
-        clone_branch(data['branch'], data['branch_url'])
+        attempts = attempts + 1
+        if (attempts % 3) == 0:
+            clear_branch(data['branch'])
     def apply_patchset(dir, attempt):
-        print "attempt #%s" % (attempt)
+        print "attempt #%s" % (attempts)
+
+        if not clone_branch(data['branch'], data['branch_url']):
+            msg = 'Branch %s could not be cloned.'
+            log_msg('[Branch %s] Could not clone from %s.' \
+                    % (data['branch'], data['branch_url']))
+            comment.append(msg)
+            raise RETRY
+
         for patch in data['patches']:
             log_msg("Getting patch %s" % (patch['id']), None)
             # store patches in 'patches/' below work_dir
@@ -189,9 +203,6 @@ def process_patchset(data):
         comment.append(msg)
         log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         bz.notify_bug('\n'.join(comment), data['bug_id'])
-        return False
-
-    if not clone_branch(data['branch'], data['branch_url']):
         return False
 
     try:
@@ -263,6 +274,18 @@ def clone_branch(branch, branch_url):
         return None
 
     return revision
+
+def clear_branch(branch):
+    """
+    Clear the directories for the given branch,
+    effictively removing any changes as well as clearing out the clean repo.
+    """
+    clean_repo = os.path.join('clean/', branch)
+    active_repo = os.path.join('active/', branch)
+    if os.access(clean_repo, os.F_OK):
+        shutil.rmtree(clean_repo)
+    if os.access(active_repo, os.F_OK):
+        shutil.rmtree(active_repo)
 
 def valid_dictionary_structure(d, elements):
     """
