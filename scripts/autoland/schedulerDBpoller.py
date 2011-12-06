@@ -319,29 +319,34 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     
     def WriteToCache(self, incomplete):
         """ Writes results of incomplete build to cache dir in a file that is named with the revision """
-        if not os.path.isdir(self.cache_dir):
-            os.mkdir(self.cache_dir)
-            if self.verbose:
-                log.debug("CREATED DIR: %s" % self.cache_dir)
         try:
             assert isinstance(incomplete, dict)
         except AssertionError, e:
             log.error("Incomplete should be type:dict")
             raise
-        try:
-            for revision, results in incomplete.items():
-                filename = os.path.join(self.cache_dir, revision)
-                if self.dry_run:
-                    log.debug("DRY RUN: WOULD WRITE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
-                else:
+
+        if not os.path.isdir(self.cache_dir):
+            if not self.dry_run:
+                os.mkdir(self.cache_dir)
+                if self.verbose:
+                    log.debug("CREATED DIR: %s" % self.cache_dir)
+            else:
+                log.info("DRY RUN: WOULD CREATE DIR: %s" % self.cache_dir) 
+        
+        for revision, results in incomplete.items():
+            filename = os.path.join(self.cache_dir, revision)
+            if self.dry_run:
+                log.info("DRY RUN: WOULD WRITE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
+            else:
+                try:                    
                     f = open(filename, 'a')
                     f.write("%s|%s\n" % (strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
                     if self.verbose:
                         log.debug("WROTE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
                     f.close()
-        except:
-            log.error(traceback.print_exc(file=sys.stdout))
-            raise
+                except:
+                    log.error(traceback.print_exc(file=sys.stdout))
+                    raise
     
     def CalculateBuildRequestStatus(self, buildrequests, revision=None):
         """ Accepts buildrequests and calculates their results, calls OrangeFactorHandling
@@ -450,6 +455,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         }
         buildrequests = self.scheduler_db.GetBuildRequests(revision, self.branch)
         type = self.ProcessPushType(revision, buildrequests)
+        # if no bugs passed in, check comments for --post-to-bugzilla bug XXXXXX
         if bugs == None:
             bugs = self.GetBugNumbers(buildrequests)
         info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests, revision)
@@ -542,7 +548,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     if self.dry_run:
                         log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
-                    if self.dry_run:
+                    if self.dry_run == False:
                         log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
                     else:
                         # Comment in the bug
@@ -619,6 +625,7 @@ if __name__ == '__main__':
         revision=None,
         starttime = time() - POLLING_INTERVAL,
         endtime = time(),
+        dry_run = False,
     )
 
     options, args = parser.parse_known_args()

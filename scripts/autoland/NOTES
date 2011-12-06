@@ -66,7 +66,12 @@
 * only write to file for things that are try or autoland - no need to keep the ones with no bugs in them
 * if self-serve retry fails - test that the build comes back as complete
 
+
+## For Try landing deadling - need to not have the 'full headers' requirement
+## Prepare the modules for potential multi-branch landing - map policies per branch
+
 ## TODO - AUTOLAND enhancements
+* When discussing the bugzilla extension - get a comment field added so headers aren't required
 * LDAP tests use Marc's email and he doesn't have LDAP anymore
 ** bug 695076 is getting hit a lot - need to kick things out of the queue
 * can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
