@@ -24,9 +24,6 @@ MAX_ORANGE = 2
 logging.basicConfig(format=FORMAT)
 # sets up a rotating logfile that's written to the working dir
 log = logging.getLogger(LOGFILE)
-log.setLevel(logging.DEBUG)
-handler = logging.handlers.RotatingFileHandler(LOGFILE, maxBytes=50000, backupCount=5)
-log.addHandler(handler)
 
 class SchedulerDBPoller():
 
@@ -581,6 +578,11 @@ if __name__ == '__main__':
         --post-to-bugzilla flag). Any revision(s) builds that are not complete are written to a 
         cache file named by revision for checking again later.
     """
+
+    log.setLevel(logging.DEBUG)
+    handler = logging.handlers.RotatingFileHandler(LOGFILE, maxBytes=50000, backupCount=5)
+    log.addHandler(handler)
+
     parser = ArgumentParser()
     parser.add_argument("-b", "--branch", 
                         dest="branch", 
@@ -635,7 +637,9 @@ if __name__ == '__main__':
         sys.exit(1)
 
     if options.revision:
-        poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.dry_run, options.verbose)
+        poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
+                                    user=options.user, password=options.password, dry_run=options.dry_run, 
+                                    verbose=options.verbose)
         result, posted_to_bug = poller.PollByRevision(options.revision)
         if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
@@ -650,7 +654,9 @@ if __name__ == '__main__':
             log.debug("Too large of a time interval between start and end times, please try a smaller polling interval")
             sys.exit(1)
         else:
-            poller = SchedulerDBPoller(options.branch, options.cache_dir, options.config, options.dry_run, options.verbose)
+            poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
+                                    user=options.user, password=options.password, dry_run=options.dry_run, 
+                                    verbose=options.verbose)
             incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
             if options.verbose:
                 log.debug("Time range run complete: INCOMPLETE %s" % incomplete)
