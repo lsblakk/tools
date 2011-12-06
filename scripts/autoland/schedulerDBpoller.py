@@ -331,12 +331,12 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 if self.verbose:
                     log.debug("CREATED DIR: %s" % self.cache_dir)
             else:
-                log.info("DRY RUN: WOULD CREATE DIR: %s" % self.cache_dir) 
+                log.debug("DRY RUN: WOULD CREATE DIR: %s" % self.cache_dir) 
         
         for revision, results in incomplete.items():
             filename = os.path.join(self.cache_dir, revision)
             if self.dry_run:
-                log.info("DRY RUN: WOULD WRITE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
+                log.debug("DRY RUN: WOULD WRITE TO %s: %s|%s\n" % (filename, strftime("%a, %d %b %Y %H:%M:%S %Z", localtime()), results))
             else:
                 try:                    
                     f = open(filename, 'a')
@@ -479,12 +479,12 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                                                         info['message'], bug, 
                                                         info['status']['status_string'], type)
                     elif self.dry_run:
-                        log.info("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
+                        log.debug("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
         # Autoland - send completion message to the autoland_queue and post to bug
         elif info['is_complete'] and type == "auto":
             if len(bugs) == 1:
                 if self.dry_run:
-                    log.info("DRY RUN: Would post %s to bug %s and notify Autoland message queue" % (info['message'], bug))
+                    log.debug("DRY RUN: Would post %s to bug %s and notify Autoland message queue" % (info['message'], bug))
                 else:
                     info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
                                                         bugs, info['status']['status_string'], type)
@@ -568,7 +568,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             elif info['is_complete']:
                 log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
 
-        # Store the incompletes for the next run if there's a bug or it's autoland post
+        # Store the incompletes for the next run if there's a bug or it's an autoland post
         self.WriteToCache(incomplete)
 
         return incomplete

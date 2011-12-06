@@ -99,7 +99,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
             revisions = os.listdir(CACHE_DIR)
             for rev in revisions:
                 os.remove(os.path.join(CACHE_DIR,rev))
-        os.rmdir(CACHE_DIR)
+            os.rmdir(CACHE_DIR)
         self.assertRaises(AssertionError, self.poller.WriteToCache, None)
                     
     def testWriteAndLoadCache(self):

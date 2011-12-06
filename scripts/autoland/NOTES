@@ -67,7 +67,7 @@
 * if self-serve retry fails - test that the build comes back as complete
 
 
-## For Try landing deadling - need to not have the 'full headers' requirement
+## For Try landing deadline - need to not have the 'full headers' requirement
 ## Prepare the modules for potential multi-branch landing - map policies per branch
 
 ## TODO - AUTOLAND enhancements
