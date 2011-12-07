@@ -1,11 +1,29 @@
+## Lukas Notes
+0. Still need to add handling for security bugs and for 400 errors (bad bug typing) to bz_utils
+1. Tests/Validation for the argparser of schedulerdbpoller -- do I need this?
+2. if self-serve retry fails - test that the build comes back as complete
+3. WOULD BE NICE - if builds cancelled by Self-Serve, note that in the message to the bug with final results (same if cancelled due to excessive time in incomplete pool - 6 hour default threshhold)
+4. LDAP tests use Marc's email and he doesn't have LDAP anymore
+5. need to kick things out of the queue if the bug is not responding more than N times
+6. WOULD BE NICE - ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
+7. Confirm in staging - does every second whiteboard tag not trigger builds?
+8. There's a 10 minute gap between schedulerdbpoller runs so could you have an autoland push start & stop in that time with no report back?
+8.1 HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
+9. Makefile & setup script for running this system in a virtualenv
+10. Set up an archiving script for postedbug.log on cruncher - so we have history of usage
+11. Nagios check top entry in cache files and warn about possibly hung builds
+12. Documentation, blogs, tweets, Yammers, Lightning Talk, Brownbag - get the word out
+13. Start tracking bug for keeping track of bugs filed to this system
+14. Long term planning: API implementation, Branch landings and map of requirements for each branch activated in this system, Bugzilla Extension for UI
+15. Remove discarded revisions from cache when complete
+
 ## Marc Notes
 0. When put into staging, an issue popped up with the message queue:
    messages sent from autoland_queue => hgpusher are sometimes received by
    autoland_queue, or not received by hgpusher. I took a look at the queues
    and topics being used, and they all seem to be correct so I have so far
    been unable to find out what's going wrong.
-1. # DONE
-   The use case of "Flag bug for landing --> Wait for review --> land":
+1. The use case of "Flag bug for landing --> Wait for review --> land":
     -  Will not currently work, due to an early design mistake. The fix is
        fairly straight forward, but will require some time. I can redesign
        this and implement ASAP. I've outlined the necessary changes below:
@@ -21,8 +39,7 @@
           for the proper review permissions, and if they are not there, we
           simply ignore it until out next poll.
         - OPTIONS:
-              o  # XXX: Implemented this.
-                 change autoland_queue.py:get_patchset() to have a toggle on
+              o  change autoland_queue.py:get_patchset() to have a toggle on
                  comment posting, and use the get_patchset function to check.
               o  rewrite autoland_queue.py:get_patchset() to return a
                  pass/fail state, for example:
@@ -33,21 +50,18 @@
                 a while just for a failure.
 2. A lot of this code needs to be cleaned up a bit. Some improvements I would
    like to make are:
-    - # Next on todo list:
-      Either a wrapper for or modifications to bz.notify_bug() that will check
+    - Either a wrapper for or modifications to bz.notify_bug() that will check
       for failure, and log them for later posting.
     - Bugzilla represents its numbers as strings, but internally the autoland
       tools represent them as integers. There is quite a bit of type
       conversion and it would be nice to change that. Either convert at the
       earliest point, or internally store as strings. I prefer the former.
     - Simply fix some of the messy program flow, and code reuse problems.
+    - After x # of retries on apply/push in hgpusher.py:apply_patchset(),
+      clean_repo should be blown away and cloned again.
     - Get tests using a static test config, rather than the default config
       file.
     - After landing on branch, should set attachment flag checked-in+
-    # DONE:
-    - After x retries on apply/push in hgpusher.py:apply_patchset(),
-      clean_repo should be blown away and cloned again.
-    - Add a config flag for poll frequency in autoland_queue.
 3. The whole enforcement of "full headers" on patches might be a bit difficult
    & disliked, possibly leading to many issues with developers/bugzilla spam.
    They are not required on try runs, however they are for landing to branch.
@@ -57,30 +71,4 @@
 5. autoland_queue needs to poll the database for jobs that have either:
     a) been in the queue for a long time
     b) been running for an outrageous amount of time without response
-
-# Lukas Notes
-## TODO Before landing:
-* bugzilla posting tests, no double posts!
-** This also means including handling for security bugs and for 400 errors (bad bug typing)
-* Tests/Validation for the argparser of schedulerdbpoller -- do I need this?
-* only write to file for things that are try or autoland - no need to keep the ones with no bugs in them
-* if self-serve retry fails - test that the build comes back as complete
-
-
-## For Try landing deadline - need to not have the 'full headers' requirement
-## Prepare the modules for potential multi-branch landing - map policies per branch
-
-## TODO - AUTOLAND enhancements
-* When discussing the bugzilla extension - get a comment field added so headers aren't required
-* LDAP tests use Marc's email and he doesn't have LDAP anymore
-** bug 695076 is getting hit a lot - need to kick things out of the queue
-* can't post to secure bugs - so is there a way to do this? otherwise, need to kick it out of the retry loop
-* ability to check what's hidden on tbpl - can we add a schedulerdb table for hidden and have only one place that tbpl and tools like this check?
-* Why does every second whiteboard tag not trigger builds?
-* There's a 10 minute gap between schedulerdbpoller runs so you could have an autoland push start & stop in that time with no report back
-** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
-* Makefile & setup script for test environment
-* Set up an archiving script for postedbug.log on cruncher - so we have history of usage
-* Make a note in the bug comment message when builds were cancelled via self-serve
-* Nagios check top entry in cache files and warn about possibly hung builds
 
