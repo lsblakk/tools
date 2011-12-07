@@ -41,16 +41,11 @@ class bz_util():
             req.get_method = lambda: method
         try:
             result = urllib2.urlopen(req)
-            data = result.read()
-            page = json.loads(data)
-        except urllib2.URLError, e:
-            log.error(e)
-            raise
-        except ValueError, e:
-            log.error(e)
-            raise
-
-        return page
+        except urllib2.HTTPError, e:
+            print '%s: %s' % (e, url)
+            return None
+        data = result.read()
+        return json.loads(data)
 
     def put_request(self, path, data, retries, interval):
         """
@@ -58,7 +53,7 @@ class bz_util():
         """
         for i in range(retries):
             # PUT the changes
-            result = self.request(path, data, 'PUT')
+            result = self.request(path, method='PUT', data=data)
             if 'ok' in result and result['ok'] == 1:
                 return result
             time.sleep(interval)

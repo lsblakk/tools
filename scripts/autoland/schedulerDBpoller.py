@@ -494,7 +494,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     log.debug("DRY RUN: Would post %s to bug %s and notify Autoland message queue" % (info['message'], bug))
                 else:
                     info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
-                                                        bugs, info['status']['status_string'], type)
+                                                        bugs[0], info['status']['status_string'], type)
             else:
                 log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(bugs))
         # No bug number(s) or no try syntax, but complete gets flagged for discard
