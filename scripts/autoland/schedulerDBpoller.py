@@ -32,7 +32,11 @@ class SchedulerDBPoller():
 
         self.config = ConfigParser.ConfigParser()
         self.config.read(config)
-
+        self.branch = branch
+        self.cache_dir = cache_dir
+        self.dry_run = dry_run
+        self.verbose = verbose
+        
         # Set up the message queue
         self.mq = mq_utils.mq_util()
         self.mq.set_host(self.config.get('mq', 'host'))
@@ -41,16 +45,21 @@ class SchedulerDBPoller():
         # Set up bugzilla api connection
         self.bz_url = self.config.get('bz', 'url')
         self.bz = bz_utils.bz_util(self.config.get('bz', 'api_url'), self.config.get('bz', 'url'),
-        None, self.config.get('bz', 'username'), self.config.get('bz', 'password'))
+                        None, self.config.get('bz', 'username'), self.config.get('bz', 'password'))
 
+        # Set up Self-Serve API
         self.self_serve_api_url = self.config.get('self_serve', 'url')
-        self.branch = branch
-        self.cache_dir = cache_dir
-        self.dry_run = dry_run
-        self.verbose = verbose
-        self.user = user
-        self.password = password
+        if user != None:
+            self.user = user
+        else:
+            self.user = self.config.get('self_serve', 'user')
+        
+        if password !=None:
+            self.password = password
+        else:
+            self.password = self.config.get('self_serve', 'password')
 
+        # Set up database handlers
         self.scheduler_db = DBHandler(self.config.get('databases', 'scheduler_db_url'))
         self.autoland_db = DBHandler(self.config.get('databases', 'autoland_db_url'))
 
