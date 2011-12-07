@@ -297,17 +297,18 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 f.close()
                 if self.verbose:
                     log.debug("WROTE TO %s: %s" % (filename, revision))
-
-                # clear out the cache file so we're not tracking it anymore
-                cache_file = os.path.join(self.cache_dir, revision)
-                if os.path.exists(cache_file):
-                    os.remove(cache_file)
-                    if self.verbose:
-                        log.debug("REMOVING %s CACHE FILE" % cache_file)
+                self.RemoveCache(revision)
             except:
                 traceback.print_exc(file=sys.stdout)
         
-    
+    def RemoveCache(self, revision):
+        # clear out the cache file so we're not tracking it anymore
+        cache_file = os.path.join(self.cache_dir, revision)
+        if os.path.exists(cache_file):
+            os.remove(cache_file)
+            if self.verbose:
+                log.debug("REMOVING %s CACHE FILE" % cache_file)
+
     def LoadCache(self):
         """ Search for cache dir, return dict of all filenames (revisions) in the dir """
         revisions = {}
@@ -554,7 +555,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     if self.dry_run:
                         log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
                 else:
-                    if self.dry_run == False:
+                    if self.dry_run:
                         log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
                     else:
                         # Comment in the bug
@@ -573,6 +574,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             # Complete but to be discarded
             elif info['is_complete']:
                 log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
+                self.RemoveCache(revision)
 
         # Store the incompletes for the next run if there's a bug or it's an autoland post
         self.WriteToCache(incomplete)
