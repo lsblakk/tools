@@ -202,8 +202,8 @@ class bz_util():
                 log.debug("BUG: %s" % bug)
                 # Add the comment
                 log.debug("Adding comment to bug %s", bug_num)
-                self.check_request("/bug/%s/comment" % bug_num,
-                        {"text": message, "is_private": False}, "POST")
+                self.check_request(path="/bug/%s/comment" % bug_num,
+                        data={"text": message, "is_private": False}, method="POST")
             except urllib2.HTTPError, e:
                 log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
                 results = 0

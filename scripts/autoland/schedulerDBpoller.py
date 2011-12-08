@@ -155,7 +155,6 @@ class SchedulerDBPoller():
                                 except:
                                     is_complete = True
                                     final_status = "failure"
-                                    log.error("FAIL: Unsuccessful attempt to rebuild branch: %s bid: %s" % (branch, bid))
                 # Passed on Retry
                 if retry_count != 0 and retry_pass == retry_count:
                     is_complete = True
@@ -561,7 +560,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                         # Comment in the bug
                         if not self.ProcessCompletedRevision(revision, 
                                               rev_report[revision]['message'], 
-                                              info['bugs'], 
+                                              bug, 
                                               rev_report[revision]['status']['status_string'], 
                                               info['push_type']):
                             # If bug post didn't happen put it back (once per revision) into cache to try again later
