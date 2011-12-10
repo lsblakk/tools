@@ -16,6 +16,7 @@
 13. Start tracking bug for keeping track of bugs filed to this system
 14. Long term planning: API implementation, Branch landings and map of requirements for each branch activated in this system, Bugzilla Extension for UI
 15. Try syntax for retrying oranges when below the threshold? Specifying the threshold?
+16. I don't think the defaul polling interval should be 4 hours and the timeout for comments posted also 4 hours -- could lead to overlap and double posts to bugs -- should we ever post more than once for the same revison?  On self-serve rebuilds?
 
 ## Marc Notes
 0. When put into staging, an issue popped up with the message queue:

@@ -316,7 +316,6 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             
         if os.path.isdir(self.cache_dir):
             cache_revs = os.listdir(self.cache_dir)
-            print cache_revs
             for revision in cache_revs:
                 revisions[revision] = {}
             if self.verbose:
@@ -366,7 +365,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             status (dict)
             is_complete (boolean)
         """
-    
+        is_complete = False
         status = {
             'total_builds': 0,
             'pending': 0,
@@ -397,14 +396,14 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                         break
             if is_complete:
                 # one more check before it's _really complete_ - any oranges to retry?
+                if self.verbose:
+                    log.debug("Check Orange Factor for rev: %s" % revision)
                 is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
         else:
-            # if revision, check timeout
+            # check timeout, perhaps it's time to kick this out of the tracking queue
             if revision != None:
-                is_complete = self.revisionTimedOut(revision)
-                status['status_string'] = 'timed out'
-            else:
-                is_complete = False
+                if self.revisionTimedOut(revision):
+                    status['status_string'] = 'timed out'
 
         return (status,is_complete)
     
@@ -446,7 +445,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 routing_keys=[self.config.get('mq', 'db_topic')])
         return bug_post
 
-    def PollByRevision(self, revision, hours=4, bugs=None):
+    def PollByRevision(self, revision, bugs=None):
         """ Run a single revision through the polling process to determine if it is complete, 
             or not, returns information on the revision in a dict which includes the message
             that can be posted to a bug (if not in dryrun mode), whether the message was 
@@ -473,17 +472,16 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             if self.verbose:
                 log.debug("POLL_BY_REVISION: MESSAGE: %s" % info['message'])
             for bug in bugs:
-                # if we have posted to the bug for this revision, but the timeout has passed
-                # we could post again
-                posted = self.bz.has_recent_comment(revision, bug, hours)
+                posted = self.bz.has_comment(info['message'], bug)
                 if posted:
-                    log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
+                    log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
                 else:
                     if info['message'] != None and self.dry_run == False:
                         # Comment in the bug
-                        info['posted_to_bug'] = self.ProcessCompletedRevision(revision, 
-                                                        info['message'], bug, 
-                                                        info['status']['status_string'], type)
+                        info['posted_to_bug'] = self.ProcessCompletedRevision(revision=revision, 
+                                                        message=info['message'], bug=bug, 
+                                                        status_str=info['status']['status_string'], 
+                                                        type=type)
                     elif self.dry_run:
                         log.debug("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
         # Autoland - send completion message to the autoland_queue and post to bug
@@ -495,7 +493,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
                                                         bugs[0], info['status']['status_string'], type)
             else:
-                log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(bugs))
+                log.error("Should only have one bug for Autoland pushes, not: %s." % len(bugs))
         # No bug number(s) or no try syntax, but complete gets flagged for discard
         elif info['is_complete']:
             log.debug("Nothing to do here for %s" % revision)
@@ -523,7 +521,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             buildrequests = self.scheduler_db.GetBuildRequests(revision, self.branch)
             rev_report[revision]['bugs'] = self.GetBugNumbers(buildrequests)
             rev_report[revision]['push_type'] = self.ProcessPushType(revision, buildrequests)
-            (rev_report[revision]['status'], rev_report[revision]['is_complete']) = self.CalculateBuildRequestStatus(buildrequests)
+            (rev_report[revision]['status'], rev_report[revision]['is_complete']) = self.CalculateBuildRequestStatus(buildrequests, revision)
     
             # For completed runs, generate a bug comment message if there are bugs
             if rev_report[revision]['is_complete'] and len(rev_report[revision]['bugs']) > 0:
@@ -535,8 +533,6 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         # Process the completed rev_report for this run, gather incomplete revisions and writing to cache
         incomplete = {}
         for revision,info in rev_report.items():
-            if self.verbose:
-                log.debug("PROCESSING --- REV: %s: INFO: %s" % (revision, info))
             # Incomplete builds that are autoland or have bugs get added to dict for re-checking later
             if not info['is_complete']:
                 if info['push_type'] == "auto" or len(info['bugs']) == 1:
@@ -547,7 +543,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             # Try syntax has --post-to-bugzilla so we want to post to bug
             if info['is_complete'] and info['push_type'] != None and len(info['bugs']) == 1:
                 bug = info['bugs'][0]
-                posted = self.bz.has_recent_comment(revision, bug)
+                posted = self.bz.has_comment(revision, bug)
                 if posted:
                     if self.verbose:
                         log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
@@ -568,11 +564,10 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                                 incomplete[revision] = {'status': info['status'],
                                                         'bugs': info['bugs'],
                                                         }
-            elif len(info['bugs']) > 1:
-                log.debug("Don't know what to do with %d bug numbers. Autoland works with only one bug right now." % len(info['bugs']))
             # Complete but to be discarded
             elif info['is_complete']:
-                log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
+                if self.verbose:
+                    log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
                 self.RemoveCache(revision)
 
         # Store the incompletes for the next run if there's a bug or it's an autoland post

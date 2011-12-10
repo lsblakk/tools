@@ -165,28 +165,23 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertFalse(is_complete)
 
     def testPostToBug(self):
-        revision = '157ac288e589'
-        buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
-        bugs = self.poller.GetBugNumbers(buildrequests)
-        report = self.poller.CalculateResults(buildrequests)
+        #ProcessCompletedRevision(self, revision, message, bug, status_str, type):
         # Test Passing
         print 'testPostToBug_passing()'
-        if len(bugs) > 0:
-            for bug in bugs:
-                posted = self.poller.bz.has_recent_comment('157ac288e589', bug)
-                if not posted:
-                    message = "There should not be a post for rev 157ac288e589 in the last 4 hours"
-                else:
-                    message = "There should be a post for rev 157ac288e589 in the last 4 hours"
-                r = self.poller.bz.notify_bug(message , bug)
-                self.assertTrue(r)
-        # Test Failing due to time between posts
+        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message='Test-passed', bug=9949, status_str='', type='try')
+        self.assertTrue(output)
+        # Test Time Out
+        print 'testPostToBug_timed_out()'
+        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message='Test-passed', bug=9949, status_str='timed out', type='try')
+        self.assertTrue(output)
+        # Test Failing due to incorrect bug number
         print 'testPostToBug_failing()'
-        output = self.poller.PollByRevision('157ac288e589', 4, [909090])
+        output = self.poller.PollByRevision('157ac288e589', [909090])
+        print output
         self.assertFalse(output['posted_to_bug'])
         # Test No One Cares
         print 'testPostToBug_noOneCares()'
-        output = self.poller.PollByRevision('cc750feffa41', 4)
+        output = self.poller.PollByRevision('cc750feffa41')
         self.assertTrue(output['discard'])
         
     def testDBGetBuildRequests(self):
@@ -202,12 +197,12 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testPollByRevisionComplete_Autoland(self):
         print 'testPollByRevisionComplete_Autoland()'
         output = self.poller.PollByRevision('b8e5f09eead1')
-        self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': False, 'message': None, 'is_complete': True, 'discard': False})
+        self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': True, 'message': None, 'is_complete': True, 'discard': False})
         
     def testPollByRevisionComplete_TrySyntax(self):
         print 'testPollByRevisionComplete_TrySyntax()'
         message = u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at:\nhttp://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8'
-        posted = self.poller.bz.has_recent_comment('83c09dc13bb8', 9949)
+        posted = self.poller.bz.has_comment(message, 9949)
         if not posted:
             # if this test hasn't been run in 4 hours this should return True
             output = self.poller.PollByRevision('83c09dc13bb8')
@@ -217,9 +212,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEqual((message, False), (output['message'], output['posted_to_bug']))
         self.assertFalse(output['posted_to_bug'])
         self.assertTrue(output['is_complete'])
-        # now override and post to the bug anyway
-        output = self.poller.PollByRevision('83c09dc13bb8', 0)
-        self.assertEqual((message, True), (output['message'], output['posted_to_bug']))
 
     def testPollByRevisionIncomplete_TrySyntax(self):
         print 'testPollByRevisionIncomplete_TrySyntax()'
@@ -229,7 +221,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
     def testDryRunPollByRevisionComplete_TrySyntax(self):
         print 'testDryRunPollByRevisionComplete_TrySyntax()'
         self.poller.dry_run = True
-        output = self.poller.PollByRevision('83c09dc13bb8', 0)
+        output = self.poller.PollByRevision('83c09dc13bb8')
         # make sure nothing goes to the bug
         self.assertFalse(output['posted_to_bug'])
     

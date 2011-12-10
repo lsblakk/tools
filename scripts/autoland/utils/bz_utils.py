@@ -43,7 +43,7 @@ class bz_util():
             result = urllib2.urlopen(req)
         except urllib2.HTTPError, e:
             print '%s: %s' % (e, url)
-            return None
+            raise
         data = result.read()
         return json.loads(data)
 
@@ -53,12 +53,14 @@ class bz_util():
         """
         for i in range(retries):
             # PUT the changes
-            result = self.request(path, method='PUT', data=data)
-            if 'ok' in result and result['ok'] == 1:
-                return result
-            time.sleep(interval)
+            try:
+                result = self.request(path, method='PUT', data=data)
+                if 'ok' in result and result['ok'] == 1:
+                    return result
+                time.sleep(interval)
+            except:
+                raise Exception('PutError')
         log.debug(result)
-        raise Exception('PutError')
 
     def get_patch(self, patch_id, path='.', create_path=False, overwrite_patch=False):
         """
@@ -189,10 +191,12 @@ class bz_util():
             result = self.request(*args, **kw)
             assert not result.get('error'), result
         except urllib2.HTTPError, e:
-            assert 200 <= e.code < 300, e
+            if 200 > e.code and e.code > 300:
+                log.debug("Error: request did not succeed %s" % e.msg)
+                
     
     def notify_bug(self, message, bug_num, retries=5):
-        post_results = None
+        results = 0
         for i in range(retries):
             results = 1
             log.debug("Getting bug %s", bug_num)
@@ -212,43 +216,25 @@ class bz_util():
                 else:
                     raise
             break
-        log.debug("RESULTS: %s" % results)
+        log.debug("BUG NOTIFY RESULTS: %s" % results)
         return results
 
     def has_comment(self, text, bugid):
         """
         Checks to see if the specified bug already has the comment text posted.
         """
-        page = self.request('bug/%s/comment' % (bugid))
-        if not 'comments' in page:
-            # error, we shouldn't be here
-            pass
-        for comment in page['comments']:
-            if comment['text'] == text:
-                return True
-        return False
-
-    def has_recent_comment(self, regex, bugid, hours=4):
-        """
-        Returns true if there is a comment matching regex posted in the past
-        number of hours specified.
-        """
         try:
-            page = self.request('bug/%s/comment?include_fields=creation_time,text'
-                % (bugid))
+            page = self.request('bug/%s/comment' % (bugid))
+            if page != None:
+                if not 'comments' in page:
+                    # error, we shouldn't be here
+                    pass
+                for comment in page['comments']:
+                    if comment['text'] == text:
+                        return True
         except urllib2.HTTPError, e:
-            log.debug("Couldn't get page: %s" % e)
-            return False
-        if not page or not 'comments' in page:
-            # error, we shouldn't be here
-            return False
-        current_time = datetime.datetime.utcnow()
-        for comment in page['comments']:
-            # May need to account for timezone
-            creation_time = datetime.datetime.strptime(comment['creation_time'], '%Y-%m-%dT%H:%M:%SZ')
-            if (current_time - creation_time) < datetime.timedelta(hours=hours):
-                if re.search(regex, comment['text'], re.I):
-                    return True
+            log.debug("Error: Couldn't reach bug to check for comment")
+
         return False
 
     def get_matching_bugs(self, field, match_string, match_type='regex'):
