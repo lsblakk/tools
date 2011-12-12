@@ -472,7 +472,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             if self.verbose:
                 log.debug("POLL_BY_REVISION: MESSAGE: %s" % info['message'])
             for bug in bugs:
-                posted = self.bz.has_comment(info['message'], bug)
+                posted = self.bz.has_comment(text=info['message'], bugid=bug)
                 if posted:
                     log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
                 else:
@@ -543,7 +543,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             # Try syntax has --post-to-bugzilla so we want to post to bug
             if info['is_complete'] and info['push_type'] != None and len(info['bugs']) == 1:
                 bug = info['bugs'][0]
-                posted = self.bz.has_comment(revision, bug)
+                posted = self.bz.has_comment(text=rev_report[revision]['message'], bugid=bug)
                 if posted:
                     if self.verbose:
                         log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)

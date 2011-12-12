@@ -11,7 +11,7 @@ sys.path.append('..')
 from utils import bz_utils
 bz = bz_utils.bz_util('https://api-dev.bugzilla.mozilla.org/test/latest/',
                       'https://bugzilla.mozilla.org/attachment.cgi?id=',
-                      'mjessome@mozilla.com', 'abcd123')
+                      'lsblakk@mozilla.com', 'password')
 
 class TestBzUtils(unittest.TestCase):
     def testGetPatchBadID(self):
