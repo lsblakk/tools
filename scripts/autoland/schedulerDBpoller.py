@@ -424,18 +424,25 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     def ProcessCompletedRevision(self, revision, message, bug, status_str, type):
         """ Posts to bug and also sends a message to the autoland queue if type == 'auto' """
         bug_post = False
+        result = False
         if self.verbose:
             log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
         if status_str == 'timed out':
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
-        r = self.bz.notify_bug(message, bug)
-        if r:
-            log.debug("BZ POST SUCCESS r: %s bug: %s%s" % (r, self.bz_url, bug))
+        posted = self.bz.has_comment(message, bug)
+        if posted:
+            log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
+        else:
+            if self.dry_run:
+                log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
+            else:
+                result = self.bz.notify_bug(message, bug)
+        if result:
+            log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))
             bug_post = True
             self.WriteToBuglist(revision, bug)
-        else:
+        elif not self.dry_run:
             log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
-            bug_post = False
         if type == 'auto':
             msg = { 'type'  : status_str,
                     'action': 'try.push',
@@ -472,18 +479,13 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             if self.verbose:
                 log.debug("POLL_BY_REVISION: MESSAGE: %s" % info['message'])
             for bug in bugs:
-                posted = self.bz.has_comment(text=info['message'], bugid=bug)
-                if posted:
-                    log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
-                else:
-                    if info['message'] != None and self.dry_run == False:
-                        # Comment in the bug
-                        info['posted_to_bug'] = self.ProcessCompletedRevision(revision=revision, 
-                                                        message=info['message'], bug=bug, 
-                                                        status_str=info['status']['status_string'], 
-                                                        type=type)
-                    elif self.dry_run:
-                        log.debug("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
+                if info['message'] != None and self.dry_run == False:
+                    info['posted_to_bug'] = self.ProcessCompletedRevision(revision=revision, 
+                                                    message=info['message'], bug=bug, 
+                                                    status_str=info['status']['status_string'], 
+                                                    type=type)
+                elif self.dry_run:
+                    log.debug("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
         # Autoland - send completion message to the autoland_queue and post to bug
         elif info['is_complete'] and type == "auto":
             if len(bugs) == 1:
@@ -543,27 +545,16 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             # Try syntax has --post-to-bugzilla so we want to post to bug
             if info['is_complete'] and info['push_type'] != None and len(info['bugs']) == 1:
                 bug = info['bugs'][0]
-                posted = self.bz.has_comment(text=rev_report[revision]['message'], bugid=bug)
-                if posted:
-                    if self.verbose:
-                        log.debug("NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
-                    if self.dry_run:
-                        log.debug("DRY-RUN: NOT POSTING TO BUG %s, ALREADY POSTED RECENTLY" % bug)
-                else:
-                    if self.dry_run:
-                        log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
-                    else:
-                        # Comment in the bug
-                        if not self.ProcessCompletedRevision(revision, 
-                                              rev_report[revision]['message'], 
-                                              bug, 
-                                              rev_report[revision]['status']['status_string'], 
-                                              info['push_type']):
-                            # If bug post didn't happen put it back (once per revision) into cache to try again later
-                            if not incomplete.has_key(revision):
-                                incomplete[revision] = {'status': info['status'],
-                                                        'bugs': info['bugs'],
-                                                        }
+                if not self.ProcessCompletedRevision(revision, 
+                                      rev_report[revision]['message'], 
+                                      bug, 
+                                      rev_report[revision]['status']['status_string'], 
+                                      info['push_type']):
+                    # If bug post didn't happen put it back (once per revision) into cache to try again later
+                    if not incomplete.has_key(revision):
+                        incomplete[revision] = {'status': info['status'],
+                                                'bugs': info['bugs'],
+                                                }
             # Complete but to be discarded
             elif info['is_complete']:
                 if self.verbose:

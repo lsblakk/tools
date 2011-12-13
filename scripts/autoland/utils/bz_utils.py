@@ -41,26 +41,33 @@ class bz_util():
             req.get_method = lambda: method
         try:
             result = urllib2.urlopen(req)
+            data = result.read()
+            return json.loads(data)
         except urllib2.HTTPError, e:
             log.debug('REQUEST ERROR: %s: %s' % (e, url))
             raise
-        data = result.read()
-        return json.loads(data)
 
     def put_request(self, path, data, retries, interval):
         """
         Perform a PUT request, raise 'PutError' if can't complete.
         """
+        result = 0
+        print path, data
         for i in range(retries):
+            print "Put attempt %s of %s" % (i + 1, retries)
             # PUT the changes
             try:
-                result = self.request(path, method='PUT', data=data)
+                result = self.request(path=path, data=data, method='PUT')
                 if 'ok' in result and result['ok'] == 1:
                     return result
                 time.sleep(interval)
-            except:
-                raise Exception('PutError')
+            except urllib2.HTTPError, e:
+                if i < retries:
+                    continue
+                else:
+                    raise
         log.debug(result)
+        raise Exception('PutError')
 
     def get_patch(self, patch_id, path='.', create_path=False, overwrite_patch=False):
         """
@@ -70,16 +77,18 @@ class bz_util():
         If overwrite_patch is True, the patch will be overwritten if it exists,
         otherwise it will not be updated, and the path will be returned.
         """
-        patch_file = '%s/%s.patch' % (path, patch_id)
+        patch_file = '%s/%s.patch' % (path, str(patch_id))
+        url = self.attachment_url + str(patch_id)
         if not os.access(path, os.F_OK):
             os.makedirs(path)
         if os.access(patch_file, os.F_OK) and not overwrite_patch:
             return patch_file
         try:
-            d = urllib2.urlopen("%s%s" %(self.attachment_url, patch_id)).read()
-        except:
+            d = urllib2.urlopen(url).read()
+        except urllib2.HTTPError, e:
+            print "Error reading patch %s: %s" % (e, url)
             return None
-        if re.search('The attachment id %s is invalid' % patch_id, d):
+        if re.search('The attachment id %s is invalid' % str(patch_id), d):
             return None
         f = open(patch_file, 'w')
         f.write(d)
@@ -110,7 +119,7 @@ class bz_util():
         # have to compile the re in order to allow case-insensitivity in 2.6
         reg = re.compile(regex, flags=re.I)
         # get the current whiteboard tag
-        bug = self.request('bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug or not 'whiteboard' in bug:
             return False
         whiteboard = reg.sub('', bug['whiteboard'], 1)
@@ -120,17 +129,21 @@ class bz_util():
 
         data = {'token':bug['update_token'], 'whiteboard':whiteboard,
                 'last_change_time' : bug['last_change_time']}
-        self.put_request('bug/%s' % (bugid), data, retries, interval)
-        return True
+        try:
+            self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
+            return True
+        except urllib2.HTTPError, e:
+            log.debug("Did not remove whiteboard tag to bug %s : %s" % (bugid, e))
+            return False
 
     def add_whiteboard_tag(self, tag, bugid, retries=5, interval=10):
         """
         Add tag to the specified bug.
         By default retries 5 times at a 30s interval.
         """
-        bug = self.request('bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug:
-            # not an editable bugid
+            log.debug("Not an editable bugid")
             return False
         if not 'whiteboard' in bug:
             bug['whiteboard'] = tag
@@ -139,8 +152,12 @@ class bz_util():
 
         data = {'token':bug['update_token'], 'whiteboard':bug['whiteboard'],
                 'last_change_time' : bug['last_change_time']}
-        self.put_request('bug/%s' % (bugid), data, retries, interval)
-        return True
+        try:
+            self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
+            return True
+        except urllib2.HTTPError, e:
+            log.debug("Did not add whiteboard tag to bug %s : %s" % (bugid, e))
+            return False
 
     def replace_whiteboard_tag(self, regex, replacement, bugid,
                                retries=5, interval=10):
@@ -151,7 +168,7 @@ class bz_util():
         # have to compile the re in order to allow case-insensitivity in 2.6
         reg = re.compile(regex, flags=re.I)
         # get the current whiteboard tag
-        bug = self.request('bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
         if not 'whiteboard' in bug:
             # In case regex is '^$' or similar, we still want to add it.
             bug['whiteboard'] = ''
@@ -163,8 +180,12 @@ class bz_util():
 
         data = {'token':bug['update_token'], 'whiteboard':whiteboard,
                 'last_change_time' : bug['last_change_time']}
-        self.put_request('bug/%s' % (bugid), data, retries, interval)
-        return True
+        try:
+            self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
+            return True
+        except urllib2.HTTPError, e:
+            log.debug("Did not replace whiteboard tag to bug %s : %s" % (bugid, e))
+            return False
 
     def bugs_from_comments(self, comments):
         """Finds things that look like bugs in comments and returns as a list of bug numbers.
@@ -184,52 +205,52 @@ class bz_util():
                 if int(m) > 9000:
                     retval.append(int(m))
         return retval
-
-    
-    def check_request(self, *args, **kw):
-        try:
-            result = self.request(*args, **kw)
-            assert not result.get('error'), result
-        except urllib2.HTTPError, e:
-            assert 200 <= e.code < 300, e
-            log.debug("Error: request did not succeed %s" % e.msg)
                 
     def notify_bug(self, message, bug_num, retries=5):
-        results = 0
+        print message
+        result = 0
         for i in range(retries):
-            results = 1
+            result = 1
             log.debug("Getting bug %s", bug_num)
             try:
                 # Make sure we can reach this bug
-                bug = self.request("/bug/%s" % bug_num)
-                log.debug("BUG: %s" % bug)
+                bug = self.request("bug/%s" % bug_num)
+                log.debug("BUG URL EXISTS: %s" % bug)
                 # Add the comment
-                log.debug("Adding comment to bug %s", bug_num)
-                self.check_request(path="/bug/%s/comment" % bug_num,
+                self.request(path="bug/%s/comment" % bug_num,
                         data={"text": message, "is_private": False}, method="POST")
+                log.debug("Added comment to bug %s", bug_num)
             except urllib2.HTTPError, e:
                 log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
-                results = 0
+                result = 0
                 if i < retries:
                     continue
                 else:
                     raise
             break
-        log.debug("BUG NOTIFY RESULTS: %s" % results)
-        return results
+        log.debug("BUG NOTIFY RESULTS: %s" % result)
+        return result
 
     def has_comment(self, text, bugid):
         """
         Checks to see if the specified bug already has the comment text posted.
         """
-        page = self.request('bug/%s/comment' % (bugid))
-        if not 'comments' in page:
-            # error, we shouldn't be here
-            pass
-        for comment in page['comments']:
-            if comment['text'] == text:
-                return True
-        return False
+        result = 0
+        try:
+            page = self.request('bug/%s/comment' % (bugid))
+            if not 'comments' in page:
+                # error, we shouldn't be here
+                pass
+            for comment in page['comments']:
+                if comment['text'] == text:
+                    log.debug("Comments are the same")
+                    result = 1
+                else:
+                    log.debug("Comment %s DIFFERS from text passed in %s" % (comment['text'], text))
+        except urllib2.HTTPError, e:
+            log.debug("HTTPError, Can't comment on bug: %s" % e)
+        
+        return result
 
     def has_recent_comment(self, regex, bugid, hours=4):
         """

@@ -1,4 +1,5 @@
 import unittest, os, sys, shutil, mock, urllib2
+import datetime
 from time import time, strftime, strptime, localtime, sleep
 import ConfigParser
 sys.path.append('..')
@@ -166,13 +167,15 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testPostToBug(self):
         #ProcessCompletedRevision(self, revision, message, bug, status_str, type):
+        dt = str(datetime.datetime.utcnow())
+        comment = "Test-Passed " + dt
         # Test Passing
         print 'testPostToBug_passing()'
-        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message='Test-passed', bug=9949, status_str='', type='try')
+        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message=comment, bug=9949, status_str='', type='try')
         self.assertTrue(output)
         # Test Time Out
         print 'testPostToBug_timed_out()'
-        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message='Test-passed', bug=9949, status_str='timed out', type='try')
+        output = self.poller.ProcessCompletedRevision(revision='157ac288e589', message=comment, bug=9949, status_str='timed out', type='try')
         self.assertTrue(output)
         # Test Failing due to incorrect bug number
         print 'testPostToBug_failing()'
@@ -196,8 +199,12 @@ class SchedulerDBPollerTests(unittest.TestCase):
 
     def testPollByRevisionComplete_Autoland(self):
         print 'testPollByRevisionComplete_Autoland()'
+        posted = self.poller.bz.has_recent_comment('b8e5f09eead1', 9949)
         output = self.poller.PollByRevision('b8e5f09eead1')
-        self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': True, 'message': None, 'is_complete': True, 'discard': False})
+        if posted:
+            self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': True, 'message': None, 'is_complete': True, 'discard': False})
+        else:
+            self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': False, 'message': None, 'is_complete': True, 'discard': False})
         
     def testPollByRevisionComplete_TrySyntax(self):
         print 'testPollByRevisionComplete_TrySyntax()'

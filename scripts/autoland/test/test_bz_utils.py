@@ -9,9 +9,10 @@ import datetime
 # Autoland imports
 sys.path.append('..')
 from utils import bz_utils
-bz = bz_utils.bz_util('https://api-dev.bugzilla.mozilla.org/test/latest/',
-                      'https://bugzilla.mozilla.org/attachment.cgi?id=',
-                      'lsblakk@mozilla.com', 'password')
+bz = bz_utils.bz_util(api_url='https://api-dev.bugzilla.mozilla.org/test/latest/',
+                      url='https://bugzilla.mozilla.org/show_bug.cgi?id=',
+                      attachment_url='https://bugzilla.mozilla.org/attachment.cgi?id=',
+                      username='lsblakk@mozilla.com', password='password')
 
 class TestBzUtils(unittest.TestCase):
     def testGetPatchBadID(self):
@@ -19,6 +20,7 @@ class TestBzUtils(unittest.TestCase):
 
     def testGetPatchGoodID(self):
         path = bz.get_patch(1)
+        print path
         self.assertTrue(os.access(path, os.F_OK))
         os.remove(path)
 
@@ -42,19 +44,19 @@ class TestBzUtils(unittest.TestCase):
         Test all the whiteboard related functions, since we can add,
         remove and replace sequentially this way.
         """
-        bug = 10469
-        # Clear the whiteboard first...
+        bug = 10750
+        print "clearing whiteboard first..."
         bz.replace_whiteboard_tag('.+', '', bug)
-        # add_whiteboard_tag
+        print "add_whiteboard_tag..."
         bz.add_whiteboard_tag('[bz_utils test1]', bug)
-        # get_matching_tags
+        print "get_matching_tags..."
         match = bz.get_matching_bugs('whiteboard', '[bz_utils test1]')
         self.assertTrue((bug, '[bz_utils test1]') in match)
-        # replace_whiteboard_tag
+        print "replace_whiteboard_tag..."
         self.assertTrue(bz.replace_whiteboard_tag('\[bz_utils test1\]', '[bz_utils test2]', bug))
         match = bz.get_matching_bugs('whiteboard', '[bz_utils test2]')
         self.assertTrue((bug, '[bz_utils test2]') in match)
-        # remove_whiteboard_tag
+        print "remove_whiteboard_tag..."
         self.assertTrue(bz.remove_whiteboard_tag('\[bz_utils test2\]', bug))
 
     def testWhiteBoardTagFail(self):
@@ -68,22 +70,24 @@ class TestBzUtils(unittest.TestCase):
 
     def testCommentFail(self):
         bug = 104699
-        comment = list(string.printable)
         dt = str(datetime.datetime.utcnow())
-        random.shuffle(comment)
-        comment = ''.join(comment) + dt
-        self.assertTrue(bz.notify_bug(comment, bug))
+        comment = "Comment should fail " + dt
+        print "notify_bug"
+        self.assertFalse(bz.notify_bug(comment, bug))
+        print "has_comment"
         self.assertFalse(bz.has_comment(comment, bug))
+        print "has_recent_comment"
         self.assertFalse(bz.has_recent_comment(dt, bug))
 
     def testCommentPass(self):
-        bug = 10469
-        comment = list(string.printable)
+        bug = 10750
         dt = str(datetime.datetime.utcnow())
-        random.shuffle(comment)
-        comment = str(comment) + dt
+        comment = "Comment should pass " + dt
+        print "notify_bug"
         self.assertTrue(bz.notify_bug(comment, bug))
+        print "has_comment"
         self.assertTrue(bz.has_comment(comment, bug))
+        print "has_recent_comment"
         self.assertTrue(bz.has_recent_comment(dt, bug))
 
 if __name__ == '__main__':
