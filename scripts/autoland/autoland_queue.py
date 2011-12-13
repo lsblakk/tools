@@ -5,6 +5,7 @@ import threading
 import logging as log
 import logging.handlers
 import datetime
+import urllib2
 
 from utils import mq_utils, bz_utils, common
 from utils.db_handler import DBHandler, PatchSet, Branch
