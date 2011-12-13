@@ -434,6 +434,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         if posted:
             log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
             dupe = True
+            self.RemoveCache(revision)
         else:
             if self.dry_run:
                 log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
