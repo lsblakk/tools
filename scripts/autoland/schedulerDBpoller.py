@@ -424,6 +424,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     def ProcessCompletedRevision(self, revision, message, bug, status_str, type):
         """ Posts to bug and also sends a message to the autoland queue if type == 'auto' """
         bug_post = False
+        dupe = False
         result = False
         if self.verbose:
             log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
@@ -432,6 +433,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         posted = self.bz.has_comment(message, bug)
         if posted:
             log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
+            dupe = True
         else:
             if self.dry_run:
                 log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
@@ -441,7 +443,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))
             bug_post = True
             self.WriteToBuglist(revision, bug)
-        elif not self.dry_run:
+        elif not self.dry_run and not dupe:
             log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
         if type == 'auto':
             msg = { 'type'  : status_str,
