@@ -16,7 +16,8 @@ LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
 LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
-
+                    
+# TODO - fail gracefully if no ini files are present
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
