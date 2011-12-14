@@ -11,7 +11,7 @@ class ldap_util():
         self.connection = self.__connect__()
 
     def __connect__(self):
-        return ldap.open(self.host, self.port)
+        return ldap.initialize(self.host, self.port)
 
     def __bind__(self):
         self.connection.simple_bind(self.bind_dn, self.password)
