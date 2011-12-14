@@ -397,6 +397,7 @@ class SearchThread(threading.Thread):
         while(1):
             # check if bugzilla has any requested jobs
             bz_search_handler()
+            print "done searching, anything to push?"
             next = time.time() + int(config['bz_poll_frequency'])
             while time.time() < next:
                 patchset = db.PatchSetGetNext()
