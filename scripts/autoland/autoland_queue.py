@@ -233,6 +233,7 @@ def bz_search_handler():
         if patches == None:
             # do not have all the necessary permissions, let the job
             # sit in Bugzilla so it can be picked up again later.
+            print "Not taking patches right now, waiting for necessary criteria to be met"
             continue
 
         log_msg("Inserting job: %s" % (ps))
@@ -400,6 +401,7 @@ class SearchThread(threading.Thread):
             print "done searching, anything to push?"
             next = time.time() + int(config['bz_poll_frequency'])
             while time.time() < next:
+                print "time is less than next"
                 patchset = db.PatchSetGetNext()
                 if patchset == None:
                         time.sleep(10)
