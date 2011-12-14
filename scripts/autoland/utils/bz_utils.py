@@ -59,6 +59,7 @@ class bz_util():
             try:
                 result = self.request(path=path, data=data, method='PUT')
                 if 'ok' in result and result['ok'] == 1:
+                    print "Put success"
                     return result
                 time.sleep(interval)
             except urllib2.HTTPError, e:
