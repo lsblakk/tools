@@ -19,8 +19,9 @@ LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
 
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
-bz = bz_utils.bz_util(config['bz_url'], config['bz_attachment_url'],
-        config['bz_username'], config['bz_password'])
+bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
+        attachment_url=config['bz_attachment_url'],
+        username=config['bz_username'], password=config['bz_password'])
 mq = mq_utils.mq_util()
 db = DBHandler(config['databases_autoland_db_url'])
 
