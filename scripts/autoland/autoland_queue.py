@@ -429,6 +429,7 @@ class SearchThread(threading.Thread):
                         'patchsetid':patchset.id, 'patches':patches }
                 if patchset.try_run == 1:
                     tb = db.BranchQuery(Branch(name='try'))
+                    print "TB: %s" % tb
                     if tb: tb = tb[0]
                     else: continue
                     message['push_url'] = tb.repo_url
