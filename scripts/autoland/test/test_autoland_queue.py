@@ -63,8 +63,8 @@ class TestAutolandQueue(unittest.TestCase):
     def testGetPatchSet(self):
         with mock.patch('utils.bz_utils.bz_util.request') as bz_rq:
             with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
-                def notify_bug(comment):
-                    print comment
+                def notify_bug(comment, bugid):
+                    print comment, bugid
                     return False
                 def sf(path):
                     return json.loads(open(return_values.pop(), 'r').read())
@@ -162,8 +162,8 @@ class TestAutolandQueue(unittest.TestCase):
                         '[bad-autoland-tag]','[autoland\in:valid]']:
                     bugs.append((id, tag))
             with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
-                def pc(comment):
-                    print comment
+                def pc(comment, bug):
+                    print comment, bug
                     return True
                 bz_pc.side_effect = pc
                 with mock.patch('utils.bz_utils.bz_util.remove_whiteboard_tag') as bz_rwt:

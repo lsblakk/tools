@@ -211,7 +211,6 @@ class bz_util():
         print message
         result = 0
         for i in range(retries):
-            result = 1
             log.debug("Getting bug %s", bug_num)
             try:
                 # Make sure we can reach this bug
@@ -221,6 +220,7 @@ class bz_util():
                 self.request(path="bug/%s/comment" % bug_num,
                         data={"text": message, "is_private": False}, method="POST")
                 log.debug("Added comment to bug %s", bug_num)
+                result = 1
             except urllib2.HTTPError, e:
                 log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
                 result = 0
@@ -244,12 +244,9 @@ class bz_util():
                 pass
             for comment in page['comments']:
                 if comment['text'] == text:
-                    log.debug("Comments are the same")
                     result = 1
-                else:
-                    log.debug("Comment %s DIFFERS from text passed in %s" % (comment['text'], text))
         except urllib2.HTTPError, e:
-            log.debug("HTTPError, Can't comment on bug: %s" % e)
+            log.debug("HTTPError, Can't check comments on bug: %s" % e)
         
         return result
 

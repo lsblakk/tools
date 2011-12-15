@@ -378,7 +378,7 @@ class PatchSet(object):
         self.bug_id = bug_id
         # Patches needs to be a string so that sqlalchemy can insert it
         if patches:
-	    self.patches = re.sub('\[|\]', '', str(patches))
+	        self.patches = re.sub('\[|\]', '', str(patches))
         else:
             self.patches = False
         self.revision = str(revision) if revision != False else revision
@@ -396,7 +396,7 @@ class PatchSet(object):
         return self.toDict().items()
 
     def patchList(self):
-	import re
+        import re
         if not self.patches:
             return []
         return map(lambda x: int(x), re.split(',', self.patches))

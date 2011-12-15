@@ -426,8 +426,6 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         bug_post = False
         dupe = False
         result = False
-        if self.verbose:
-            log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
         if status_str == 'timed out':
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
         posted = self.bz.has_comment(message, bug)
@@ -439,6 +437,8 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             if self.dry_run:
                 log.debug("DRY_RUN: Would post to %s%s" % (self.bz_url, bug))
             else:
+                if self.verbose:
+                    log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
                 result = self.bz.notify_bug(message, bug)
         if result:
             log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))

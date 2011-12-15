@@ -162,7 +162,7 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
         # Some specified patches left over
         # comment that it couldn't get all specified patches
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
-        c = bz.notify_bug('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % (', '.join(map(lambda x : str(x), patches))), bug_id)
+        c = bz.notify_bug(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
         if c:
             log_msg('Comment publised to bug %s' % (bug_id), log.DEBUG)
         else:
@@ -197,13 +197,13 @@ def bz_search_handler():
             # Strange that it showed up if None
             continue
         elif not valid_autoland_tag(tag):
-            bz.notify_bug('Poorly formed whiteboard tag %s.' %(tag))
+            bz.notify_bug('Poorly formed whiteboard tag %s.' %(tag), bug_id)
             log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue
         branch = get_branch_from_tag(tag)
         if db.BranchQuery(Branch(name=branch)) == None:
-            bz.notify_bug('Bad autoland tag: branch %s does not exist.' % (branch))
+            bz.notify_bug('Bad autoland tag: branch %s does not exist.' % (branch), bug_id)
             log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
             bz.remove_whiteboard_tag(tag, bug_id)
             continue
@@ -213,7 +213,9 @@ def bz_search_handler():
         patch_group = []
         r = re.compile('\d+')
         for id in r.finditer(whiteboard):
+            print "ID: %d" % int(id.group())
             patch_group.append(int(id.group()))
+            print "PATCH GROUP %s" % patch_group 
 
         ps = PatchSet()
         if branch == 'try':
