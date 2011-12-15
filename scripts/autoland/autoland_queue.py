@@ -404,7 +404,9 @@ class SearchThread(threading.Thread):
             bz_search_handler()
             next = time.time() + int(config['bz_poll_frequency'])
             while time.time() < next:
+                print "Made it into while"
                 patchset = db.PatchSetGetNext()
+                print "Patch Set %s" % patchset
                 if patchset == None:
                         time.sleep(10)
                         continue
