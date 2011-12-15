@@ -158,12 +158,11 @@ class TestAutolandQueue(unittest.TestCase):
             # populate some test cases
             for id in [10411]:
                 for tag in ['[autoland]','[autoland-try]','[autoland-branch]',
-                        '[autoland:12345,23456]','[autoland-try:123]',
+                        '[autoland:2113,2114]','[autoland-try:2114]',
                         '[bad-autoland-tag]','[autoland\in:valid]']:
                     bugs.append((id, tag))
             with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
                 def pc(comment, bug):
-                    print comment, bug
                     return True
                 bz_pc.side_effect = pc
                 with mock.patch('utils.bz_utils.bz_util.remove_whiteboard_tag') as bz_rwt:
@@ -176,6 +175,7 @@ class TestAutolandQueue(unittest.TestCase):
                         bz_repwt.side_effect = repwt
                         with mock.patch('utils.db_handler.DBHandler.PatchSetInsert') as db_psi:
                             def psi(ps):
+                                print "PATCH SET: %s" % ps
                                 db.append(ps)
                             db_psi.side_effect = psi
                             old_bq = DBHandler.BranchQuery
@@ -184,15 +184,17 @@ class TestAutolandQueue(unittest.TestCase):
                             DBHandler.BranchQuery = old_bq
         jobs = []
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
-            'patches':[], 'bug_id':10411})
+            'patches':'', 'bug_id':10411})
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
-            'patches':[], 'bug_id':10411})
+            'patches':'', 'bug_id':10411})
         jobs.append({'branch':'branch', 'try_run':1, 'to_branch':1,
-            'patches':[], 'bug_id':10411})
+            'patches':'', 'bug_id':10411})
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
-            'patches':[12345,23456], 'bug_id':10411})
+            'patches':'2113, 2114', 'bug_id':10411})
         jobs.append({'branch':'mozilla-central', 'try_run':1, 'to_branch':0,
-            'patches':[123], 'bug_id':10411})
+            'patches':'2114', 'bug_id':10411})
+        print jobs
+        print db
         for job in db:
             jd = job.toDict()
             self.assertTrue(jd in jobs)

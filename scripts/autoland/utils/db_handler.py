@@ -399,7 +399,10 @@ class PatchSet(object):
         import re
         if not self.patches:
             return []
-        return map(lambda x: int(x), re.split(',', self.patches))
+        if isinstance(self.patches, list):
+            return self.patches
+        if isinstance(self.patches, string):
+            return map(lambda x: int(x), re.split(',', self.patches))
 
     def toDict(self):
         import re

@@ -423,6 +423,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
 
     def ProcessCompletedRevision(self, revision, message, bug, status_str, type):
         """ Posts to bug and also sends a message to the autoland queue if type == 'auto' """
+        ##  If a revision is complete and NOT IN THE CACHE list, then we do not post
         bug_post = False
         dupe = False
         result = False
@@ -518,6 +519,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     def PollByTimeRange(self, starttime, endtime):
         # Get all the unique revisions in the specified timeframe range
         rev_report = self.GetRevisions(starttime,endtime)
+        # TODO - change the name of revision files to .done and then when you loadCache(), remove any .done from rev_report
         # Add in any revisions currently in cache for a complete list to poll schedulerdb about
         rev_report.update(self.LoadCache())
     

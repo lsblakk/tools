@@ -164,7 +164,7 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
         c = bz.notify_bug(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
         if c:
-            log_msg('Comment publised to bug %s' % (bug_id), log.DEBUG)
+            log_msg('Comment published to bug %s' % (bug_id), log.DEBUG)
         else:
             log_msg('ERROR: Could not comment to bug %s' % (bug_id))
         return None
@@ -229,13 +229,14 @@ def bz_search_handler():
         ps.patches = patch_group
         ps.bug_id = bug_id
 
+        print "Patch List : %s" % ps.patchList()
         # check patch reviews & permissions
         patches = get_patchset(ps.bug_id, ps.try_run,
                                ps.patchList(), review_comment=False)
         if patches == None:
             # do not have all the necessary permissions, let the job
             # sit in Bugzilla so it can be picked up again later.
-            print "Not taking patches right now, waiting for necessary criteria to be met"
+            print "No patches listed right now, will be monitoring this bug."
             continue
 
         log_msg("Inserting job: %s" % (ps))
@@ -307,11 +308,12 @@ def message_handler(message):
                       patches=msg.get('patches')
                      )
         patchset_id = db.PatchSetInsert(ps)
+        print "PatchSetID: %s" % patchset_id
 
     elif msg['type'] == 'success':
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
             ps.revision = msg['revision']
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
