@@ -65,19 +65,23 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.BranchDelete(Branch(name='mozilla-central'))
         b.id = self.db.BranchInsert(b)
         next = self.db.PatchSetGetNext()
+        print "Next 0: %s" % next
         self.assertEqual(next.toDict(), ps2.toDict())
         self.db.BranchUpdate(Branch(name='mozilla-central', status='disabled'))
         next.push_time = datetime.datetime.utcnow()
         self.db.PatchSetUpdate(next)
 
         next = self.db.PatchSetGetNext()
+        print "Next 1: %s" % next
         self.assertEqual(next, None)
         self.db.BranchUpdate(Branch(name='mozilla-central', status='enabled', threshold=0))
 
         next = self.db.PatchSetGetNext()
+        print "Next 2: %s" % next
         self.assertEqual(next, None)
         self.db.BranchUpdate(Branch(name='mozilla-central', threshold=2))
-        next = self.db.PatchSetGetNext()
+        next = self.db.PatchSetGetNext(branch='mozilla-central')
+        print "Next 3: %s" % next
         self.assertEqual(next.toDict(), ps1.toDict())
         # Clean up
         self.db.BranchDelete(Branch(name='mozilla-central'))

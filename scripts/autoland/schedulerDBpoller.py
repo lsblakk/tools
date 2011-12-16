@@ -67,7 +67,7 @@ class SchedulerDBPoller():
         """ Read the cache file for a revision and return if the build has timed out """
         timed_out = False
         now = time()
-        revisions = self.LoadCache()
+        revisions, completed_revisions = self.LoadCache()
         if revision in revisions.keys():
             filename = os.path.join(self.cache_dir, revision)
             if os.path.exists(filename):
@@ -285,7 +285,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     
     def WriteToBuglist(self, revision, bug, filename=POSTED_BUGS):
         """ Writes a bug #, timestamp, and build's info to the BUGLIST to track what has been posted 
-            Also cleans up, removing the cache file for the revision once it's been posted
+            Also calls RemoveCache on the revision once it's been posted
         """
         if self.dry_run:
             log.debug("DRY_RUN: WRITING TO %s: %s" % (filename, revision))
@@ -301,26 +301,32 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 traceback.print_exc(file=sys.stdout)
         
     def RemoveCache(self, revision):
-        # clear out the cache file so we're not tracking it anymore
+        # attach '.done' to the cache file so we're not tracking it anymore
         cache_file = os.path.join(self.cache_dir, revision)
         if os.path.exists(cache_file):
-            os.remove(cache_file)
+            os.rename(cache_file, cache_file + '.done')
             if self.verbose:
-                log.debug("REMOVING %s CACHE FILE" % cache_file)
+                log.debug("MOVING %s CACHE FILE to %s" % (cache_file, cache_file + '.done'))
 
     def LoadCache(self):
-        """ Search for cache dir, return dict of all filenames (revisions) in the dir """
+        """ Search for cache dir, return dict of all filenames (revisions) in the dir
+            and a list of completed revisions to knock out of poll run
+        """
         revisions = {}
+        completed_revisions = []
         if self.verbose:
             log.debug("Checking for existing cache file...")
             
         if os.path.isdir(self.cache_dir):
             cache_revs = os.listdir(self.cache_dir)
             for revision in cache_revs:
-                revisions[revision] = {}
+                if '.done' in revision:
+                    completed_revisions.append(revision.split('.')[0])
+                else:
+                    revisions[revision] = {}
             if self.verbose:
-                log.debug("REVISIONS IN CACHE %s" % (revisions))
-        return revisions
+                log.debug("INCOMPLETE REVISIONS IN CACHE %s" % (revisions))
+        return revisions, completed_revisions
     
     def WriteToCache(self, incomplete):
         """ Writes results of incomplete build to cache dir in a file that is named with the revision """
@@ -519,9 +525,14 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     def PollByTimeRange(self, starttime, endtime):
         # Get all the unique revisions in the specified timeframe range
         rev_report = self.GetRevisions(starttime,endtime)
-        # TODO - change the name of revision files to .done and then when you loadCache(), remove any .done from rev_report
-        # Add in any revisions currently in cache for a complete list to poll schedulerdb about
-        rev_report.update(self.LoadCache())
+        # Check the cache for any additional revisions to pull reports for
+        revisions, completed_revisions = self.LoadCache()
+        rev_report.update(revisions)
+        # Clear out complete revisions from the rev_report keys
+        for rev in completed_revisions:
+            if rev_report.has_key(rev):
+                log.debug("Removing %s from the revisions to poll, it's been done." % rev)
+                del rev_report[rev]
     
         # Check each revision's buildrequests to determine: completeness, type
         for revision in rev_report.keys():

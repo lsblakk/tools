@@ -113,9 +113,11 @@ class SchedulerDBPollerTests(unittest.TestCase):
                     os.remove(os.path.join(CACHE_DIR,rev))
         incomplete = {}
         incomplete['6f8727aab415'] = self.poller.PollByRevision('6f8727aab415')
+        incomplete['aa4cedbd66ab.done'] = {} 
         self.poller.WriteToCache(incomplete)
-        revisions = self.poller.LoadCache()
+        revisions, complete = self.poller.LoadCache()
         self.assertEquals(revisions, {'6f8727aab415': {}})
+        self.assertEquals(complete, ['aa4cedbd66ab'])
 
     def testWriteToBuglist(self):
         print 'testWriteToBuglist()'
@@ -126,15 +128,18 @@ class SchedulerDBPollerTests(unittest.TestCase):
         incomplete = {
             '1234': {},
             '2345': {},
+            '3456.done': {},
             }
         self.poller.WriteToCache(incomplete)
         # before writing to buglist
-        revisions = self.poller.LoadCache()
+        revisions, complete = self.poller.LoadCache()
         self.assertEquals(revisions, {'1234': {}, '2345': {}, '6f8727aab415': {}})
+        self.assertEquals(sorted(complete), sorted(['3456', 'aa4cedbd66ab']))
         self.poller.WriteToBuglist('1234', '9952', BUGLIST)
         # after writing to buglist
-        revisions = self.poller.LoadCache()
+        revisions, complete = self.poller.LoadCache()
         self.assertEquals(revisions, {'2345': {}, '6f8727aab415': {}})
+        self.assertEquals(sorted(complete), sorted(['3456', '1234', 'aa4cedbd66ab']))
         # now make sure dry-run doesn't affect things
         # read the buglist for comparing after
         f = open(BUGLIST, 'r')
@@ -143,8 +148,9 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.poller.dry_run = True
         self.poller.WriteToBuglist('2345', '9952', BUGLIST)
         # cache should not change on a dry-run
-        revisions = self.poller.LoadCache()
+        revisions, complete = self.poller.LoadCache()
         self.assertEquals(revisions, {'2345': {}, '6f8727aab415': {}})
+        self.assertEquals(sorted(complete), sorted(['3456', '1234', 'aa4cedbd66ab']))
         # readlines from BUGLIST after and compare
         f = open(BUGLIST, 'r')
         after = f.readlines()
@@ -198,8 +204,9 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertEquals(revisions.keys()[:5],[u'9465683dcfe5', u'163e8764498e', u'72e79e2d4c48', u'aa4cedbd66ab', u'82f950327fa8'])
 
     def testPollByRevisionComplete_Autoland(self):
+        # if discard ever comes back as True, double check your test db has entry for this rev
         print 'testPollByRevisionComplete_Autoland()'
-        posted = self.poller.bz.has_recent_comment('b8e5f09eead1', 9952)
+        posted = self.poller.bz.has_comment('b8e5f09eead1', 9952)
         output = self.poller.PollByRevision('b8e5f09eead1')
         if posted:
             self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': True, 'message': None, 'is_complete': True, 'discard': False})
@@ -211,10 +218,8 @@ class SchedulerDBPollerTests(unittest.TestCase):
         message = u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at:\nhttp://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8'
         posted = self.poller.bz.has_comment(message, 9952)
         if not posted:
-            # if this test hasn't been run in 4 hours this should return True
             output = self.poller.PollByRevision('83c09dc13bb8')
             self.assertEqual((message, True), (output['message'], output['posted_to_bug']))
-        # we have posted to the bug so this should be false
         output = self.poller.PollByRevision('83c09dc13bb8')
         self.assertEqual((message, False), (output['message'], output['posted_to_bug']))
         self.assertFalse(output['posted_to_bug'])
@@ -233,6 +238,11 @@ class SchedulerDBPollerTests(unittest.TestCase):
         self.assertFalse(output['posted_to_bug'])
     
     def testPollByTimeRange(self):
+        print 'add a rev to cache dir'
+        incomplete = {}
+        incomplete['aa4cedbd66ab.done'] = {} 
+        self.poller.WriteToCache(incomplete)
+        
         print 'testPollByTimeRange()'
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')

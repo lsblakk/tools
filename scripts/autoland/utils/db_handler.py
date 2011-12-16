@@ -321,12 +321,14 @@ class DBHandler(object):
         # mozilla central is either disabled or above threshold...
 
         # if the try threshold is already full, only pull non-try
+        # TODO -- this part does not make sense --
         b = self.BranchQuery(Branch(name='try'))
         if b == None:
             b = Branch(threshold=0)
         else:
             b = b[0]
         connection = self.engine.connect()
+        # Checking to see how many try pushes are currently running
         try_count = connection.execute('''SELECT count(*) as count
                               FROM patch_sets
                               WHERE try_run=1
@@ -334,10 +336,12 @@ class DBHandler(object):
                               AND completion_time IS NULL''').fetchone()
         try_count = 0 if try_count == None else try_count[0]
         if b.threshold < try_count or b.status != 'enabled':
-            next_q += 'AND patch_sets.try_run = 0'
+            print "adding AND patch_sets.try_run = 0"
+            next_q += 'AND patch_sets.try_run = 0 '
         next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
         if not next:
+            print "Not next"
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 branch=next[3], try_run=next[4], to_branch=next[5])
