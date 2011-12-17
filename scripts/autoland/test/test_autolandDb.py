@@ -79,7 +79,7 @@ class TestAutolandDbHandler(unittest.TestCase):
         next = self.db.PatchSetGetNext()
         print "Next 2: %s" % next
         self.assertEqual(next, None)
-        self.db.BranchUpdate(Branch(name='mozilla-central', threshold=2))
+        self.db.BranchUpdate(Branch(name='mozilla-central', threshold=50))
         next = self.db.PatchSetGetNext(branch='mozilla-central')
         print "Next 3: %s" % next
         self.assertEqual(next.toDict(), ps1.toDict())

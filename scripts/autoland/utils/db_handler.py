@@ -282,8 +282,8 @@ class DBHandler(object):
 
     def PatchSetGetNext(self, branch='%', status='enabled'):
         """
-        Get the next patch_set that is queued up for a try run,
-        based on its creation_date.
+        Get the next patch_set that is queued up for a push,
+        based on its creation_date, returns None if no patch_set exists
         """
         r = self.scheduler_db_meta.tables['patch_sets']
         enabled = self.BranchQuery(Branch(status='enabled'))
@@ -324,9 +324,11 @@ class DBHandler(object):
         # TODO -- this part does not make sense --
         b = self.BranchQuery(Branch(name='try'))
         if b == None:
+            # Try branch is not in the DB
             b = Branch(threshold=0)
         else:
             b = b[0]
+            print "B: %s" % b
         connection = self.engine.connect()
         # Checking to see how many try pushes are currently running
         try_count = connection.execute('''SELECT count(*) as count
@@ -334,14 +336,15 @@ class DBHandler(object):
                               WHERE try_run=1
                               AND NOT push_time IS NULL
                               AND completion_time IS NULL''').fetchone()
+        print "Try Count: %s" % try_count[0]
         try_count = 0 if try_count == None else try_count[0]
-        if b.threshold < try_count or b.status != 'enabled':
+        if try_count >= b.threshold or b.status != 'enabled':
             print "adding AND patch_sets.try_run = 0"
             next_q += 'AND patch_sets.try_run = 0 '
         next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
         if not next:
-            print "Not next"
+            print "Nothing comes next"
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 branch=next[3], try_run=next[4], to_branch=next[5])
