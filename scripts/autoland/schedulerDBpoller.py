@@ -305,7 +305,8 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         cache_file = os.path.join(self.cache_dir, revision)
         if os.path.exists(cache_file):
             os.rename(cache_file, cache_file + '.done')
-            os.remove(cache_file)
+            if os.path.exists(cache_file):
+                os.remove(cache_file)
             if self.verbose:
                 log.debug("MOVING %s CACHE FILE to %s" % (cache_file, cache_file + '.done'))
 
