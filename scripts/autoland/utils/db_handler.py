@@ -404,7 +404,7 @@ class PatchSet(object):
             return []
         if isinstance(self.patches, list):
             return self.patches
-        if isinstance(self.patches, string):
+        if isinstance(self.patches, str):
             return map(lambda x: int(x), re.split(',', self.patches))
 
     def toDict(self):
