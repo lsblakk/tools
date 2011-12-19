@@ -277,7 +277,6 @@ def message_handler(message):
         }
     """
     msg = message['payload']
-    print msg
     if not 'type' in msg:
         log_msg('Got bad mq message: %s' % (msg))
         return

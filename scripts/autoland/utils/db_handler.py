@@ -334,14 +334,13 @@ class DBHandler(object):
                               WHERE try_run=1
                               AND NOT push_time IS NULL
                               AND completion_time IS NULL''').fetchone()
-        print "Try Count: %s" % try_count[0]
+        print "DEBUG: Try Count: %s" % try_count[0]
         try_count = 0 if try_count == None else try_count[0]
         if try_count >= b.threshold or b.status != 'enabled':
             next_q += 'AND patch_sets.try_run = 0 '
         next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
         if not next:
-            print "Nothing comes next"
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 branch=next[3], try_run=next[4], to_branch=next[5])
