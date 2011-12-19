@@ -308,8 +308,7 @@ class DBHandler(object):
                 ) as bCount
                 ON branches.name=bCount.branch
                 WHERE
-                    COALESCE(bCount.count,0) < branches.threshold
-                    AND branches.status='enabled'
+                    branches.status='enabled'
             ) as bAvailable
             ON patch_sets.branch = bAvailable.name
             WHERE
@@ -328,7 +327,6 @@ class DBHandler(object):
             b = Branch(threshold=0)
         else:
             b = b[0]
-            print "B: %s" % b
         connection = self.engine.connect()
         # Checking to see how many try pushes are currently running
         try_count = connection.execute('''SELECT count(*) as count
@@ -339,7 +337,6 @@ class DBHandler(object):
         print "Try Count: %s" % try_count[0]
         try_count = 0 if try_count == None else try_count[0]
         if try_count >= b.threshold or b.status != 'enabled':
-            print "adding AND patch_sets.try_run = 0"
             next_q += 'AND patch_sets.try_run = 0 '
         next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()

@@ -317,7 +317,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         revisions = {}
         completed_revisions = []
         if self.verbose:
-            log.debug("Checking for existing cache file...")
+            log.debug("Checking for existing cache files...")
             
         if os.path.isdir(self.cache_dir):
             cache_revs = os.listdir(self.cache_dir)

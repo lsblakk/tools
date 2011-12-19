@@ -218,6 +218,7 @@ def bz_search_handler():
             print "PATCH GROUP %s" % patch_group 
 
         ps = PatchSet()
+        # TODO -- WHY??
         if branch == 'try':
             ps.try_run = 1
             ps.to_branch = 0
@@ -276,6 +277,7 @@ def message_handler(message):
         }
     """
     msg = message['payload']
+    print msg
     if not 'type' in msg:
         log_msg('Got bad mq message: %s' % (msg))
         return
@@ -299,6 +301,7 @@ def message_handler(message):
             return
 
         if msg['branch'].lower() == 'try':
+            # TODO -- WHY???
             msg['branch'] = 'mozilla-central'
             msg['try_run'] = 1
 
@@ -405,12 +408,11 @@ class SearchThread(threading.Thread):
             bz_search_handler()
             next = time.time() + int(config['bz_poll_frequency'])
             while time.time() < next:
-                print "Made it into while"
                 patchset = db.PatchSetGetNext()
-                print "Patch Set %s" % patchset
                 if patchset == None:
                         time.sleep(10)
                         continue
+                        
                 log_msg('Pulled patchset %s out of the queue' % (patchset),
                         log.DEBUG)
                 # Check permissions & patch set again, in case it has changed
@@ -425,18 +427,19 @@ class SearchThread(threading.Thread):
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
-                print branch
+                # TODO -- should check thresholds here (and use schedulerDB
                 message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                         'branch_url':branch.repo_url,
                         'branch':patchset.branch, 'try_run':patchset.try_run,
                         'patchsetid':patchset.id, 'patches':patches }
                 if patchset.try_run == 1:
                     tb = db.BranchQuery(Branch(name='try'))
-                    print "TB: %s" % tb
                     if tb: tb = tb[0]
                     else: continue
                     message['push_url'] = tb.repo_url
                 log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
+                # TODO check if patchset gets pushed properly and if
+                # it's not, then put it back in the queue
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])
                 patchset.push_time = datetime.datetime.utcnow()
