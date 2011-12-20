@@ -380,7 +380,7 @@ def main():
         log_msg('Error switching to working directory: %s', e)
         exit(1)
 
-    mq.listen(config['mq_queue'], message_handler,
+    mq.listen(queue=config['mq_queue'], callback=message_handler,
             routing_keys=[config['mq_hgpusher_topic']])
 
 if __name__ == '__main__':
