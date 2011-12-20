@@ -117,7 +117,7 @@ def import_patch(repo, patch, try_run):
     cmd = ['import', '-R']
     cmd.append(repo)
     if try_run:
-        cmd.extend(['-m "try: -p win32 -b o -u none -n Bug 10480"'])
+        cmd.extend(['-m "try: -p win32 -b o -u none -n Bug 10770"'])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -140,10 +140,12 @@ def process_patchset(data):
     try_run = (data['try_run'] == True)
     if not 'branch_url' in data:
         # TODO: Log bad message
+        print "Bad message, no branch_url"
         return False
     push_url = data['branch_url']
     if try_run and not 'push_url' in data:
         # TODO: Log bad message...
+        print "Bad message, try run doesn't have a push_url"
         return False
     if 'push_url' in data:
         push_url = data['push_url']
@@ -339,6 +341,7 @@ def message_handler(message):
         # check that all necessary data is present
         if not valid_job_message(data):
             # comment?
+            print "Not valid job message %s" % data
             return
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
