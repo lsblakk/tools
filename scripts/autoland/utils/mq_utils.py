@@ -131,7 +131,6 @@ class mq_util():
                 self.channel.basic_qos(prefetch_count=1)
                 self.channel.basic_consume(callback_wrapper, queue=queue_name)
                 self.channel.start_consuming()
-                print "consuming"
             except sockerr:
                 self.channel = None
                 log.info('[RabbitMQ] Connection to %s lost. Reconnecting...'

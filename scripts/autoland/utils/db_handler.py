@@ -316,14 +316,11 @@ class DBHandler(object):
                 AND patch_sets.completion_time IS NULL
                 AND patch_sets.push_time IS NULL
             ''' # This gets extended below
-        # XXX: This may not work correctly for a try run when
-        # mozilla central is either disabled or above threshold...
-
-        # if the try threshold is already full, only pull non-try
-        # TODO -- this part does not make sense --
+        # XXX: Took out the try branch is 'mozilla-central' in db - we can move a patch set into the 
+        # the db for each subsequent branch
+        
         b = self.BranchQuery(Branch(name='try'))
         if b == None:
-            # Try branch is not in the DB
             b = Branch(threshold=0)
         else:
             b = b[0]

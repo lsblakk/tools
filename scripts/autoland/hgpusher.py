@@ -17,7 +17,7 @@ LOGFILE = os.path.join(base_dir, 'hgpusher.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
-# TODO - fail gracefully if no ini files are present
+# TODO - fail gracefully if no ini files are present and accept ini files through argparse
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 

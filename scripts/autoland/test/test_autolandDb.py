@@ -52,18 +52,22 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.PatchSetDelete(ps2)
 
     def testPatchSetGetNext(self):
-        ps1 = PatchSet(bug_id=12577, patches='534442', branch='mozilla-central',
+        ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
             try_run=1, to_branch=0)
         ps2 = PatchSet(bug_id=4, patches='543352,91223', branch='mozilla-central',
                 try_run=0, to_branch=1)
-        b = Branch(name='mozilla-central', repo_url='https://hg.m.o/mozilla-central',
+        b1 = Branch(name='mozilla-central', repo_url='https://hg.m.o/mozilla-central',
+                threshold=50, status='enabled')
+        b2 = Branch(name='try', repo_url='https://hg.m.o/mozilla-central',
                 threshold=50, status='enabled')
         # Insert ps1 then ps2. Ps2 should come out first since it is not a try
         # run, and it is to be pushed to branch.
         ps1.id = self.db.PatchSetInsert(ps1)
         ps2.id = self.db.PatchSetInsert(ps2)
         self.db.BranchDelete(Branch(name='mozilla-central'))
-        b.id = self.db.BranchInsert(b)
+        self.db.BranchDelete(Branch(name='try'))
+        b1.id = self.db.BranchInsert(b1)
+        b2.id = self.db.BranchInsert(b2)
         next = self.db.PatchSetGetNext()
         print "Next 0: %s" % next
         self.assertEqual(next.toDict(), ps2.toDict())

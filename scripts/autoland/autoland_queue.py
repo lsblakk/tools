@@ -17,7 +17,7 @@ LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
                     
-# TODO - fail gracefully if no ini files are present
+# TODO - fail gracefully if no ini files are present and accept ini files through argparse
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
@@ -218,15 +218,13 @@ def bz_search_handler():
             print "PATCH GROUP %s" % patch_group 
 
         ps = PatchSet()
-        # TODO -- WHY??
         if branch == 'try':
-            ps.try_run = 1
             ps.to_branch = 0
-            ps.branch = 'mozilla-central'
         else:
-            ps.try_run = 1      # try run first
-            ps.to_branch = 1    # then land to branch
-            ps.branch = branch
+            ps.to_branch = 1
+            
+        ps.try_run = 1 
+        ps.branch = branch
         ps.patches = patch_group
         ps.bug_id = bug_id
 
@@ -277,7 +275,7 @@ def message_handler(message):
         }
     """
     msg = message['payload']
-    if not 'type' in msg:
+    if not 'type' in msg: 
         log_msg('Got bad mq message: %s' % (msg))
         return
     if msg['type'] == 'job':
@@ -317,6 +315,8 @@ def message_handler(message):
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            print "Got patchset back from DB: %s" % ps
+            print "Msg = %s" % msg
             ps.revision = msg['revision']
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
@@ -438,7 +438,7 @@ class SearchThread(threading.Thread):
                     message['push_url'] = tb.repo_url
                 log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
                 # TODO check if patchset gets pushed properly and if
-                # it's not, then put it back in the queue
+                # it's not, then don't put in the push_time
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])
                 patchset.push_time = datetime.datetime.utcnow()
