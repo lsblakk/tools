@@ -219,11 +219,13 @@ def process_patchset(data):
         msg = 'Could not apply and push patchset:\n%s' % (error)
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
-        log_msg('commenting "%s" to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        log_msg('commenting "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         bz.notify_bug('\n'.join(comment), data['bug_id'])
         # TODO need to remove whiteboard tag here or in autoland_queue?
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
+        mq.send_message(mq_msg, config['mq_queue'],
+                    routing_keys=[config['mq_db_topic']])
         return False
 
     if try_run:
