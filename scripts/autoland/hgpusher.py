@@ -139,13 +139,11 @@ def process_patchset(data):
     active_repo = os.path.join('active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
     if not 'branch_url' in data:
-        # TODO: Log bad message
-        print "Bad message, no branch_url"
+        log_msg("Bad message, no branch_url")
         return False
     push_url = data['branch_url']
     if try_run and not 'push_url' in data:
-        # TODO: Log bad message...
-        print "Bad message, try run doesn't have a push_url"
+        log_msg("Bad message, try run doesn't have a push_url")
         return False
     if 'push_url' in data:
         push_url = data['push_url']
