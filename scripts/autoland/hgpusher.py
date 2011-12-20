@@ -141,7 +141,7 @@ def process_patchset(data):
     if not 'branch_url' in data:
         log_msg("Bad message, no branch_url")
         return False
-    push_url = data['branch_url']
+    push_url = data['branch_url'].replace('https', 'ssh', 1)
     if try_run and not 'push_url' in data:
         log_msg("Bad message, try run doesn't have a push_url")
         return False
@@ -221,6 +221,7 @@ def process_patchset(data):
         comment.append(msg)
         log_msg('commenting "%s" to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         bz.notify_bug('\n'.join(comment), data['bug_id'])
+        # TODO need to remove whiteboard tag here or in autoland_queue?
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
         return False

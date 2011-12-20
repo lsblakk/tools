@@ -15,6 +15,7 @@
 
 
 ## Marc Notes
+0.0 IMPORTANT : Failure to push in hgpusher leaves [autoland-in-queue] in the whiteboard
 0. Sometimes get a "bad msg" when trying to send to hgpusher (the first one on system start?) and yet that patchset gets a pushtime inserted to the db - should wait and retry it until a non-bad msg is returned -- when hgpusher fails it also sends a bad msg
 1. The use case of "Flag bug for landing --> Wait for review --> land":
     -  Will not currently work, due to an early design mistake. The fix is
