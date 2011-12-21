@@ -142,6 +142,8 @@ def process_patchset(data):
         log_msg("Bad message, no branch_url")
         return False
     push_url = data['branch_url'].replace('https', 'ssh', 1)
+    if data['branch'] == 'try':
+        push_url = push_url.replace('mozilla-central', 'try', 1)
     if try_run and not 'push_url' in data:
         log_msg("Bad message, try run doesn't have a push_url")
         return False
