@@ -146,13 +146,14 @@ def process_patchset(data):
         return False
     if 'push_url' in data:
         push_url = data['push_url']
-    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
-            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
-               (' => try' if try_run else ''), push_url )]
     else:
         push_url = data['branch_url'].replace('https', 'ssh', 1)
     if data['branch'] == 'try':
         push_url = push_url.replace('mozilla-central', 'try', 1)
+
+    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
+            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
+               (' => try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
