@@ -314,7 +314,7 @@ def message_handler(message):
     elif msg['type'] == 'success':
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             print "Got patchset back from DB: %s" % ps
             print "Msg = %s" % msg
             ps.revision = msg['revision']
@@ -323,7 +323,7 @@ def message_handler(message):
                     % (ps.revision, ps.id), log.DEBUG)
         elif msg['action'] == 'try.run':
             # Handle a successful try result
-            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
+            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
             if not ps:
                 # XXX: wtf...
                 log_msg('ERROR: Unable find revision in db.'
@@ -346,7 +346,7 @@ def message_handler(message):
                     % (ps.id, ps.revision), log.DEBUG)
         elif msg['action'] == 'branch.push':
             # Guaranteed patchset EOL
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Successful push to branch of patchset %s.' % (ps.id), log.DEBUG)
@@ -354,11 +354,11 @@ def message_handler(message):
     elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
         if msg['action'] == 'try.push' or msg['action'] == 'branch.push':
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
         elif msg['action'] == 'try.run':
-            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
+            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
         elif msg['action'] == 'patchset.apply':
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
         if ps:
             log_msg(ps)
             log_msg(msg)
@@ -437,7 +437,7 @@ class SearchThread(threading.Thread):
                     tb = db.BranchQuery(Branch(name='try'))
                     if tb: tb = tb[0]
                     else: continue
-                    message['push_url'] = tb.repo_url
+                    #message['push_url'] = tb.repo_url
                 log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
                 # TODO check if patchset gets pushed properly and if
                 # it's not, then don't put in the push_time
