@@ -141,9 +141,6 @@ def process_patchset(data):
     if not 'branch_url' in data:
         log_msg("Bad message, no branch_url")
         return False
-    push_url = data['branch_url'].replace('https', 'ssh', 1)
-    if data['branch'] == 'try':
-        push_url = push_url.replace('mozilla-central', 'try', 1)
     if try_run and not 'push_url' in data:
         log_msg("Bad message, try run doesn't have a push_url")
         return False
@@ -152,6 +149,10 @@ def process_patchset(data):
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
                (' => try' if try_run else ''), push_url )]
+    else:
+        push_url = data['branch_url'].replace('https', 'ssh', 1)
+    if data['branch'] == 'try':
+        push_url = push_url.replace('mozilla-central', 'try', 1)
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
@@ -159,7 +160,7 @@ def process_patchset(data):
         if (attempts % 3) == 0:
             clear_branch(data['branch'])
     def apply_patchset(dir, attempt):
-        print "attempt #%s" % (attempts)
+        print "attempt #%s" % (attempts + 1)
 
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'

@@ -360,8 +360,8 @@ def message_handler(message):
         elif msg['action'] == 'patchset.apply':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
         if ps:
-            print ps
-            print msg
+            log_msg(ps)
+            log_msg(msg)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'
