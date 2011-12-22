@@ -428,7 +428,7 @@ class SearchThread(threading.Thread):
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
-                # TODO -- should check thresholds here (and use schedulerDB
+                # XXX TODO -- should check thresholds here
                 message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                         'branch_url':branch.repo_url,
                         'branch':patchset.branch, 'try_run':patchset.try_run,
@@ -439,7 +439,7 @@ class SearchThread(threading.Thread):
                     else: continue
                     #message['push_url'] = tb.repo_url
                 log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
-                # TODO check if patchset gets pushed properly and if
+                # XXX TODO check if patchset gets pushed properly and if
                 # it's not, then don't put in the push_time
                 mq.send_message(message, config['mq_queue'],
                         routing_keys=[config['mq_hgpusher_topic']])

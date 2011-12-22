@@ -141,9 +141,6 @@ def process_patchset(data):
     if not 'branch_url' in data:
         log_msg("Bad message, no branch_url")
         return False
-    if try_run and not 'push_url' in data:
-        log_msg("Bad message, try run doesn't have a push_url")
-        return False
     if 'push_url' in data:
         push_url = data['push_url']
     else:
