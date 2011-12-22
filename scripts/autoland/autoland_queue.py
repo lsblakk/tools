@@ -429,7 +429,7 @@ class SearchThread(threading.Thread):
                 branch = branch[0]
                 # XXX TODO -- should check thresholds here
                 jobs = db.BranchRunningJobsQuery(patchset.branch, patchset.try_run)
-                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs), log.DEBUG)
+                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs[0]), log.DEBUG)
                 b = db.BranchQuery(Branch(name='try'))[0]
                 log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold))
                 if jobs[0] < b.threshold:
