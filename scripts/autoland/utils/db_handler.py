@@ -172,33 +172,19 @@ class DBHandler(object):
             return map(lambda x: Branch(*x), rows)
         return None
 
-    def BranchRunningJobsQuery(self, branch, try_run=False):
+    def BranchRunningJobsQuery(self, branch):
         """
-        Returns the count of jobs running on a branch
+        Returns the count of jobs running on the Branch object passed in
         """
         connection = self.engine.connect()
         r = self.scheduler_db_meta.tables['patch_sets']
         q = r.select()
-        if try_run:
-            q = q.where(r.c.try_run.like(1))
-        q = q.where(r.c.branch.like(branch))
-        q = q.where(r.c.push_time == "NULL")
-        q = q.where(r.c.completion_time == "NULL")
-        print q
-        count = connection.execute(func.count(q))
-        
-        
-        """if branch == 'try':
-            count = connection.execute('''SELECT count(*) as count
-                                  FROM patch_sets
-                                  WHERE try_run=1
-                                  AND NOT push_time IS NULL
-                                  AND completion_time IS NULL''').fetchone()
-        else:
-            # XXX Fix this:
-            print "No handling for other branches right now"
-        """
-        return count
+        q = q.where(r.c.branch.like(branch.name))
+        q = q.where(r.c.push_time != None)
+        q = q.where(r.c.completion_time == None)
+        q = q.count()
+        count = connection.execute(q)
+        return count.scalar()
 
     def BranchUpdate(self, branch):
         """
@@ -294,16 +280,10 @@ class DBHandler(object):
 
     def PatchSetDelete(self, patch_set):
         """
-        Delete the corresponding patchset, as long as it is not currently
-        being processed. We know it is still being processed if it has a
-        push_date but no completion_date.
+        Delete the corresponding patchset
         """
         r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.delete(
-                and_(r.c.id == patch_set.id,
-                or_(r.c.push_time == None,
-                and_(r.c.push_time != None,
-                     r.c.completion_time != None))))
+        q = r.delete(r.c.id == patch_set.id)
         connection = self.engine.connect()
         connection.execute(q)
 
