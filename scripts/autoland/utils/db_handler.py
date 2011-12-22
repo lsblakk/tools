@@ -2,7 +2,7 @@ try:
     import json
 except ImportError:
     import simplejson as json
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, func
 from sqlalchemy import outerjoin, or_, select, not_, and_
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \
 INTERRUPTED, MISC
@@ -177,7 +177,18 @@ class DBHandler(object):
         Returns the count of jobs running on a branch
         """
         connection = self.engine.connect()
-        if branch == 'try':
+        r = self.scheduler_db_meta.tables['patch_sets']
+        q = r.select()
+        if try_run:
+            q = q.where(r.c.try_run.like(1))
+        q = q.where(r.c.branch.like(branch))
+        q = q.where(r.c.push_time == "NULL")
+        q = q.where(r.c.completion_time == "NULL")
+        print q
+        count = connection.execute(func.count(q))
+        
+        
+        """if branch == 'try':
             count = connection.execute('''SELECT count(*) as count
                                   FROM patch_sets
                                   WHERE try_run=1
@@ -186,7 +197,7 @@ class DBHandler(object):
         else:
             # XXX Fix this:
             print "No handling for other branches right now"
-            
+        """
         return count
 
     def BranchUpdate(self, branch):
