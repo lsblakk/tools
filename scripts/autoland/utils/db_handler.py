@@ -177,11 +177,16 @@ class DBHandler(object):
         Returns the count of jobs running on a branch
         """
         connection = self.engine.connect()
-        r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.select().where(r.c.branch.like(branch + '%'))
-        if try_run:
-            q = q.where(r.c.try_run == 1)
-        count = connection.execute(q).fetchone()
+        if branch == 'try':
+            count = connection.execute('''SELECT count(*) as count
+                                  FROM patch_sets
+                                  WHERE try_run=1
+                                  AND NOT push_time IS NULL
+                                  AND completion_time IS NULL''').fetchone()
+        else:
+            # XXX Fix this:
+            print "No handling for other branches right now"
+            
         return count
 
     def BranchUpdate(self, branch):
