@@ -108,7 +108,7 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run, bug_id=None, custom_syntax=""):
+def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o -u none"):
     """
     Import patch file patch into repo.
     If it is a try run, replace commit message with "try:"
