@@ -17,7 +17,9 @@ LOGFILE = os.path.join(base_dir, 'hgpusher.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
-# TODO - fail gracefully if no ini files are present and accept ini files through argparse
+
+# TODO - fail gracefully if no ini files are present
+# Is it better to accept confiig files through argparse?
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
@@ -106,7 +108,7 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run):
+def import_patch(repo, patch, try_run, bug_id=None, custom_syntax=""):
     """
     Import patch file patch into repo.
     If it is a try run, replace commit message with "try:"
@@ -117,7 +119,8 @@ def import_patch(repo, patch, try_run):
     cmd = ['import', '-R']
     cmd.append(repo)
     if try_run:
-        cmd.extend(['-m "try: -p win32 -b o -u none -n Bug 10770"'])
+        # if there is no custom syntax, try defaults will get triggered
+        cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -187,7 +190,7 @@ def process_patchset(data):
                     comment.append(msg)
                 raise RETRY
 
-            (patch_success,err) = import_patch(active_repo, patch_file, try_run)
+            (patch_success,err) = import_patch(active_repo, patch_file, try_run, bug_id=data.get('bug_id', None))
             if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
                 # append comment to comment
@@ -364,7 +367,8 @@ def message_handler(message):
                     routing_keys=[config['mq_db_topic']])
 
         else:
-            # comment already posted in process_patchset
+            # TODO - send message to autolanddb here?
+            # comment already posted in process_patchset -- is it? how do we know?
             pass
 
 def main():

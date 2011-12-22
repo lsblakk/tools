@@ -56,6 +56,8 @@ class TestAutolandDbHandler(unittest.TestCase):
             try_run=1, to_branch=0)
         ps2 = PatchSet(bug_id=4, patches='543352,91223', branch='mozilla-central',
                 try_run=0, to_branch=1)
+        ps3 = PatchSet(bug_id=12577, patches='534442', branch='try',
+            try_run=1, to_branch=0)
         b1 = Branch(name='mozilla-central', repo_url='https://hg.m.o/mozilla-central',
                 threshold=50, status='enabled')
         b2 = Branch(name='try', repo_url='https://hg.m.o/mozilla-central',
@@ -64,35 +66,42 @@ class TestAutolandDbHandler(unittest.TestCase):
         # run, and it is to be pushed to branch.
         ps1.id = self.db.PatchSetInsert(ps1)
         ps2.id = self.db.PatchSetInsert(ps2)
+        ps3.id = self.db.PatchSetInsert(ps3)
         self.db.BranchDelete(Branch(name='mozilla-central'))
         self.db.BranchDelete(Branch(name='try'))
         b1.id = self.db.BranchInsert(b1)
         b2.id = self.db.BranchInsert(b2)
         next = self.db.PatchSetGetNext()
-        print "Next 0: %s" % next
+        print "Pull the m-c patchset: %s" % next
         self.assertEqual(next.toDict(), ps2.toDict())
         self.db.BranchUpdate(Branch(name='mozilla-central', status='disabled'))
         next.push_time = datetime.datetime.utcnow()
         self.db.PatchSetUpdate(next)
 
         next = self.db.PatchSetGetNext()
-        print "Next 1: %s" % next
-        self.assertEqual(next, None)
-        self.db.BranchUpdate(Branch(name='mozilla-central', status='enabled', threshold=0))
+        print "Pull the try patchset ps1: %s" % next
+        self.assertEqual(next.toDict(), ps1.toDict())
+        next.push_time = datetime.datetime.utcnow()
+        self.db.PatchSetUpdate(next)
+        self.db.BranchUpdate(Branch(name='try', status='disabled', threshold=0))
 
         next = self.db.PatchSetGetNext()
-        print "Next 2: %s" % next
+        print "Pull nothing, try is disabled: %s" % next
         self.assertEqual(next, None)
-        self.db.BranchUpdate(Branch(name='mozilla-central', threshold=50))
-        next = self.db.PatchSetGetNext(branch='mozilla-central')
-        print "Next 3: %s" % next
-        self.assertEqual(next.toDict(), ps1.toDict())
+        self.db.BranchUpdate(Branch(name='try', status='enabled', threshold=0))
+        next = self.db.PatchSetGetNext()
+        print "Pull nothing, try threshold is full: %s" % next
+        self.assertEqual(next, None)
+        self.db.BranchUpdate(Branch(name='try', threshold=50))
+        next = self.db.PatchSetGetNext()
+        print "Pull next gets try ps3: %s" % next
+        self.assertEqual(next.toDict(), ps3.toDict())
         # Clean up
         self.db.BranchDelete(Branch(name='mozilla-central'))
+        self.db.BranchDelete(Branch(name='try'))
         self.db.PatchSetDelete(ps1)
-        ps2.completion_time = datetime.datetime.utcnow()
-        self.db.PatchSetUpdate(ps2)
         self.db.PatchSetDelete(ps2)
+        self.db.PatchSetDelete(ps3)
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,7 +17,8 @@ LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
                     
-# TODO - fail gracefully if no ini files are present and accept ini files through argparse
+# TODO - fail gracefully if no ini files are present
+# Is it better to accept confiig files through argparse?
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
@@ -128,7 +129,7 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
     if 'attachments' not in bug_data:
         return None     # bad bug id, or no attachments
     for attachment in bug_data['attachments']:
-        # if it is a patch (is_patch), and is not (is_obsolete)
+        # patches must meet criteria: is_patch and not is_obsolete
         if attachment['is_patch'] and not attachment['is_obsolete'] \
                 and (not patches or int(attachment['id']) in patches):
             patch = {'id':int(attachment['id']),
@@ -159,8 +160,8 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
                 patches.remove(patch['id'])
 
     if len(patches) != 0:
-        # Some specified patches left over
-        # comment that it couldn't get all specified patches
+        # comment that all requested patches didn't get applied
+        # XXX TODO - should we still push what patches _did_ get applied?
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
         c = bz.notify_bug(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
         if c:
@@ -228,7 +229,6 @@ def bz_search_handler():
         ps.patches = patch_group
         ps.bug_id = bug_id
 
-        print "Patch List : %s" % ps.patchList()
         # check patch reviews & permissions
         patches = get_patchset(ps.bug_id, ps.try_run,
                                ps.patchList(), review_comment=False)
@@ -298,7 +298,7 @@ def message_handler(message):
             return
 
         if msg['branch'].lower() == 'try':
-            # TODO -- WHY???
+            # XXX TODO -- WHY???
             msg['branch'] = 'mozilla-central'
             msg['try_run'] = 1
 
@@ -331,19 +331,18 @@ def message_handler(message):
                 return
             # Remove the -in-queue whiteboard tag
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
-            # Update the one in the queue, to contain the new data we want
-            # in order to be picked up and kick off the landing
-            if ps.to_branch == 0:
+            # Update the queue - if only try run, remove
+            if not ps.to_branch:
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
                 return
-            # update to no longer be a try run, and will kick off a to_branch
-            # landing when it comes up in the queue
-            ps.try_run = 0
-            ps.push_time = None
-            db.PatchSetUpdate(ps)
-            log_msg('Flagging patchset %s revision %s for push-to_branch.'
-                    % (ps.id, ps.revision), log.DEBUG)
+            # else remove try_run, when it comes up in the queue it will trigger push to branch
+            else:
+                ps.try_run = 0
+                ps.push_time = None
+                db.PatchSetUpdate(ps)
+                log_msg('Flagging patchset %s revision %s for push-to_branch.'
+                        % (ps.id, ps.revision), log.DEBUG)
         elif msg['action'] == 'branch.push':
             # Guaranteed patchset EOL
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
@@ -360,8 +359,8 @@ def message_handler(message):
         elif msg['action'] == 'patchset.apply':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
         if ps:
-            log_msg(ps)
-            log_msg(msg)
+            # remove it from the queue, error should have been comented to bug
+            # (shall we confirm that here with bz_utils.has_coment?)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'
@@ -423,28 +422,35 @@ class SearchThread(threading.Thread):
                 # get branch information so that message can contain branch_url
                 branch = db.BranchQuery(Branch(name=patchset.branch))
                 if not branch:
-                    # error, branch non-existent
+                    # error, branch non-existent XXX -- SHould we email or otherwise let user know?
                     log_msg('ERROR: Could not find %s in branches table.' % (patchset.branch))
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
                 # XXX TODO -- should check thresholds here
-                message = { 'job_type':'patchset','bug_id':patchset.bug_id,
-                        'branch_url':branch.repo_url,
-                        'branch':patchset.branch, 'try_run':patchset.try_run,
-                        'patchsetid':patchset.id, 'patches':patches }
-                if patchset.try_run == 1:
-                    tb = db.BranchQuery(Branch(name='try'))
-                    if tb: tb = tb[0]
-                    else: continue
-                    #message['push_url'] = tb.repo_url
-                log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
-                # XXX TODO check if patchset gets pushed properly and if
-                # it's not, then don't put in the push_time
-                mq.send_message(message, config['mq_queue'],
-                        routing_keys=[config['mq_hgpusher_topic']])
-                patchset.push_time = datetime.datetime.utcnow()
-                db.PatchSetUpdate(patchset)
+                jobs = db.BranchRunningJobsQuery(patchset.branch, patchset.try_run)
+                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs), log.DEBUG)
+                b = db.BranchQuery(Branch(name='try'))
+                log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold))
+                if jobs < b.threshold:
+                    message = { 'job_type':'patchset','bug_id':patchset.bug_id,
+                            'branch_url':branch.repo_url,
+                            'branch':patchset.branch, 'try_run':patchset.try_run,
+                            'patchsetid':patchset.id, 'patches':patches }
+                    if patchset.try_run == 1:
+                        tb = db.BranchQuery(Branch(name='try'))
+                        if tb: tb = tb[0]
+                        else: continue
+                        #message['push_url'] = tb.repo_url
+                    log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
+                    # XXX TODO check if patchset gets pushed properly and if
+                    # it's not, then don't put in the push_time
+                    mq.send_message(message, config['mq_queue'],
+                            routing_keys=[config['mq_hgpusher_topic']])
+                    patchset.push_time = datetime.datetime.utcnow()
+                    db.PatchSetUpdate(patchset)
+                else:
+                    log_msg("Too many jobs running right now, will have to wait.")
                 time.sleep(10)
 
 def main():

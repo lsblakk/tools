@@ -172,6 +172,18 @@ class DBHandler(object):
             return map(lambda x: Branch(*x), rows)
         return None
 
+    def BranchRunningJobsQuery(self, branch, try_run=False):
+        """
+        Returns the count of jobs running on a branch
+        """
+        connection = self.engine.connect()
+        r = self.scheduler_db_meta.tables['patch_sets']
+        q = r.select().where(r.c.branch.like(branch + '%'))
+        if try_run:
+            q = q.where(r.c.try_run == 1)
+        count = connection.execute(q).fetchone()
+        return count
+
     def BranchUpdate(self, branch):
         """
         Updates branches table by branch name.
@@ -213,9 +225,8 @@ class DBHandler(object):
     def PatchSetQuery(self, patch_set):
         """
         Returns a list of PatchSet objects that match the set fields in branch.
-        eg. BranchQuery(Branch(threshold=50, status='disabled'))
-            will return all branches in the db with a threshold of 50
-            and a 'disabled' status.
+        eg. PatchSetQuery(PatchSet(revision='revision'))
+            will return all patch_sets in the db with a revision='revision'
         """
         r = self.scheduler_db_meta.tables['patch_sets']
         q = r.select()
