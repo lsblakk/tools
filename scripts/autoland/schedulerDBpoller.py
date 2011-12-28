@@ -314,7 +314,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         revisions = {}
         completed_revisions = []
         if self.verbose:
-            log.debug("Checking for existing cache files...")
+            log.debug("Scanning cache files...")
             
         if os.path.isdir(self.cache_dir):
             cache_revs = os.listdir(self.cache_dir)
@@ -323,8 +323,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     completed_revisions.append(revision.split('.')[0])
                 else:
                     revisions[revision] = {}
-            if self.verbose:
-                log.debug("INCOMPLETE REVISIONS IN CACHE %s" % (revisions))
+
         return revisions, completed_revisions
     
     def WriteToCache(self, incomplete):
@@ -462,6 +461,9 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             self.WriteToBuglist(revision, bug)
         elif not self.dry_run and not dupe:
             log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
+        # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
+        elif status_str == 'timed out' and not result:
+            self.RemoveCache(revision)
 
         return bug_post
 
@@ -520,6 +522,8 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         rev_report = self.GetRevisions(starttime,endtime)
         # Check the cache for any additional revisions to pull reports for
         revisions, completed_revisions = self.LoadCache()
+        if self.verbose:
+            log.debug("INCOMPLETE REVISIONS IN CACHE %s" % (revisions))
         rev_report.update(revisions)
         # Clear out complete revisions from the rev_report keys
         for rev in completed_revisions:
