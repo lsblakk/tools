@@ -66,22 +66,22 @@ class SchedulerDBPoller():
         """ Read the cache file for a revision and return if the build has timed out """
         timed_out = False
         now = time()
-        revisions, completed_revisions = self.LoadCache()
-        if revision in revisions.keys():
-            filename = os.path.join(self.cache_dir, revision)
-            if os.path.exists(filename):
-                try:
-                    f = open(filename, 'r')
-                    entries = f.readlines()
-                    f.close()
-                except IOError, e:
-                    log.error("Couldn't open cache file for rev: %s" % revision)
-                    raise
-                first_entry = mktime(strptime(entries[0].split('|')[0], "%a, %d %b %Y %H:%M:%S %Z"))
-                diff = now - first_entry
-                if diff > timeout:
-                    log.debug("Timeout on rev: %s " % revision)
-                    timed_out = True
+        if self.verbose:
+            log.debug("Checking for timed out revision: %s" % revision)
+        filename = os.path.join(self.cache_dir, revision)
+        if os.path.exists(filename):
+            try:
+                f = open(filename, 'r')
+                entries = f.readlines()
+                f.close()
+            except IOError, e:
+                log.error("Couldn't open cache file for rev: %s" % revision)
+                raise
+            first_entry = mktime(strptime(entries[0].split('|')[0], "%a, %d %b %Y %H:%M:%S %Z"))
+            diff = now - first_entry
+            if diff > timeout:
+                log.debug("Timeout on rev: %s " % revision)
+                timed_out = True
         return timed_out
 
     def OrangeFactorHandling(self, buildrequests):
@@ -403,11 +403,10 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 if self.verbose:
                     log.debug("Check Orange Factor for rev: %s" % revision)
                 is_complete, status['status_string'] =  self.OrangeFactorHandling(buildrequests)
-        else:
-            # check timeout, perhaps it's time to kick this out of the tracking queue
-            if revision != None:
-                if self.revisionTimedOut(revision):
-                    status['status_string'] = 'timed out'
+        # check timeout, perhaps it's time to kick this out of the tracking queue
+        if revision != None:
+            if self.revisionTimedOut(revision):
+                status['status_string'] = 'timed out'
 
         return (status,is_complete)
     
