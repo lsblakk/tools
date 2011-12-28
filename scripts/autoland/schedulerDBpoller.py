@@ -574,12 +574,12 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 if self.verbose:
                     log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
                 self.RemoveCache(revision)
-        # Check incompletes for timed out build runs
-        for rev in incomplete:
-            if rev['status']['status_string'] == 'timed out':
-                self.RemoveCache(revision)
+        # Clean incomplete list of timed out build runs
+        for rev in incomplete.keys():
+            if incomplete[rev]['status']['status_string'] == 'timed out':
+                del incomplete[rev]
 
-        # Store the incompletes for the next run if there's a bug
+        # Store the incomplete revisions for the next run if there's a bug
         self.WriteToCache(incomplete)
 
         return incomplete
