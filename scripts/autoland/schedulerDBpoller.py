@@ -459,11 +459,13 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                 routing_keys=[self.config.get('mq', 'db_topic')])
             self.WriteToBuglist(revision, bug)
         elif not self.dry_run and not dupe:
-            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
-        # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
-        elif status_str == 'timed out' and not result:
-            self.RemoveCache(revision)
-
+            # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
+            if status_str == 'timed out' and not result:
+                self.RemoveCache(revision)
+            else:
+                log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
+            
+        
         return bug_post
 
     def PollByRevision(self, revision, bugs=None):
@@ -571,6 +573,10 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             elif info['is_complete']:
                 if self.verbose:
                     log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
+                self.RemoveCache(revision)
+        # Check incompletes for timed out build runs
+        for rev in incomplete:
+            if rev['status']['status_string'] == 'timed out':
                 self.RemoveCache(revision)
 
         # Store the incompletes for the next run if there's a bug
