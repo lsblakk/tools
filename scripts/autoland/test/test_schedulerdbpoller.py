@@ -40,7 +40,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         for revision in REVISIONS:
             buildrequests = self.poller.scheduler_db.GetBuildRequests(revision, "try")
             bugs[revision] = self.poller.GetBugNumbers(buildrequests)
-        self.assertEquals(bugs, {'9465683dcfe5': [9952], '83c09dc13bb8': [9952], 'b8e5f09eead1': [9952], '6f8727aab415': [95846], 'e53d9b5ad8f8': [], 'e6ae55cd2f5d': [], '32d9b56c5ea6': [], '157ac288e589': [9952], 'eb85e9fe0be7': [], '77d3c3cd755d': [], '020f7584545b': [], 'b60a0c153400': [], '08b6a1ab405b': [], '365c4b2067f3': [], '7acd48c25b5c': [12345, 234456, 244677], '965f9271f2cf': [], '7fb7e88a1739': [], '87e7b2736018': [], 'c815c02a8bbc': [], 'cc750feffa41': [], 'd1653821d023': [], '5fe5c08a5737': [], '34a6c1275fd0': [], '8da8f0209359': [], 'e743e3347c09': [], '867c3741e16d': [], '6242c0b1ef60': [], '924976bc4bf9': [], '127c2f71d6b0': []})
+        self.assertEquals(sorted(bugs), sorted({'9465683dcfe5': [9952], '83c09dc13bb8': [9952], 'b8e5f09eead1': [9952], '6f8727aab415': [95846], 'e53d9b5ad8f8': [], 'e6ae55cd2f5d': [], '32d9b56c5ea6': [], '157ac288e589': [9952], 'eb85e9fe0be7': [], '77d3c3cd755d': [], '020f7584545b': [], 'b60a0c153400': [], '08b6a1ab405b': [], '365c4b2067f3': [], '7acd48c25b5c': [12345, 234456, 244677], '965f9271f2cf': [], '7fb7e88a1739': [], '87e7b2736018': [], 'c815c02a8bbc': [], 'cc750feffa41': [], 'd1653821d023': [], '5fe5c08a5737': [], '34a6c1275fd0': [], '8da8f0209359': [], 'e743e3347c09': [], '867c3741e16d': [], '6242c0b1ef60': [], '924976bc4bf9': [], '127c2f71d6b0': []}))
 
     def testGetSingleAuthor(self):
         print 'testGetSingleAuthor()'
@@ -77,14 +77,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.ProcessPushType(revision, buildrequests)
         self.assertEquals(type, None)
-
-    # Push type should be Auto since the revision is being tracked in AutolandDB
-    def testPushTypeAutoland(self):
-        print 'testPushTypeAutoland()'
-        revision = 'b8e5f09eead1'
-        buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
-        type = self.poller.ProcessPushType(revision, buildrequests)
-        self.assertEquals(type, "auto")
 
     def testGenerateResultReport(self):
         print 'testGenerateResultReport()'
@@ -203,16 +195,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         revisions = self.poller.GetRevisions()
         self.assertEquals(revisions.keys()[:5],[u'9465683dcfe5', u'163e8764498e', u'72e79e2d4c48', u'aa4cedbd66ab', u'82f950327fa8'])
 
-    def testPollByRevisionComplete_Autoland(self):
-        # if discard ever comes back as True, double check your test db has entry for this rev
-        print 'testPollByRevisionComplete_Autoland()'
-        posted = self.poller.bz.has_comment('b8e5f09eead1', 9952)
-        output = self.poller.PollByRevision('b8e5f09eead1')
-        if posted:
-            self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': True, 'message': None, 'is_complete': True, 'discard': False})
-        else:
-            self.assertEquals(output, {'status': {'running': 0, 'complete': 10, 'cancelled': 0, 'total_builds': 10, 'status_string': 'success', 'misc': 0, 'interrupted': 0, 'pending': 0}, 'posted_to_bug': False, 'message': None, 'is_complete': True, 'discard': False})
-        
     def testPollByRevisionComplete_TrySyntax(self):
         print 'testPollByRevisionComplete_TrySyntax()'
         message = u'Try run for 83c09dc13bb8 is complete.\nDetailed breakdown of the results available here:\n    https://tbpl.mozilla.org/?tree=Try&rev=83c09dc13bb8\nResults (out of 10 total builds):\n    success: 9\n    failure: 1\nBuilds (or logs if builds failed) available at:\nhttp://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/eakhgari@mozilla.com-83c09dc13bb8'
@@ -254,62 +236,6 @@ class SchedulerDBPollerTests(unittest.TestCase):
         incomplete = self.poller.PollByTimeRange(None, None)
         self.assertEquals(incomplete['6f8727aab415']['status']['status_string'], '')
         self.assertEquals(incomplete['9465683dcfe5']['status']['status_string'], 'retrying')
-
-    def testOrangeFactorRetriesWithoutDupes(self):
-        print 'testOrangeFactorRetriesWithoutDupes()'
-        # SAMPLE DATA without having duplicate buildernames - test retrying
-        # 9465683dcfe5 {'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
-        # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
-        # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
-        # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
-        
-        revision='e6ae55cd2f5d'
-        ps1 = PatchSet(revision=revision)
-        ps1.id = self.poller.autoland_db.PatchSetInsert(ps1)
-
-        revisions = {'83c09dc13bb8': (True, 'failure'), '9465683dcfe5': (False, 'retrying'), 'e6ae55cd2f5d': (True, 'success'), '6f8727aab415': (True, 'failure')}
-        orange_revs = {}
-        for revision in revisions.keys():
-            buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
-            orange_revs[revision] = self.poller.OrangeFactorHandling(buildrequests)
-        self.assertEqual(orange_revs, revisions)
-
-    def testOrangeFactorRetriesWithSelfServeFail(self):
-        print 'testOrangeFactorRetriesWithSelfServeFail()'
-        # SAMPLE DATA without having duplicate buildernames - test retrying failure
-        # 9465683dcfe5 {'success': 9, 'warnings': 1, 'failure': 0, 'other': 0}
-        # 83c09dc13bb8 {'success': 9, 'warnings': 0, 'failure': 1, 'other': 0}
-        # 6f8727aab415 {'success': 0, 'warnings': 9, 'failure': 0, 'other': 1}
-        # e6ae55cd2f5d {'success': 10, 'warnings': 0, 'failure': 0, 'other': 0}
-        
-        clean_poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
-        revision='e6ae55cd2f5d'
-        ps1 = PatchSet(revision=revision)
-        ps1.id = clean_poller.autoland_db.PatchSetInsert(ps1)
-
-        revisions = {'83c09dc13bb8': (True, 'failure'), '9465683dcfe5': (True, 'failure'), 'e6ae55cd2f5d': (True, 'success'), '6f8727aab415': (True, 'failure')}
-        orange_revs = {}
-        for revision in revisions.keys():
-            buildrequests = clean_poller.scheduler_db.GetBuildRequests(revision)
-            orange_revs[revision] = clean_poller.OrangeFactorHandling(buildrequests)
-        self.assertEqual(orange_revs, revisions)
-
-    def testOrangeFactorRetriesWithDupes(self):
-        print 'testOrangeFactorRetriesWithDupes()'
-        # SAMPLE DATA with duplicate buildernames (already retried, now what is the result?)
-        # One warn, one pass on one dupe buildername- should return (True, 'success')
-        # 157ac288e589 {'success': 10, 'warnings': 1, 'total_builds': 11}
-        # Three warn, one pass on two dupe buildernames - should return (True, 'failure')
-        # 7acd48c25b5c {'success': 9, 'warnings': 3, 'total_builds': 12}
-        revisions = {'7acd48c25b5c': (True, 'failure'), '157ac288e589': (True, 'success')}
-        orange_revs = {}
-        for revision in revisions.keys():
-            buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
-            for key, value in buildrequests.items():
-                br = value.to_dict()
-                print (br['results_str'], br['branch'], br['bid'], br['buildername'], br['brid'])
-            orange_revs[revision] = self.poller.OrangeFactorHandling(buildrequests)
-        self.assertEqual(orange_revs, revisions)
 
     def testSelfServeRebuildPass(self):
         print 'testSelfServeRebuildPass()'

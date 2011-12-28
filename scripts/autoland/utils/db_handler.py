@@ -140,16 +140,6 @@ class DBHandler(object):
     
         return build_requests
 
-    def AutolandQuery(self, revision):
-        r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.select().where(r.c.revision.like(revision + '%'))
-        connection = self.engine.connect()
-        q_results = connection.execute(q)
-        rows = q_results.fetchall()
-        if len(rows) != 0:
-            return True
-        return False
-
     def BranchQuery(self, branch):
         """
         Returns a list of Branch objects that match the set fields in branch.
@@ -236,6 +226,8 @@ class DBHandler(object):
             q = q.where(r.c.id.like(patch_set.id))
         if patch_set.bug_id != False:
             q = q.where(r.c.bug_id.like(patch_set.bug_id))
+        if patch_set.author != False:
+            q = q.where(r.c.author.like(patch_set.author))
         if patch_set.patches != False:
             q = q.where(r.c.patches.like(patch_set.patches))
         if patch_set.revision != False:
@@ -379,7 +371,7 @@ class Branch(object):
 class PatchSet(object):
     def __init__(self, id=False, bug_id=False, patches=False, revision=False,
             branch=False, try_run=False, to_branch=False, creation_time=False,
-            push_time=False, completion_time=False):
+            push_time=False, completion_time=False, author=False, retries=False):
         import datetime, re
         self.id = id
         self.bug_id = bug_id
@@ -395,6 +387,8 @@ class PatchSet(object):
         self.creation_time = creation_time
         self.push_time = push_time
         self.completion_time = completion_time
+        self.retries = retries
+        self.author = author
 
     def __repr__(self):
         return str(self.toDict())
@@ -424,6 +418,8 @@ class PatchSet(object):
         if self.creation_time != False: d['creation_time'] = self.creation_time
         if self.push_time != False: d['push_time'] = self.push_time
         if self.completion_time != False: d['completion_time'] = self.completion_time
+        if self.retries != False: d['retries'] = self.retries
+        if self.author != False: d['author'] = self.author
         return d
 
 class BuildRequest(object):

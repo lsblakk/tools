@@ -59,9 +59,8 @@ class SchedulerDBPoller():
         else:
             self.password = self.config.get('self_serve', 'password')
 
-        # Set up database handlers
+        # Set up database handler
         self.scheduler_db = DBHandler(self.config.get('databases', 'scheduler_db_url'))
-        self.autoland_db = DBHandler(self.config.get('databases', 'autoland_db_url'))
 
     def revisionTimedOut(self, revision, timeout=TIMEOUT):
         """ Read the cache file for a revision and return if the build has timed out """
@@ -210,15 +209,14 @@ class SchedulerDBPoller():
             log.error("More than one author for: %s" % br)
     
     def GetBugNumbers(self, buildrequests):
-        """Look through a list of buildrequests and return bug number(s) from the change comments"""
+        """Look through a list of buildrequests and return bug number from push comments"""
         bugs = []
         for key,value in buildrequests.items():
             br = value.to_dict()
             for comment in br['comments']:
-                # want the bug that is in the syntax if it's a try push and not from autoland
-                if 'try: ' in comment:
+                # we only want the bug specified in try syntax
+                if len(comment.split('try: ')) > 1:
                     comment = comment.split('try: ')[1]
-                if bugs == []:
                     bugs = self.bz.bugs_from_comments(comment)
         return bugs
     
@@ -228,19 +226,18 @@ class SchedulerDBPoller():
        returns type as "try", "auto", or None
         
             try: if "try: --post-to-bugzilla" is present in the comments of a buildrequest
-            auto: if a check against AutolandDB returns True
-            None: if no try request and AutolandDB isn't tracking it
+            auto: if a check for 'autoland-' in the comments returns True (for future branch landings)
+            None: if not try request and Autoland system isn't tracking it
         """
     
         type = None
-        if self.autoland_db.AutolandQuery(revision):
-            type = "auto"
-        else:
-            for key,value in buildrequests.items():
-                br = value.to_dict()
-                for comments in br['comments']:
-                    if 'try: ' in comments and '--post-to-bugzilla' in comments:
-                        type = "try"
+        for key,value in buildrequests.items():
+            br = value.to_dict()
+            for comments in br['comments']:
+                if 'try: ' in comments and '--post-to-bugzilla' in comments:
+                    type = "try"
+                if 'autoland-' in comments:
+                    type = "auto"
         return type
     
     def CalculateResults(self, buildrequests):
@@ -417,7 +414,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
     
     def GetRevisions(self, starttime=None, endtime=None):
         """ Gets the buildrequests between starttime & endtime, returns a dict keyed by revision
-        with the buildrequests per revision
+            with the buildrequests per revision
         """
         rev_dict = {}
         buildrequests = self.scheduler_db.GetBuildRequests(None, self.branch, starttime, endtime)
@@ -430,14 +427,18 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         return rev_dict
 
     def ProcessCompletedRevision(self, revision, message, bug, status_str, type):
-        """ Posts to bug and also sends a message to the autoland queue if type == 'auto' """
-        ##  If a revision is complete and NOT IN THE CACHE list, then we do not post
+        """ Posts to bug and sends msg to autoland mq with completion status """
+
         bug_post = False
         dupe = False
         result = False
+        action = type + '.push'
+
         if status_str == 'timed out':
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
+                    
         posted = self.bz.has_comment(message, bug)
+
         if posted:
             log.debug("NOT POSTING TO BUG %s, ALREADY POSTED" % bug)
             dupe = True
@@ -452,16 +453,16 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         if result:
             log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))
             bug_post = True
-            self.WriteToBuglist(revision, bug)
-        elif not self.dry_run and not dupe:
-            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
-        if type == 'auto':
             msg = { 'type'  : status_str,
-                    'action': 'try.push',
-                    'bugid' : bug,
+                    'action': action,
+                    'bug_id' : bug,
                     'revision': revision }
             self.mq.send_message(msg, self.config.get('mq', 'queue'),
                 routing_keys=[self.config.get('mq', 'db_topic')])
+            self.WriteToBuglist(revision, bug)
+        elif not self.dry_run and not dupe:
+            log.debug("BZ POST FAILED message: %s bug: %s, couldn't notify bug. Try again later." % (message, bug))
+
         return bug_post
 
     def PollByRevision(self, revision, bugs=None):
@@ -485,7 +486,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests, revision)
         if self.verbose:
             log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (info['status'], bugs, type, info['is_complete']))
-        if info['is_complete'] and type == "try" and len(bugs) > 0:
+        if info['is_complete'] and len(bugs) > 0:
             results = self.CalculateResults(buildrequests)
             info['message'] = self.GenerateResultReportMessage(revision, results, self.GetSingleAuthor(buildrequests))
             if self.verbose:
@@ -498,16 +499,6 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                                                     type=type)
                 elif self.dry_run:
                     log.debug("DRY RUN: Would have posted %s to %s" % (info['message'], bug))
-        # Autoland - send completion message to the autoland_queue and post to bug
-        elif info['is_complete'] and type == "auto":
-            if len(bugs) == 1:
-                if self.dry_run:
-                    log.debug("DRY RUN: Would post %s to bug %s and notify Autoland message queue" % (info['message'], bug))
-                else:
-                    info['posted_to_bug'] = self.ProcessCompletedRevision(revision, info['message'], 
-                                                        bugs[0], info['status']['status_string'], type)
-            else:
-                log.error("Should only have one bug for Autoland pushes, not: %s." % len(bugs))
         # No bug number(s) or no try syntax, but complete gets flagged for discard
         elif info['is_complete']:
             log.debug("Nothing to do here for %s" % revision)
@@ -553,9 +544,9 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         # Process the completed rev_report for this run, gather incomplete revisions and writing to cache
         incomplete = {}
         for revision,info in rev_report.items():
-            # Incomplete builds that are autoland or have bugs get added to dict for re-checking later
+            # Incomplete builds that have bugs get added to dict for re-checking later
             if not info['is_complete']:
-                if info['push_type'] == "auto" or len(info['bugs']) == 1:
+                if len(info['bugs']) == 1:
                     incomplete[revision] = {'status': info['status'],
                                             'bugs': info['bugs'],
                                             }
@@ -579,7 +570,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     log.debug("Nothing to do for push_type:%s revision:%s - no one cares about it" % (info['push_type'], revision))
                 self.RemoveCache(revision)
 
-        # Store the incompletes for the next run if there's a bug or it's an autoland post
+        # Store the incompletes for the next run if there's a bug
         self.WriteToCache(incomplete)
 
         return incomplete

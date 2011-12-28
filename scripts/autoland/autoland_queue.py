@@ -16,9 +16,7 @@ LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
 LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
-                    
-# TODO - fail gracefully if no ini files are present
-# Is it better to accept confiig files through argparse?
+
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
@@ -237,7 +235,9 @@ def bz_search_handler():
             # sit in Bugzilla so it can be picked up again later.
             print "No patches listed right now, will be monitoring this bug."
             continue
-
+        else:
+            ps.author = patches[0]['author']['email'] if patches != None else ""
+            
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
         print "PatchsetID: %s" % patchset_id
@@ -427,11 +427,10 @@ class SearchThread(threading.Thread):
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
-                # XXX TODO -- should check thresholds here
                 jobs = db.BranchRunningJobsQuery(patchset.branch, patchset.try_run)
                 log_msg("Running jobs on %s: %s" % (patchset.branch, jobs[0]), log.DEBUG)
                 b = db.BranchQuery(Branch(name='try'))[0]
-                log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold))
+                log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
                 if jobs[0] < b.threshold:
                     message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                             'branch_url':branch.repo_url,
@@ -441,10 +440,7 @@ class SearchThread(threading.Thread):
                         tb = db.BranchQuery(Branch(name='try'))
                         if tb: tb = tb[0]
                         else: continue
-                        #message['push_url'] = tb.repo_url
                     log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
-                    # XXX TODO check if patchset gets pushed properly and if
-                    # it's not, then don't put in the push_time
                     mq.send_message(message, config['mq_queue'],
                             routing_keys=[config['mq_hgpusher_topic']])
                     patchset.push_time = datetime.datetime.utcnow()

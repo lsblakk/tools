@@ -43,6 +43,8 @@ CREATE TABLE `patch_sets` (
   `id` int(11) NOT NULL AUTO_INCREMENT,
   `bug_id` int(11) DEFAULT NULL,
   `patches` text,
+  `author` text,
+  `retries` int(11) DEFAULT NULL,
   `revision` text,
   `branch` text,
   `try_run` int(11) DEFAULT NULL,

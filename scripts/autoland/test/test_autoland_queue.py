@@ -184,15 +184,15 @@ class TestAutolandQueue(unittest.TestCase):
                             DBHandler.BranchQuery = old_bq
         jobs = []
         jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
-            'patches':'', 'bug_id':10411})
+            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
-            'patches':'', 'bug_id':10411})
+            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'branch', 'try_run':1, 'to_branch':1,
-            'patches':'', 'bug_id':10411})
+            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
-            'patches':'2113, 2114', 'bug_id':10411})
+            'patches':'2113, 2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
-            'patches':'2114', 'bug_id':10411})
+            'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         print jobs
         print db
         for job in db:
@@ -209,7 +209,7 @@ class TestAutolandQueue(unittest.TestCase):
         orig.append(DBHandler.PatchSetUpdate)
         orig.append(DBHandler.PatchSetDelete)
         DBHandler.PatchSetInsert = mock.Mock(return_value=True)
-        DBHandler.PatchSetQuery = mock.Mock(return_value=PatchSet(id=1))
+        DBHandler.PatchSetQuery = mock.Mock(return_value=[PatchSet(id=1),])
         DBHandler.PatchSetUpdate = mock.Mock(return_value=True)
         DBHandler.PatchSetDelete = mock.Mock(return_value=True)
         bz_utils.bz_util.remove_whiteboard_tag = mock.Mock(return_value=True)

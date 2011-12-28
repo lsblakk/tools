@@ -62,3 +62,7 @@
    is in the branch field) is either above threshold or disabled.
 5. autoland_queue needs to poll the database for jobs that have been in the queue for a long time
 
+## Dear Future Autolanding
+0. HgExtension (using Pbiggar's trychooser one) - could take your patches(diff) and create bugzilla 
+   attachemnt with bz API, put in the right autoland comments and Bob's your uncle: you just did it
+   all from the command line

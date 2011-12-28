@@ -18,8 +18,6 @@ LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
 
-# TODO - fail gracefully if no ini files are present
-# Is it better to accept confiig files through argparse?
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
@@ -120,6 +118,7 @@ def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o
     cmd.append(repo)
     if try_run:
         # if there is no custom syntax, try defaults will get triggered
+        # get custom syntax from whiteboard tag
         cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
     cmd.append(patch)
     print cmd
