@@ -428,10 +428,10 @@ class SearchThread(threading.Thread):
                     continue
                 branch = branch[0]
                 jobs = db.BranchRunningJobsQuery(Branch(name=patchset.branch))
-                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs[0]), log.DEBUG)
+                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs), log.DEBUG)
                 b = db.BranchQuery(Branch(name='try'))[0]
                 log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
-                if jobs[0] < b.threshold:
+                if jobs < b.threshold:
                     message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                             'branch_url':branch.repo_url,
                             'branch':patchset.branch, 'try_run':patchset.try_run,

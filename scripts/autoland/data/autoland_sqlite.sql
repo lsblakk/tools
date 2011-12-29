@@ -27,7 +27,8 @@ CREATE TABLE `branches` (
   `name` text,
   `repo_url` text,
   `threshold` int(11) DEFAULT NULL,
-  `status` text
+  `status` text,
+  UNIQUE(`name`)
 ) ;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
