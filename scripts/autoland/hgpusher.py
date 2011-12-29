@@ -346,6 +346,11 @@ def message_handler(message):
             print "Not valid job message %s" % data
             return
 
+        clone_revision = clone_branch(data['branch'], data['branch_url'])
+        if clone_revision == None:
+            # Handle clone error
+            log_msg('[HgPusher] Clone error...')
+            return
         patch_revision = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
             # comment already posted in process_patchset
