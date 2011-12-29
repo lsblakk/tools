@@ -240,7 +240,9 @@ class DBHandler(object):
         q_results = connection.execute(q)
         rows = q_results.fetchall()
         if rows:
-            return map(lambda x: PatchSet(*x), rows)
+            ps = map(lambda x: PatchSet(**x), rows)
+            print ps
+            return ps
         return None
 
     def PatchSetInsert(self, patch_set):
