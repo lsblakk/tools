@@ -156,7 +156,14 @@ def process_patchset(data):
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
+        log_msg('Cleaned up: %s' % active_repo)
         clear_branch(data['branch'])
+        log_msg('Removed clone: %s' % data['branch'])
+        clone_revision = clone_branch(data['branch'], data['branch_url'])
+        if clone_revision == None:
+            # Handle clone error
+            log_msg('[HgPusher] Clone error...')
+            return
     def apply_patchset(dir, attempt):
         print "attempt #%s" % (attempts + 1)
 
