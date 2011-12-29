@@ -236,8 +236,6 @@ class DBHandler(object):
             q = q.where(r.c.branch.like(patch_set.branch))
         if not isinstance(patch_set.try_run, bool):
             q = q.where(r.c.try_run == patch_set.try_run)
-        if not isinstance(patch_set.to_branch, bool):
-            q = q.where(r.c.to_branch == patch_set.to_branch)
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
@@ -290,7 +288,7 @@ class DBHandler(object):
             return None
         next_q = \
             '''
-            SELECT DISTINCT patch_sets.id,bug_id,patches,patch_sets.branch,try_run,to_branch
+            SELECT DISTINCT patch_sets.id,bug_id,patches,patch_sets.branch,try_run,author
             FROM patch_sets
             JOIN
             (
@@ -334,12 +332,12 @@ class DBHandler(object):
         try_count = 0 if try_count == None else try_count[0]
         if try_count >= b.threshold or b.status != 'enabled':
             next_q += 'AND patch_sets.try_run = 0 '
-        next_q += 'ORDER BY try_run ASC, to_branch DESC, creation_time ASC;'
+        next_q += 'ORDER BY try_run ASC, creation_time ASC;'
         next = connection.execute(next_q).fetchone()
         if not next:
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
-                branch=next[3], try_run=next[4], to_branch=next[5])
+                branch=next[3], try_run=next[4], author=next[5])
 
 class Branch(object):
     def __init__(self, id=False, name=False, repo_url=False,
@@ -370,7 +368,7 @@ class Branch(object):
 
 class PatchSet(object):
     def __init__(self, id=False, bug_id=False, patches=False, revision=False,
-            branch=False, try_run=False, to_branch=False, creation_time=False,
+            branch=False, try_run=False, creation_time=False,
             push_time=False, completion_time=False, author=False, retries=False):
         import datetime, re
         self.id = id
@@ -383,7 +381,6 @@ class PatchSet(object):
         self.revision = str(revision) if revision != False else revision
         self.branch = str(branch) if branch != False else branch
         self.try_run = try_run
-        self.to_branch = to_branch
         self.creation_time = creation_time
         self.push_time = push_time
         self.completion_time = completion_time
@@ -414,7 +411,6 @@ class PatchSet(object):
         if self.revision != False: d['revision'] = self.revision
         if self.branch != False: d['branch'] = self.branch
         if self.try_run in [1,0]: d['try_run'] = self.try_run
-        if self.to_branch in [1,0]: d['to_branch'] = self.to_branch
         if self.creation_time != False: d['creation_time'] = self.creation_time
         if self.push_time != False: d['push_time'] = self.push_time
         if self.completion_time != False: d['completion_time'] = self.completion_time
