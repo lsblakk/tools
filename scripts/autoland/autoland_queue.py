@@ -240,7 +240,7 @@ def bz_search_handler():
             
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
-        print "PatchsetID in bz_search_handler: %s" % patchset_id
+        print "PatchsetID: %s" % patchset_id
 
         bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
                 '[autoland-in-queue]', bug_id)
@@ -427,7 +427,7 @@ class SearchThread(threading.Thread):
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
-                jobs = db.BranchRunningJobsQuery(patchset.branch, patchset.try_run)
+                jobs = db.BranchRunningJobsQuery(patchset.branch)
                 log_msg("Running jobs on %s: %s" % (patchset.branch, jobs[0]), log.DEBUG)
                 b = db.BranchQuery(Branch(name='try'))[0]
                 log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
