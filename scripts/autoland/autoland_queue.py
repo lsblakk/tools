@@ -427,7 +427,7 @@ class SearchThread(threading.Thread):
                     db.PatchSetDelete(patchset)
                     continue
                 branch = branch[0]
-                jobs = db.BranchRunningJobsQuery(patchset.branch)
+                jobs = db.BranchRunningJobsQuery(Branch(name=patchset.branch))
                 log_msg("Running jobs on %s: %s" % (patchset.branch, jobs[0]), log.DEBUG)
                 b = db.BranchQuery(Branch(name='try'))[0]
                 log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
