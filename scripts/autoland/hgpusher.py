@@ -156,9 +156,7 @@ def process_patchset(data):
 
     def cleanup_wrapper():
         shutil.rmtree(active_repo)
-        attempts = attempts + 1
-        if (attempts % 3) == 0:
-            clear_branch(data['branch'])
+        clear_branch(data['branch'])
     def apply_patchset(dir, attempt):
         print "attempt #%s" % (attempts + 1)
 
@@ -348,11 +346,6 @@ def message_handler(message):
             print "Not valid job message %s" % data
             return
 
-        clone_revision = clone_branch(data['branch'], data['branch_url'])
-        if clone_revision == None:
-            # Handle clone error
-            log_msg('[HgPusher] Clone error...')
-            return
         patch_revision = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
             # comment already posted in process_patchset

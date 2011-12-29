@@ -415,6 +415,8 @@ class SearchThread(threading.Thread):
                         
                 log_msg('Pulled patchset %s out of the queue' % (patchset),
                         log.DEBUG)
+                # XXX TODO: let's check the retries & creation time 
+                
                 # Check permissions & patch set again, in case it has changed
                 # since the job was put on the queue
                 patches = get_patchset(patchset.bug_id, patchset.try_run,
@@ -441,12 +443,15 @@ class SearchThread(threading.Thread):
                         if tb: tb = tb[0]
                         else: continue
                     log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
+                    # XXX TODO: test that message sent properly, set to retry if not
                     mq.send_message(message, config['mq_queue'],
                             routing_keys=[config['mq_hgpusher_topic']])
                     patchset.push_time = datetime.datetime.utcnow()
                     db.PatchSetUpdate(patchset)
                 else:
                     log_msg("Too many jobs running right now, will have to wait.")
+                    patchset.retries += 1
+                    db.PatchSetUpdate(patchset)
                 time.sleep(10)
 
 def main():

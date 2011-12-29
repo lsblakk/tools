@@ -337,7 +337,8 @@ class DBHandler(object):
         if not next:
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
-                branch=next[3], try_run=next[4], author=next[5])
+                author=next[3], retries=next[4], branch=next[6], try_run=next[7],
+                creation_time=next[8])
 
 class Branch(object):
     def __init__(self, id=False, name=False, repo_url=False,
