@@ -1,17 +1,22 @@
 ## Lukas Notes
-0. Still need to add handling for security bugs and for 400 errors (bad bug typing) to bz_utils - need to kick things out of the queue if the bug is not responding more than N times
-3. WOULD BE NICE - if builds cancelled by Self-Serve, note that in the message to the bug with final results (same if cancelled due to excessive time in incomplete pool - 6 hour default threshhold)
-4. LDAP tests use Marc's email and he doesn't have LDAP anymore
-8. There's a 10 minute gap between schedulerdbpoller runs so could you have an autoland push start & stop in that time with no report back?
-8.1 HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
-9. Makefile & setup script for running this system in a virtualenv
-10. Set up an archiving script for postedbug.log on cruncher - so we have history of usage
-11. Nagios check top entry in cache files and warn about possibly hung builds
-11.1 Cronjob to clean up .done files every 24 hours that are more than 24 hours old
-12. Documentation, blogs, tweets, Yammers, Lightning Talk, Brownbag - get the word out
-13. Start tracking bug for keeping track of bugs filed to this system
-14. Long term planning: API implementation, Branch landings and map of requirements for each branch activated in this system, Bugzilla Extension for UI
-15. WOULD BE NICE Try syntax for retrying oranges when below the threshold? Specifying the threshold?
+* FIXME: LDAP tests use Marc's email and he doesn't have LDAP anymore
+
+* possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
+** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
+
+* cleanup & metrics: Set up an archiving script for postedbug.log/cache '*.done' files on cruncher - so we have history of usage and also are cleaning up periodically
+** Nagios check top entry in cache files and warn about possibly hung builds
+** Cronjob to clean up .done files every 24 hours that are more than 24 hours old
+
+* informing: Documentation, blogs, tweets, Yammers, Lightning Talk, Brownbag - get the word out
+
+* project management: tracking bug for bugs filed to this component - perhaps a bugzilla RelEng component?
+
+* development: API implementation, multi-branch landings and map of requirements for each branch activated in this system, Bugzilla Extension for UI
+
+* enhancement: try syntax for retrying oranges when below the threshold? Specifying the threshold?
+* enhancement: builds cancelled by Self-Serve would note that in the message to the bug with final results 
+* enhancement: Makefile & setup script for getting this system up and running in a virtualenv
 
 
 ## Marc Notes
