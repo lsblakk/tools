@@ -336,6 +336,7 @@ class DBHandler(object):
         next = connection.execute(next_q).fetchone()
         if not next:
             return None
+        print "DEBUG: len(next): %s next: %s" %(len(next), next)
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 author=next[3], retries=next[4], branch=next[6], try_run=next[7],
                 creation_time=next[8])
