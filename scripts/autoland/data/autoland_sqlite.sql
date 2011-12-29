@@ -23,12 +23,11 @@ DROP TABLE IF EXISTS `branches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `branches` (
-  `id` int(11) NOT NULL,
+  `id` INTEGER PRIMARY KEY,
   `name` text,
   `repo_url` text,
   `threshold` int(11) DEFAULT NULL,
-  `status` text,
-  PRIMARY KEY (`id`)
+  `status` text
 ) ;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
@@ -40,7 +39,7 @@ DROP TABLE IF EXISTS `patch_sets`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `patch_sets` (
-  `id` int(11) NOT NULL,
+  `id` INTEGER PRIMARY KEY,
   `bug_id` int(11) DEFAULT NULL,
   `patches` text,
   `author` text,
@@ -50,8 +49,7 @@ CREATE TABLE `patch_sets` (
   `try_run` int(11) DEFAULT NULL,
   `creation_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `push_time` timestamp NULL DEFAULT NULL,
-  `completion_time` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`)
+  `completion_time` timestamp NULL DEFAULT NULL
 ) ;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
