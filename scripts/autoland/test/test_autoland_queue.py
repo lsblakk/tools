@@ -183,15 +183,15 @@ class TestAutolandQueue(unittest.TestCase):
                             bz_search_handler()
                             DBHandler.BranchQuery = old_bq
         jobs = []
-        jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
+        jobs.append({'branch':'try', 'try_run':1,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
+        jobs.append({'branch':'try', 'try_run':1,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'branch', 'try_run':1, 'to_branch':1,
+        jobs.append({'branch':'branch', 'try_run':1,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
+        jobs.append({'branch':'try', 'try_run':1,
             'patches':'2113, 2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1, 'to_branch':0,
+        jobs.append({'branch':'try', 'try_run':1,
             'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         print jobs
         print db

@@ -298,14 +298,12 @@ def message_handler(message):
             return
 
         if msg['branch'].lower() == 'try':
-            # XXX TODO -- WHY???
             msg['branch'] = 'mozilla-central'
             msg['try_run'] = 1
 
         ps = PatchSet(bug_id=msg.get('bug_id'),
                       branch=msg.get('branch'),
                       try_run=msg.get('try_run'),
-                      to_branch=msg.get('to_branch'),
                       patches=msg.get('patches')
                      )
         patchset_id = db.PatchSetInsert(ps)
@@ -321,28 +319,23 @@ def message_handler(message):
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
-        elif msg['action'] == 'try.run':
-            # Handle a successful try result
+        elif '.run' in msg['action']:
+            # this is a result from schedulerDBpoller
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
-            if not ps:
-                # XXX: wtf...
-                log_msg('ERROR: Unable find revision in db.'
-                        % (msg['revision']))
-                return
-            # Remove the -in-queue whiteboard tag
-            bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
-            # Update the queue - if only try run, remove
-            if not ps.to_branch:
+            # try run before push to branch?
+            if ps.try_run and msg['action'] == 'try.run' and ps.branch != 'try':
+                # remove try_run, when it comes up in the queue it will trigger push to branch
+                ps.try_run = 0
+                ps.push_time = None
+                log_msg('Flagging patchset %s revision %s for push-to_branch.'
+                        % (ps.id, ps.revision), log.DEBUG)
+            else:
+                # close it!
+                bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
                 return
-            # else remove try_run, when it comes up in the queue it will trigger push to branch
-            else:
-                ps.try_run = 0
-                ps.push_time = None
-                db.PatchSetUpdate(ps)
-                log_msg('Flagging patchset %s revision %s for push-to_branch.'
-                        % (ps.id, ps.revision), log.DEBUG)
+
         elif msg['action'] == 'branch.push':
             # Guaranteed patchset EOL
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
