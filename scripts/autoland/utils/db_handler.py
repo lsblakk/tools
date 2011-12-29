@@ -288,7 +288,7 @@ class DBHandler(object):
             return None
         next_q = \
             '''
-            SELECT DISTINCT patch_sets.id,bug_id,patches,patch_sets.branch,try_run,author
+            SELECT DISTINCT patch_sets.id,bug_id,patches,author,retries,patch_sets.branch,try_run
             FROM patch_sets
             JOIN
             (
@@ -328,7 +328,7 @@ class DBHandler(object):
                               WHERE try_run=1
                               AND NOT push_time IS NULL
                               AND completion_time IS NULL''').fetchone()
-        print "DEBUG: Try Count: %s" % try_count[0]
+
         try_count = 0 if try_count == None else try_count[0]
         if try_count >= b.threshold or b.status != 'enabled':
             next_q += 'AND patch_sets.try_run = 0 '
@@ -338,8 +338,7 @@ class DBHandler(object):
             return None
         print "DEBUG: len(next): %s next: %s" %(len(next), next)
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
-                author=next[3], retries=next[4], branch=next[6], try_run=next[7],
-                creation_time=next[8])
+                author=next[3], retries=next[4], branch=next[5], try_run=next[6])
 
 class Branch(object):
     def __init__(self, id=False, name=False, repo_url=False,
