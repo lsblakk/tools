@@ -241,6 +241,7 @@ def bz_search_handler():
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
         print "PatchsetID: %s" % patchset_id
+        print "bug_id: %s" % bug_id
 
         bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
                 '[autoland-in-queue]', bug_id)
