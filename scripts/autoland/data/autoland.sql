@@ -23,7 +23,7 @@ DROP TABLE IF EXISTS `branches`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `branches` (
-  `id` int(11) NOT NULL AUTOINCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `name` text,
   `repo_url` text,
   `threshold` int(11) DEFAULT NULL,
@@ -40,7 +40,7 @@ DROP TABLE IF EXISTS `patch_sets`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `patch_sets` (
-  `id` int(11) NOT NULL AUTOINCREMENT,
+  `id` int(11) NOT NULL AUTO_INCREMENT,
   `bug_id` int(11) DEFAULT NULL,
   `patches` text,
   `author` text,
