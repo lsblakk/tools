@@ -83,7 +83,7 @@ class mq_util():
                 return None
             self.connect()
         self.channel.exchange_declare(exchange=self.exchange, durable=True)
-        #self.channel.queue_declare(queue=queue, durable=True)
+        self.channel.queue_declare(queue=queue, durable=True)
         print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
