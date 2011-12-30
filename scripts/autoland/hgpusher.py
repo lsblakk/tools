@@ -233,7 +233,7 @@ def process_patchset(data):
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
         mq.send_message(mq_msg, config['mq_queue'],
-                    routing_keys=[config['mq_db_topic']])
+                    routing_key='db')
         return False
 
     if try_run:
@@ -368,7 +368,7 @@ def message_handler(message):
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
                     'revision': patch_revision }
             mq.send_message(msg, config['mq_queue'],
-                    routing_keys=[config['mq_db_topic']])
+                    routing_key='db')
 
         else:
             # TODO - send message to autolanddb here?
@@ -391,7 +391,7 @@ def main():
         exit(1)
 
     mq.listen(queue=config['mq_queue'], callback=message_handler,
-            routing_keys=[config['mq_hgpusher_topic']])
+            routing_key='hgpusher')
 
 if __name__ == '__main__':
     os.chdir(base_dir)

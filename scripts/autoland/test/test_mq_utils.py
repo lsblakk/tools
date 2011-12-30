@@ -24,7 +24,7 @@ class TestMqUtils(unittest.TestCase):
         self.mq.set_host('localhost')
     def testConnectionNoBlockFail(self):
         self.mq.set_host('bad_hostname')
-        self.assertEqual(self.mq.listen('queue', str, block=False), None)
+        self.assertEqual(self.mq.listen(queue='queue', callback=str, routing_key=['db'], block=False), None)
     def testDisconnectFail(self):
         self.assertRaises(AssertionError, self.mq._disconnect_)
     def testDisconnect(self):
@@ -38,10 +38,10 @@ class TestMqUtils(unittest.TestCase):
         raised = False
         # rabbitmq must be running
         j = {'msg':'TEST'}
-        self.mq.send_message(j, 'test')
+        self.mq.send_message(message=j, queue='test', routing_key='db')
         try:
             # For some reason assertRaises won't work here
-            self.mq.listen('test', message_handler)
+            self.mq.listen(queue='test', callback=message_handler, routing_key='db')
         except RECEIVED:
             raised = True
         self.assertTrue(raised)

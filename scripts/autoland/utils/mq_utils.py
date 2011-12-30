@@ -63,9 +63,9 @@ class mq_util():
         self.connection.close()
         return None
 
-    def send_message(self, message, queue, routing_keys=['#'], block=True):
+    def send_message(self, message, queue, routing_key, block=True):
         """
-        Send a single json message to host on the specified queue.
+        Send a single json message to host on the specified exchange.
         Specify block if it should block until a connection can be made.
 
         Argument message should be a dictionary, and will have meta tags
@@ -73,8 +73,7 @@ class mq_util():
         """
         full_message = { '_meta' : {
                             'sent_time' : str(datetime.datetime.utcnow()),
-                            'routing_key' : routing_keys,
-                            'queue' : queue,
+                            'routing_key' : routing_key,
                             'exchange' : self.exchange,
                          },
                          'payload' : message
@@ -83,16 +82,15 @@ class mq_util():
             if not block:
                 return None
             self.connect()
-        self.channel.exchange_declare(exchange=self.exchange)
-        self.channel.queue_declare(queue=queue, durable=True)
+        self.channel.exchange_declare(exchange=self.exchange, durable=True)
+        #self.channel.queue_declare(queue=queue, durable=True)
         print "MESSAGE BEING SENT OUT: %s" % ( full_message )
-        for key in routing_keys:
-            self.channel.basic_publish(exchange=self.exchange, routing_key = key,
+        self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
                         delivery_mode=2,
-                    ))
+                ))
 
-    def listen(self, queue, callback, routing_keys=['#'], block=True):
+    def listen(self, queue, callback, routing_key, block=True):
         """
         Passes received messages to function callback, taking one argument.
             - ['_meta'] contains data about the received message
@@ -104,7 +102,7 @@ class mq_util():
             try:
                 message = json.loads(body)
             except ValueError:
-                ch.basic_ack(deliver_tag = method.delivery_tag)
+                ch.basic_ack(delivery_tag = method.delivery_tag)
                 return
             # make sure that the message has the expected structure.
             if not 'payload' in message:
@@ -121,13 +119,12 @@ class mq_util():
                     if not block:
                         return None
                     self.connect()
-                log.info('[RabbitMQ] Listening on %s.' % (routing_keys))
-                self.channel.exchange_declare(exchange=self.exchange)
+                log.info('[RabbitMQ] Listening on %s.' % (routing_key))
+                self.channel.exchange_declare(exchange=self.exchange, durable=True)
                 result = self.channel.queue_declare(queue=queue, durable=True)
                 queue_name = result.method.queue
-                for key in routing_keys:
-                    self.channel.queue_bind(queue=result.method.queue,
-                            exchange=self.exchange, routing_key=key)
+                self.channel.queue_bind(queue=result.method.queue,
+                        exchange=self.exchange, routing_key=routing_key)
                 self.channel.basic_qos(prefetch_count=1)
                 self.channel.basic_consume(callback_wrapper, queue=queue_name)
                 self.channel.start_consuming()

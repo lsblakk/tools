@@ -32,7 +32,7 @@ class TestBzUtils(unittest.TestCase):
         shutil.rmtree(dir)
 
     def testGetUserInfoPass(self):
-        info = bz.get_user_info('mjessome@mozilla.com')
+        info = bz.get_user_info('lsblakk@mozilla.com')
         for i in ['name', 'email']:
             self.assertTrue(i in info)
 
