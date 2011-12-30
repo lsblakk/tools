@@ -299,6 +299,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         
     def RemoveCache(self, revision):
         # attach '.done' to the cache file so we're not tracking it anymore
+        # delete original cache file
         cache_file = os.path.join(self.cache_dir, revision)
         if os.path.exists(cache_file):
             os.rename(cache_file, cache_file + '.done')
@@ -449,6 +450,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     log.debug("Type: %s Revision: %s - bug comment & message being sent" % (type, revision))
                 result = self.bz.notify_bug(message, bug)
         if result:
+            self.WriteToBuglist(revision, bug)
             log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))
             bug_post = True
             msg = { 'type'  : status_str,
@@ -457,7 +459,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     'revision': revision }
             self.mq.send_message(msg, self.config.get('mq', 'queue'),
                 routing_key='db')
-            self.WriteToBuglist(revision, bug)
+            
         elif not self.dry_run and not dupe:
             # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
             if status_str == 'timed out' and not result:

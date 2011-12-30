@@ -1,6 +1,5 @@
 ## Lukas Notes
-* FIXME: LDAP tests use Marc's email and he doesn't have LDAP anymore
-
+* FIXME: Have to start hgpusher.py before autoland_queue.py in order for first message to reach hgpusher successfully, otherwise get a "bad message" on the autoland_queue end (ie: it picks up its own message)
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
 ** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
 
