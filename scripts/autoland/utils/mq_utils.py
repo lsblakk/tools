@@ -82,7 +82,8 @@ class mq_util():
             if not block:
                 return None
             self.connect()
-        self.channel.exchange_declare(exchange=self.exchange, durable=True)
+        print self.exchange
+        self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=True)
         self.channel.queue_declare(queue=queue, durable=True)
         print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
@@ -120,7 +121,7 @@ class mq_util():
                         return None
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
-                self.channel.exchange_declare(exchange=self.exchange, durable=True)
+                self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=True)
                 result = self.channel.queue_declare(queue=queue, durable=True)
                 queue_name = result.method.queue
                 self.channel.queue_bind(queue=result.method.queue,

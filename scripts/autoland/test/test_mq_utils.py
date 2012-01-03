@@ -24,7 +24,7 @@ class TestMqUtils(unittest.TestCase):
         self.mq.set_host('localhost')
     def testConnectionNoBlockFail(self):
         self.mq.set_host('bad_hostname')
-        self.assertEqual(self.mq.listen(queue='queue', callback=str, routing_key=['db'], block=False), None)
+        self.assertEqual(self.mq.listen(queue='queue', callback=str, routing_key=['db.message'], block=False), None)
     def testDisconnectFail(self):
         self.assertRaises(AssertionError, self.mq._disconnect_)
     def testDisconnect(self):
@@ -32,19 +32,25 @@ class TestMqUtils(unittest.TestCase):
         self.assertEqual(self.mq._disconnect_(), None)
     def testSendRec(self):
         class RECEIVED(Exception):
+            print "RECEIVED"
             pass
         def message_handler(message):
+            print "Handling message %s" % message
             raise RECEIVED
         raised = False
         # rabbitmq must be running
         j = {'msg':'TEST'}
-        self.mq.send_message(message=j, queue='test', routing_key='db')
+        self.mq.send_message(message=j, queue='test', routing_key='db.message')
+        listener = mq_utils.mq_util()
+        listener.set_host('localhost')
+        listener.set_exchange('autoland')
         try:
             # For some reason assertRaises won't work here
-            self.mq.listen(queue='test', callback=message_handler, routing_key='db')
+            listener.listen(queue='test', callback=message_handler, routing_key='other.words')
         except RECEIVED:
+            print "Exception hit"
             raised = True
-        self.assertTrue(raised)
+        self.assertFalse(raised)
 
 
 if __name__ == '__main__':

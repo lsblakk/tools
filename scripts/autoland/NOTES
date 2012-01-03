@@ -14,8 +14,9 @@
 * development: API implementation, multi-branch landings and map of requirements for each branch activated in this system, Bugzilla Extension for UI
 
 * enhancement: try syntax for retrying oranges when below the threshold? Specifying the threshold?
-* enhancement: builds cancelled by Self-Serve would note that in the message to the bug with final results 
+* enhancement: builds cancelled by Self-Serve would note that in the message to the bug with final results (currently builds that end with exceptions are just 'complete' instead of interrupted)
 * enhancement: Makefile & setup script for getting this system up and running in a virtualenv
+
 
 
 ## Marc Notes
