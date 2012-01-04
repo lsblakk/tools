@@ -10,8 +10,9 @@ sys.path.append('..')
 from utils import mq_utils
 import time
 
-rmq = subprocess.Popen(['rabbitmq-server', '-detached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-time.sleep(10) # Allow for the server to start
+# have a rabbitmq server running
+#rmq = subprocess.Popen(['rabbitmq-server', '-detached'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+#time.sleep(10) # Allow for the server to start
 class TestMqUtils(unittest.TestCase):
     def setUp(self):
         self.mq = mq_utils.mq_util()
@@ -40,7 +41,7 @@ class TestMqUtils(unittest.TestCase):
         raised = False
         # rabbitmq must be running
         j = {'msg':'TEST'}
-        self.mq.send_message(message=j, queue='test', routing_key='db.message')
+        self.mq.send_message(message=j, routing_key='db.message')
         listener = mq_utils.mq_util()
         listener.set_host('localhost')
         listener.set_exchange('autoland')

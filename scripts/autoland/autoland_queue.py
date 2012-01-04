@@ -362,7 +362,7 @@ def message_handler(message):
 class MessageThread(threading.Thread):
     """Threaded message listener"""
     def run(self):
-        mq.listen(config['mq_queue'], message_handler, routing_key='db.#')
+        mq.listen(config['mq_queue'], message_handler, routing_key='autoland.db')
 
 class SearchThread(threading.Thread):
     """
@@ -437,8 +437,7 @@ class SearchThread(threading.Thread):
                         else: continue
                     log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
                     # XXX TODO: test that message sent properly, set to retry if not
-                    mq.send_message(message, config['mq_queue'],
-                            routing_key='hgpusher.#')
+                    mq.send_message(message, routing_key='hgpusher.pushes')
                     patchset.push_time = datetime.datetime.utcnow()
                     db.PatchSetUpdate(patchset)
                 else:

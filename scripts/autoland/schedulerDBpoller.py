@@ -457,8 +457,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     'action': action,
                     'bug_id' : bug,
                     'revision': revision }
-            self.mq.send_message(msg, self.config.get('mq', 'queue'),
-                routing_key='db.#')
+            self.mq.send_message(msg, routing_key='autoland.db')
             
         elif not self.dry_run and not dupe:
             # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)

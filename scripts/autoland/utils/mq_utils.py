@@ -63,7 +63,7 @@ class mq_util():
         self.connection.close()
         return None
 
-    def send_message(self, message, queue, routing_key, block=True):
+    def send_message(self, message, routing_key, block=True):
         """
         Send a single json message to host on the specified exchange.
         Specify block if it should block until a connection can be made.
@@ -84,7 +84,6 @@ class mq_util():
             self.connect()
         print self.exchange
         self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=True)
-        self.channel.queue_declare(queue=queue, durable=True)
         print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
