@@ -17,7 +17,7 @@ class TestMqUtils(unittest.TestCase):
     def setUp(self):
         self.mq = mq_utils.mq_util()
         self.mq.set_host('localhost')
-        self.mq.set_exchange('autoland')
+        self.mq.set_exchange('autoland-new')
     def testConnectNoHost(self):
         self.mq.set_host(None)
         self.assertRaises(AssertionError, self.mq.connect, False)
@@ -41,13 +41,13 @@ class TestMqUtils(unittest.TestCase):
         raised = False
         # rabbitmq must be running
         j = {'msg':'TEST'}
-        self.mq.send_message(message=j, routing_key='db.message')
+        self.mq.send_message(message=j, routing_key='db.message', durable=False)
         listener = mq_utils.mq_util()
         listener.set_host('localhost')
-        listener.set_exchange('autoland')
+        listener.set_exchange('autoland-new')
         try:
             # For some reason assertRaises won't work here
-            listener.listen(queue='test', callback=message_handler, routing_key='other.words')
+            listener.listen(queue='test-new', callback=message_handler, routing_key='other.words', durable=False)
         except RECEIVED:
             print "Exception hit"
             raised = True

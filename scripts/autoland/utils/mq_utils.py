@@ -63,7 +63,7 @@ class mq_util():
         self.connection.close()
         return None
 
-    def send_message(self, message, routing_key, block=True):
+    def send_message(self, message, routing_key, durable=True, block=True):
         """
         Send a single json message to host on the specified exchange.
         Specify block if it should block until a connection can be made.
@@ -83,14 +83,14 @@ class mq_util():
                 return None
             self.connect()
         print self.exchange
-        self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=True)
+        self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=durable)
         print "MESSAGE BEING SENT OUT: %s" % ( full_message )
         self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
                         delivery_mode=2,
                 ))
 
-    def listen(self, queue, callback, routing_key, block=True):
+    def listen(self, queue, callback, routing_key, durable=True, block=True):
         """
         Passes received messages to function callback, taking one argument.
             - ['_meta'] contains data about the received message
@@ -120,8 +120,8 @@ class mq_util():
                         return None
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
-                self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=True)
-                result = self.channel.queue_declare(queue=queue, durable=True)
+                self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=durable)
+                result = self.channel.queue_declare(queue=queue, durable=durable)
                 queue_name = result.method.queue
                 self.channel.queue_bind(queue=result.method.queue,
                         exchange=self.exchange, routing_key=routing_key)
