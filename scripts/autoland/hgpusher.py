@@ -389,7 +389,7 @@ def main():
         exit(1)
 
     mq.listen(queue=config['mq_queue'], callback=message_handler,
-            routing_key='hgpusher.to_push')
+            routing_key='hgpusher.pushes')
 
 if __name__ == '__main__':
     os.chdir(base_dir)
