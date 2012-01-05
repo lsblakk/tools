@@ -121,7 +121,7 @@ class mq_util():
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
                 self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=durable)
-                result = self.channel.queue_declare(queue=queue, durable=durable)
+                result = self.channel.queue_declare(exclusive=True, durable=durable)
                 queue_name = result.method.queue
                 self.channel.queue_bind(queue=result.method.queue,
                         exchange=self.exchange, routing_key=routing_key)
