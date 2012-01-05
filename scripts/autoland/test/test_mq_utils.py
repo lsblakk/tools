@@ -35,24 +35,36 @@ class TestMqUtils(unittest.TestCase):
         class RECEIVED(Exception):
             print "RECEIVED"
             pass
-        def message_handler(message):
-            print "Handling message %s" % message
+        def message_handler_topic1(message):
+            print "Handling message %s of topic 1" % message
+            raise RECEIVED
+        def message_handler_topic2(message):
+            print "Handling message %s of topic 2" % message
             raise RECEIVED
         raised = False
         # rabbitmq must be running
         j = {'msg':'TEST'}
-        self.mq.send_message(message=j, routing_key='db.message', durable=False)
+        self.mq.send_message(message=j, routing_key='autoland.db', durable=False)
         listener = mq_utils.mq_util()
         listener.set_host('localhost')
         listener.set_exchange('autoland-new')
         try:
             # For some reason assertRaises won't work here
-            listener.listen(queue='test-new', callback=message_handler, routing_key='other.words', durable=False)
+            listener.listen(queue='test-new', callback=message_handler_topic1, routing_key='autoland.db', durable=False)
         except RECEIVED:
-            print "Exception hit"
             raised = True
         self.assertFalse(raised)
-
-
+        # Now try a different routing key
+        raised = False
+        self.mq.send_message(message=j, routing_key='hgpusher.pushes', durable=False)
+        listener2 = mq_utils.mq_util()
+        listener2.set_host('localhost')
+        listener2.set_exchange('autoland-new')
+        try:
+            # For some reason assertRaises won't work here
+            listener2.listen(queue='test-new', callback=message_handler_topic2, routing_key='hgpusher.pushes', durable=False)
+        except RECEIVED:
+            raised = True
+        self.assertFalse(raised)
 if __name__ == '__main__':
     unittest.main()

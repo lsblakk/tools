@@ -126,7 +126,7 @@ class mq_util():
                 self.channel.queue_bind(queue=result.method.queue,
                         exchange=self.exchange, routing_key=routing_key)
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(callback_wrapper, queue=queue_name)
+                self.channel.basic_consume(callback_wrapper, queue=queue_name, no_ack=False)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None

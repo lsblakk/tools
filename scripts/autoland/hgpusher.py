@@ -232,7 +232,7 @@ def process_patchset(data):
         # TODO need to remove whiteboard tag here or in autoland_queue?
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
-        mq.send_message(mq_msg, routing_key='autoland.db')
+        mq.send_message(mq_msg, routing_key='db')
         return False
 
     if try_run:
@@ -366,7 +366,7 @@ def message_handler(message):
                     'action': 'try.push' if data['try_run'] else 'branch.push',
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
                     'revision': patch_revision }
-            mq.send_message(msg, routing_key='autoland.db')
+            mq.send_message(msg, routing_key='db')
 
         else:
             # TODO - send message to autolanddb here?
@@ -389,7 +389,7 @@ def main():
         exit(1)
 
     mq.listen(queue=config['mq_queue'], callback=message_handler,
-            routing_key='hgpusher.pushes')
+            routing_key='hgpusher')
 
 if __name__ == '__main__':
     os.chdir(base_dir)

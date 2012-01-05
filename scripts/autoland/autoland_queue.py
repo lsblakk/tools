@@ -345,9 +345,7 @@ def message_handler(message):
 
     elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
-        if msg['action'] == 'try.push' or msg['action'] == 'branch.push':
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
-        elif msg['action'] == 'try.run':
+        if msg['action'] == 'try.run' or msg['action'] == 'branch.run':
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
         elif msg['action'] == 'patchset.apply':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
@@ -362,7 +360,7 @@ def message_handler(message):
 class MessageThread(threading.Thread):
     """Threaded message listener"""
     def run(self):
-        mq.listen(config['mq_queue'], message_handler, routing_key='autoland.db')
+        mq.listen(config['mq_queue'], message_handler, routing_key='db')
 
 class SearchThread(threading.Thread):
     """
@@ -437,7 +435,7 @@ class SearchThread(threading.Thread):
                         else: continue
                     log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
                     # XXX TODO: test that message sent properly, set to retry if not
-                    mq.send_message(message, routing_key='hgpusher.pushes')
+                    mq.send_message(message, routing_key='hgpusher')
                     patchset.push_time = datetime.datetime.utcnow()
                     db.PatchSetUpdate(patchset)
                 else:

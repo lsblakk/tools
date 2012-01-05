@@ -431,7 +431,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         bug_post = False
         dupe = False
         result = False
-        action = type + '.push'
+        action = type + '.run'
 
         if status_str == 'timed out':
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
@@ -457,7 +457,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
                     'action': action,
                     'bug_id' : bug,
                     'revision': revision }
-            self.mq.send_message(msg, routing_key='autoland.db')
+            self.mq.send_message(msg, routing_key='db')
             
         elif not self.dry_run and not dupe:
             # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
