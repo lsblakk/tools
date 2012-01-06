@@ -28,7 +28,7 @@ log = logging.getLogger(LOGFILE)
 class SchedulerDBPoller():
 
     def __init__(self, branch, cache_dir, config,
-                user=None, password=None, dry_run=False, verbose=False):
+                user=None, password=None, dry_run=False, verbose=False, messages=True):
 
         self.config = ConfigParser.ConfigParser()
         self.config.read(config)
@@ -36,6 +36,7 @@ class SchedulerDBPoller():
         self.cache_dir = cache_dir
         self.dry_run = dry_run
         self.verbose = verbose
+        self.messages = messages
         
         # Set up the message queue
         self.mq = mq_utils.mq_util()
@@ -453,11 +454,12 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             self.WriteToBuglist(revision, bug)
             log.debug("BZ POST SUCCESS result: %s bug: %s%s" % (result, self.bz_url, bug))
             bug_post = True
-            msg = { 'type'  : status_str,
-                    'action': action,
-                    'bug_id' : bug,
-                    'revision': revision }
-            self.mq.send_message(msg, routing_key='db')
+            if self.messages:
+                msg = { 'type'  : status_str,
+                        'action': action,
+                        'bug_id' : bug,
+                        'revision': revision }
+                self.mq.send_message(msg, routing_key='db')
             
         elif not self.dry_run and not dupe:
             # Still can't post to the bug even on time out? Throw it away for now (maybe later we'll email)
@@ -635,6 +637,10 @@ if __name__ == '__main__':
     parser.add_argument("--cache-dir", 
                         dest="cache_dir", 
                         help="working dir for tracking incomplete revisions")
+    parser.add_argument("--no-messages", 
+                        dest="messages", 
+                        help="toggle for sending messages to queue",
+                        action='store_false')
 
     parser.set_defaults(
         branch="try",
@@ -643,6 +649,7 @@ if __name__ == '__main__':
         starttime = time() - POLLING_INTERVAL,
         endtime = time(),
         dry_run = False,
+        messages = True,
     )
 
     options, args = parser.parse_known_args()
@@ -671,7 +678,7 @@ if __name__ == '__main__':
         else:
             poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
                                     user=options.user, password=options.password, dry_run=options.dry_run, 
-                                    verbose=options.verbose)
+                                    verbose=options.verbose, messages=options.messages)
             incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
             if options.verbose:
                 log.debug("Time range run complete: INCOMPLETE %s" % incomplete)

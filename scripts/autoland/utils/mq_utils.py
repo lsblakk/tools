@@ -31,6 +31,7 @@ class mq_util():
         Connect to the host.
         If block is True, block until connection can be established.
         """
+        # XXX TODO - I don't think we want to block indefinitely here
         assert not self.host == None, 'Rabbit host not set'
         while(1):
             try:
