@@ -12,7 +12,7 @@ import datetime
 log = logging.getLogger(__name__)
 
 class mq_util():
-    def __init__(self, host=None, exchange=''):
+    def __init__(self, host=None, exchange=None):
         self.connection = None
         self.log = log
         self.last_message = None
@@ -30,6 +30,9 @@ class mq_util():
         """
         Connect to the host.
         If block is True, block until connection can be established.
+        Connecting will take care of exchange declaration, however queue
+            declaration and binding is taken care of on the consumer when
+            listen() is called.
         """
         # XXX TODO - I don't think we want to block indefinitely here
         assert not self.host == None, 'Rabbit host not set'
@@ -55,6 +58,8 @@ class mq_util():
         print >>sys.stderr, '[RabbitMQ] Established connection to %s.' \
                 % (self.host)
         self.channel = self.connection.channel()
+        self.channel.exchange_declare(exchange=self.exchange,
+                type='direct', durable=True)
 
     def _disconnect_(self):
         """
@@ -83,12 +88,11 @@ class mq_util():
             if not block:
                 return None
             self.connect()
-        print self.exchange
-        self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=durable)
-        print "MESSAGE BEING SENT OUT: %s" % ( full_message )
+        print >>sys.stderr, "Sending message %s" % (full_message)
         self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
                     body=json.dumps(full_message), properties=pika.BasicProperties(
                         delivery_mode=2,
+                        content_type='application/json',
                 ))
 
     def listen(self, queue, callback, routing_key, durable=True, block=True):
@@ -114,20 +118,25 @@ class mq_util():
             callback(message)
             ch.basic_ack(delivery_tag = method.delivery_tag)
 
+        # The consumer declares the queue, and binds the routing key to it.
+        # This means the first time that this is run on a new server,
+        # the consumer should be run first so that the routes exist for the
+        # producer. Since the queue & exchange are durable, they will persist
+        # after server restart.
+        result = self.channel.queue_declare(queue=queue, durable=durable)
+        self.channel.queue_bind(exchange=self.exchange,
+                queue=queue, routing_key=routing_key)
         while(True):
             try:
                 if not self.channel:
                     if not block:
                         return None
+                    print >>sys.stderr, 'Connection lost. Reconnecting to %s'\
+                            % (self.host)
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
-                self.channel.exchange_declare(exchange=self.exchange, type='direct', durable=durable)
-                result = self.channel.queue_declare(exclusive=True, durable=durable)
-                queue_name = result.method.queue
-                self.channel.queue_bind(queue=result.method.queue,
-                        exchange=self.exchange, routing_key=routing_key)
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(callback_wrapper, queue=queue_name, no_ack=False)
+                self.channel.basic_consume(callback_wrapper, queue=queue, no_ack=False)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None
