@@ -360,7 +360,7 @@ def message_handler(message):
 class MessageThread(threading.Thread):
     """Threaded message listener"""
     def run(self):
-        mq.listen(config['mq_queue'], message_handler, routing_key='db')
+        mq.listen(config['mq_autoland_queue'], message_handler, routing_key='db')
 
 class SearchThread(threading.Thread):
     """
