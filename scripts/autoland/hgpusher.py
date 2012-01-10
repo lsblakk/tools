@@ -148,7 +148,7 @@ def process_patchset(data):
     else:
         push_url = data['branch_url'].replace('https', 'ssh', 1)
     if data['branch'] == 'try':
-        push_url = push_url.replace('mozilla-central', 'try', 1)
+        push_url = push_url.replace('try', 'mozilla-central', 1)
 
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
