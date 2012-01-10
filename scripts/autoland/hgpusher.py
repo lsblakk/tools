@@ -380,6 +380,7 @@ def main():
 
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
+    mq.connect()
     try:
         if not os.access(config['work_dir'], os.F_OK):
             os.makedirs(config['work_dir'])

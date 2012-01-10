@@ -447,6 +447,7 @@ class SearchThread(threading.Thread):
 def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
+    mq.connect()
 
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
             filename=LOGFILE, handler=LOGHANDLER)
