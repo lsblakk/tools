@@ -146,13 +146,8 @@ def process_patchset(data):
     if 'push_url' in data:
         push_url = data['push_url']
     else:
-        # At this point in a try run, branch_url is still try
-        push_url = data['branch_url'].replace('https', 'ssh', 1)
-    if data['branch'] == 'try':
-        # Change branch, branch_url to pull from mozilla-central on a try run
-        data['branch'] = 'mozilla-central'
-        data['branch_url'] = data['branch_url'].replace('try','mozilla-central', 1)
-        #push_url = push_url.replace('try', 'mozilla-central', 1)
+        push_url = data['branch_url']
+    push_url = push_url.replace('https', 'ssh', 1)
 
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
@@ -355,6 +350,12 @@ def message_handler(message):
             # comment?
             print "Not valid job message %s" % data
             return
+
+        if data['branch'] == 'try':
+            # Change branch, branch_url to pull from mozilla-central on a try run
+            data['push_url'] = data['branch_url']
+            data['branch'] = 'mozilla-central'
+            data['branch_url'] = data['branch_url'].replace('try','mozilla-central', 1)
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
