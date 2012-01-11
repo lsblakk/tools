@@ -146,9 +146,13 @@ def process_patchset(data):
     if 'push_url' in data:
         push_url = data['push_url']
     else:
+        # At this point in a try run, branch_url is still try
         push_url = data['branch_url'].replace('https', 'ssh', 1)
     if data['branch'] == 'try':
-        push_url = push_url.replace('try', 'mozilla-central', 1)
+        # Change branch, branch_url to pull from mozilla-central on a try run
+        data['branch'] = 'mozilla-central'
+        data['branch_url'] = data['branch_url'].replace('try','mozilla-central', 1)
+        #push_url = push_url.replace('try', 'mozilla-central', 1)
 
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
