@@ -39,10 +39,11 @@ class SchedulerDBPoller():
         self.messages = messages
         
         # Set up the message queue
-        self.mq = mq_utils.mq_util()
-        self.mq.set_host(self.config.get('mq', 'host'))
-        self.mq.set_exchange(self.config.get('mq', 'exchange'))
-        self.mq.connect()
+        if self.messages:
+            self.mq = mq_utils.mq_util()
+            self.mq.set_host(self.config.get('mq', 'host'))
+            self.mq.set_exchange(self.config.get('mq', 'exchange'))
+            self.mq.connect()
         
         # Set up bugzilla api connection
         self.bz_url = self.config.get('bz', 'url')
