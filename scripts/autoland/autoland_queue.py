@@ -437,19 +437,17 @@ def main():
 
     while True:
         # search bugzilla for any relevant bugs
-        print "Search"
         bz_search_handler()
         next = time.time() + int(config['bz_poll_frequency'])
 
         while time.time() < next:
-            print "get patchset"
             patchset = db.PatchSetGetNext()
             if patchset != None:
                 handle_patchset(patchset)
 
-            print "get message"
             mq.get_message(config['mq_autoland_queue'],
                     message_handler, routing_key='db')
+            time.sleep(5)
 
 
 if __name__ == '__main__':

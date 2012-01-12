@@ -66,8 +66,6 @@
    SQL query might not pull a try run if mozilla-central (or whatever branch
    is in the branch field) is either above threshold or disabled.
 5. autoland_queue needs to poll the database for jobs that have been in the queue for a long time
-6. Get rid of threading in autoland_queue -> look at a get_message that doesn't block rather than
-   a blocking listen.
 7. Attempt count -> update -c and clone alternating on cleanup.
 8. Ability to run multiple hgpushers -> generate a tmp dir and work in there.
 
