@@ -134,10 +134,6 @@ def process_patchset(data):
     class RETRY(Exception):
         pass
 
-    # attempts must be manually counted since apply_and_push doesn't check for
-    # errors on "changer", and retry doesn't keep an attempt count
-    attempts = 0
-
     active_repo = os.path.join('active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
     if not 'branch_url' in data:
@@ -154,18 +150,28 @@ def process_patchset(data):
                (' => try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
-        shutil.rmtree(active_repo)
-        log_msg('Cleaned up: %s' % active_repo)
-        clear_branch(data['branch'])
-        log_msg('Removed clone: %s' % data['branch'])
+        if not hasattr(cleanup_wrapper, 'full_clean'):
+            cleanup_wrapper.full_clean = False
+        if not hasattr(cleanup_wrapper, 'branch'):
+            cleanup_wrapper.branch = data['branch']
+        if cleanup_wrapper.branch != data['branch']:
+            cleanup_wrapper.full_clean = False
+            cleanup_wrapper.branch = data['branch']
+        # only wipe the clean repo every second cleanup
+        if cleanup_wrapper.full_clean:
+            clear_branch(data['branch'])
+            log_msg('Wiped repositories for: %s' % data['branch'])
+        else:
+            shutil.rmtree(active_repo)
+            log_msg('Cleaned up active repo for: %s' % data['branch'])
+        cleanup_wrapper.full_clean = not cleanup_wrapper.full_clean
+
         clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
             # Handle clone error
             log_msg('[HgPusher] Clone error...')
-            return
+        return
     def apply_patchset(dir, attempt):
-        print "attempt #%s" % (attempts + 1)
-
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
             log_msg('[Branch %s] Could not clone from %s.' \
