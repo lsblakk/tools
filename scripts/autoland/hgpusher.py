@@ -397,7 +397,7 @@ def main():
             os.makedirs(config['work_dir'])
         os.chdir(config['work_dir'])
     except os.error, e:
-        log_msg('Error switching to working directory: %s', e)
+        log_msg('Error switching to working directory: %s' % e)
         exit(1)
 
     mq.listen(queue=config['mq_hgp_queue'], callback=message_handler,
