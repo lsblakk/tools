@@ -69,6 +69,21 @@ class mq_util():
         self.connection.close()
         return None
 
+    def __declare_and_bind(self, queue, routing_key, durable=True):
+        """
+        Declare the specified cue on the bound exchange, and bind it to
+        the specified routing key.
+
+        The consumer should declare the queue, and bind the routing key to it.
+        This means the first time that this is run on a new server,
+        the consumer should be run first so that the routes exist for the
+        producer. Since the queue & exchange are durable, they will persist
+        after server restart.
+        """
+        result = self.channel.queue_declare(queue=queue, durable=durable)
+        self.channel.queue_bind(exchange=self.exchange,
+                queue=queue, routing_key=routing_key)
+
     def send_message(self, message, routing_key, durable=True, block=True):
         """
         Send a single json message to host on the specified exchange.
@@ -95,19 +110,18 @@ class mq_util():
                         content_type='application/json',
                 ))
 
-    def listen(self, queue, callback, routing_key, durable=True, block=True):
+    def __callback_gen(self, callback):
         """
-        Passes received messages to function callback, taking one argument.
-            - ['_meta'] contains data about the received message
-            - ['payload'] contains the message payload
-        Specify block if it should block until a connection can be made.
+        Generates a function that wraps the passed callback function.
         """
-        assert callable(callback), 'callback must be a function'
         def callback_wrapper(ch, method, properties, body):
             try:
                 message = json.loads(body)
             except ValueError:
                 ch.basic_ack(delivery_tag = method.delivery_tag)
+                return
+            except TypeError:
+                # No string received, this is caused in get_message
                 return
             # make sure that the message has the expected structure.
             if not 'payload' in message:
@@ -117,16 +131,48 @@ class mq_util():
             message['_meta']['received_time'] = str(datetime.datetime.utcnow())
             callback(message)
             ch.basic_ack(delivery_tag = method.delivery_tag)
+        callback_wrapper.callback = callback
+        return callback_wrapper
 
-        # The consumer declares the queue, and binds the routing key to it.
-        # This means the first time that this is run on a new server,
-        # the consumer should be run first so that the routes exist for the
-        # producer. Since the queue & exchange are durable, they will persist
-        # after server restart.
-        result = self.channel.queue_declare(queue=queue, durable=durable)
-        self.channel.queue_bind(exchange=self.exchange,
-                queue=queue, routing_key=routing_key)
-        while(True):
+    def get_message(self, queue, callback, routing_key, durable=True, block=True):
+        """
+        Gets a single message from the specified queue.
+        Passes received messages to function callback, taking one argument.
+            - ['_meta'] contains data about the received message
+            - ['payload'] contains the message payload
+        """
+        assert callable(callback), 'callback must be a function'
+        self.__declare_and_bind(queue, routing_key, durable)
+        while True:
+            try:
+                if not self.channel:
+                    print >>sys.stderr, 'Connection lost. Reconnecting to %s'\
+                            % (self.host)
+                    self.connect(block=block)
+                    if not block:
+                        return None
+                log.info('[RabbitMQ] Get message from %s.' % (routing_key))
+                self.channel.basic_qos(prefetch_count=1)
+                # getting errors with callback parameter to basic_get,
+                # manually call the callback
+                callback_wrapper = self.__callback_gen(callback)
+                callback_wrapper(self.channel, *self.channel.basic_get(queue=queue, no_ack=False))
+                return
+            except sockerr:
+                self.channel = None
+                log.info('[RabbitMQ] Connection to %s lost. Reconnection...'
+                        % (self.host))
+
+    def listen(self, queue, callback, routing_key, durable=True, block=True):
+        """
+        Passes received messages to function callback, taking one argument.
+            - ['_meta'] contains data about the received message
+            - ['payload'] contains the message payload
+        Specify block if it should block until a connection can be made.
+        """
+        assert callable(callback), 'callback must be a function'
+        self.__declare_and_bind(queue, routing_key, durable)
+        while True:
             try:
                 if not self.channel:
                     if not block:
@@ -136,7 +182,7 @@ class mq_util():
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(callback_wrapper, queue=queue, no_ack=False)
+                self.channel.basic_consume(self.__callback_gen(callback), queue=queue, no_ack=False)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None
