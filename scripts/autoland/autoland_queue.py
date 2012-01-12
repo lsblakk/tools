@@ -19,7 +19,7 @@ LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
 
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
 config.update(common.get_configuration(os.path.join(base_dir, 'auth.ini')))
-bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
+bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         attachment_url=config['bz_attachment_url'],
         username=config['bz_username'], password=config['bz_password'])
 mq = mq_utils.mq_util()
@@ -214,15 +214,15 @@ def bz_search_handler():
         for id in r.finditer(whiteboard):
             print "ID: %d" % int(id.group())
             patch_group.append(int(id.group()))
-            print "PATCH GROUP %s" % patch_group 
+            print "PATCH GROUP %s" % patch_group
 
         ps = PatchSet()
         if branch == 'try':
             ps.to_branch = 0
         else:
             ps.to_branch = 1
-            
-        ps.try_run = 1 
+
+        ps.try_run = 1
         ps.branch = branch
         ps.patches = patch_group
         ps.bug_id = bug_id
@@ -237,7 +237,7 @@ def bz_search_handler():
             continue
         else:
             ps.author = patches[0]['author']['email'] if patches != None else ""
-            
+
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
         print "PatchsetID: %s" % patchset_id
@@ -357,12 +357,7 @@ def message_handler(message):
             log_msg('Received error on %s, deleting patchset %s'
                     % (msg['action'], ps.id), log.DEBUG)
 
-class MessageThread(threading.Thread):
-    """Threaded message listener"""
-    def run(self):
-        mq.listen(config['mq_autoland_queue'], message_handler, routing_key='db')
-
-class SearchThread(threading.Thread):
+def handle_patchset(patchset):
     """
     Threaded bugzilla search, also handles the jobs coming through the queue.
 
@@ -393,56 +388,44 @@ class SearchThread(threading.Thread):
                 ]
         }
     """
-    def run(self):
-        while(1):
-            # check if bugzilla has any requested jobs
-            bz_search_handler()
-            next = time.time() + int(config['bz_poll_frequency'])
-            while time.time() < next:
-                patchset = db.PatchSetGetNext()
-                if patchset == None:
-                        time.sleep(10)
-                        continue
-                        
-                log_msg('Pulled patchset %s out of the queue' % (patchset),
-                        log.DEBUG)
-                # XXX TODO: let's check the retries & creation time 
-                
-                # Check permissions & patch set again, in case it has changed
-                # since the job was put on the queue
-                patches = get_patchset(patchset.bug_id, patchset.try_run,
-                                       patchset.patchList())
-                # get branch information so that message can contain branch_url
-                branch = db.BranchQuery(Branch(name=patchset.branch))
-                if not branch:
-                    # error, branch non-existent XXX -- SHould we email or otherwise let user know?
-                    log_msg('ERROR: Could not find %s in branches table.' % (patchset.branch))
-                    db.PatchSetDelete(patchset)
-                    continue
-                branch = branch[0]
-                jobs = db.BranchRunningJobsQuery(Branch(name=patchset.branch))
-                log_msg("Running jobs on %s: %s" % (patchset.branch, jobs), log.DEBUG)
-                b = db.BranchQuery(Branch(name='try'))[0]
-                log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
-                if jobs < b.threshold:
-                    message = { 'job_type':'patchset','bug_id':patchset.bug_id,
-                            'branch_url':branch.repo_url,
-                            'branch':patchset.branch, 'try_run':patchset.try_run,
-                            'patchsetid':patchset.id, 'patches':patches }
-                    if patchset.try_run == 1:
-                        tb = db.BranchQuery(Branch(name='try'))
-                        if tb: tb = tb[0]
-                        else: continue
-                    log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
-                    # XXX TODO: test that message sent properly, set to retry if not
-                    mq.send_message(message, routing_key='hgpusher')
-                    patchset.push_time = datetime.datetime.utcnow()
-                    db.PatchSetUpdate(patchset)
-                else:
-                    log_msg("Too many jobs running right now, will have to wait.")
-                    patchset.retries += 1
-                    db.PatchSetUpdate(patchset)
-                time.sleep(10)
+    log_msg('Handling patchset %s from queue.' % (patchset), log.DEBUG)
+
+    # TODO: Check the retries & creation time.
+
+    # Check permissions & patch set again, in case it has changed
+    # since the job was put on the queue.
+    patches = get_patchset(patchset.bug_id, patchset.try_run,
+                           patchset.patchList())
+    # get branch information so that message can contain branch_url
+    branch = db.BranchQuery(Branch(name=patchset.branch))
+    if not branch:
+        # error, branch non-existent XXX -- SHould we email or otherwise let user know?
+        log_msg('ERROR: Could not find %s in branches table.' % (patchset.branch))
+        db.PatchSetDelete(patchset)
+        return
+    branch = branch[0]
+    jobs = db.BranchRunningJobsQuery(Branch(name=patchset.branch))
+    log_msg("Running jobs on %s: %s" % (patchset.branch, jobs), log.DEBUG)
+    b = db.BranchQuery(Branch(name='try'))[0]
+    log_msg("Threshold for %s: %s" % (patchset.branch, b.threshold), log.DEBUG)
+    if jobs < b.threshold:
+        message = { 'job_type':'patchset','bug_id':patchset.bug_id,
+                'branch_url':branch.repo_url,
+                'branch':patchset.branch, 'try_run':patchset.try_run,
+                'patchsetid':patchset.id, 'patches':patches }
+        if patchset.try_run == 1:
+            tb = db.BranchQuery(Branch(name='try'))
+            if tb: tb = tb[0]
+            else: return
+        log_msg("SENDING MESSAGE: %s" % (message), log.INFO)
+        # XXX TODO: test that message sent properly, set to retry if not
+        mq.send_message(message, routing_key='hgpusher')
+        patchset.push_time = datetime.datetime.utcnow()
+        db.PatchSetUpdate(patchset)
+    else:
+        log_msg("Too many jobs running right now, will have to wait.")
+        patchset.retries += 1
+        db.PatchSetUpdate(patchset)
 
 def main():
     mq.set_host(config['mq_host'])
@@ -452,20 +435,22 @@ def main():
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
             filename=LOGFILE, handler=LOGHANDLER)
 
-    th_messages = MessageThread(name='messaging')
-    th_search = SearchThread(name='search')
-    th_messages.start()
-    th_search.start()
+    while True:
+        # search bugzilla for any relevant bugs
+        print "Search"
+        bz_search_handler()
+        next = time.time() + int(config['bz_poll_frequency'])
 
-    while th_messages.is_alive() and th_search.is_alive():
-        time.sleep(10)
-    if not th_messages.is_alive():
-        print "Messaging thread died."
-        exit(1)
-    elif not th_search.is_alive():
-        print "Bugzilla searching thread died."
-        exit(1)
-    exit(0)
+        while time.time() < next:
+            print "get patchset"
+            patchset = db.PatchSetGetNext()
+            if patchset != None:
+                handle_patchset(patchset)
+
+            print "get message"
+            mq.get_message(config['mq_autoland_queue'],
+                    message_handler, routing_key='db')
+
 
 if __name__ == '__main__':
     main()
