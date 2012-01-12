@@ -29,7 +29,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         if os.path.exists(BUGLIST):
             os.remove(BUGLIST)
             
-        self.poller = SchedulerDBPoller("try", CACHE_DIR, CONFIG_FILE)
+        self.poller = SchedulerDBPoller(branch="try", cache_dir=CACHE_DIR, config=CONFIG_FILE, messages=False)
         self.poller.verbose = True
         self.poller.SelfServeRebuild = mock.Mock(return_value={u'status': u'OK', u'request_id': 19354})
         self.maxDiff = None
