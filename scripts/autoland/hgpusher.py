@@ -154,26 +154,23 @@ def process_patchset(data):
                (' => try' if try_run else ''), push_url )]
 
     def cleanup_wrapper():
-        # Only clear the clean repo every 2nd attempt.
-        # Do this because issues may have come up while patching and not be
-        # related to the the pull from hg.mozilla.
-        if (attempts % 2) == 0:
-            clear_branch(data['branch'])
-            log_msg('Cleared clean & active repos for: %s' % data['branch'])
-        else:
-            shutil.rmtree(active_repo)
-            log_msg('Cleaned up: %s' % active_repo)
-
+        shutil.rmtree(active_repo)
+        log_msg('Cleaned up: %s' % active_repo)
+        clear_branch(data['branch'])
+        log_msg('Removed clone: %s' % data['branch'])
+        clone_revision = clone_branch(data['branch'], data['branch_url'])
+        if clone_revision == None:
+            # Handle clone error
+            log_msg('[HgPusher] Clone error...')
+            return
     def apply_patchset(dir, attempt):
-        attempts = attempts + 1
-        print "attempt #%s" % (attempts)
+        print "attempt #%s" % (attempts + 1)
 
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
             log_msg('[Branch %s] Could not clone from %s.' \
                     % (data['branch'], data['branch_url']))
-            if msg not in comment:
-                comment.append(msg)
+            comment.append(msg)
             raise RETRY
 
         for patch in data['patches']:
