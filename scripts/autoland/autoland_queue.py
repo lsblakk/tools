@@ -1,7 +1,6 @@
 import time
 import os, errno, sys
 import re
-import threading
 import logging as log
 import logging.handlers
 import datetime
