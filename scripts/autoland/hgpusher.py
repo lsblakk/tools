@@ -119,7 +119,10 @@ def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o
     if try_run:
         # if there is no custom syntax, try defaults will get triggered
         # get custom syntax from whiteboard tag
-        cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
+        if config.get('staging', False):
+            cmd.extend(['-m "try: %s bug %s"' % (custom_syntax, bug_id)])
+        else:
+            cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -134,21 +137,6 @@ def process_patchset(data):
     class RETRY(Exception):
         pass
 
-    active_repo = os.path.join('active/%s' % (data['branch']))
-    try_run = (data['try_run'] == True)
-    if not 'branch_url' in data:
-        log_msg("Bad message, no branch_url")
-        return False
-    if 'push_url' in data:
-        push_url = data['push_url']
-    else:
-        push_url = data['branch_url']
-    push_url = push_url.replace('https', 'ssh', 1)
-
-    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
-            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
-               (' => try' if try_run else ''), push_url )]
-
     def cleanup_wrapper():
         if not hasattr(cleanup_wrapper, 'full_clean'):
             cleanup_wrapper.full_clean = False
@@ -157,13 +145,14 @@ def process_patchset(data):
         if cleanup_wrapper.branch != data['branch']:
             cleanup_wrapper.full_clean = False
             cleanup_wrapper.branch = data['branch']
-        # only wipe the clean repo every second cleanup
+        # only wipe the repositories every second cleanup
         if cleanup_wrapper.full_clean:
             clear_branch(data['branch'])
             log_msg('Wiped repositories for: %s' % data['branch'])
         else:
-            shutil.rmtree(active_repo)
-            log_msg('Cleaned up active repo for: %s' % data['branch'])
+            active_repo = os.path.join('active', data['branch'])
+            update(active_repo)
+            log_msg('Update -C on active repo for: %s' % data['branch'])
         cleanup_wrapper.full_clean = not cleanup_wrapper.full_clean
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
@@ -210,6 +199,24 @@ def process_patchset(data):
                 raise RETRY
         return True
 
+    if not data:
+        log_msg("Empty message to process_patchset")
+        return False
+    active_repo = os.path.join('active/%s' % (data['branch']))
+    try_run = (data['try_run'] == True)
+    if not 'branch_url' in data:
+        log_msg("Bad message, no branch_url")
+        return False
+    if 'push_url' in data:
+        push_url = data['push_url']
+    else:
+        push_url = data['branch_url']
+    push_url = push_url.replace('https', 'ssh', 1)
+
+    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
+            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
+               (' => try' if try_run else ''), push_url )]
+
     if not has_sufficient_permissions(data['patches'],
             data['branch'] if not try_run else 'try'):
         msg = 'Insufficient permissions to push to %s' \
@@ -237,7 +244,7 @@ def process_patchset(data):
         # TODO need to remove whiteboard tag here or in autoland_queue?
         mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
                    'patchsetid' : data['patchsetid'] }
-        mq.send_message(mq_msg, routing_key='db')
+        mq.send_message(mq_msg, 'db')
         return False
 
     if try_run:
@@ -320,7 +327,7 @@ def valid_job_message(message):
     """
     if not valid_dictionary_structure(message,
             ['bug_id','branch','branch_url','try_run','patches']):
-        log_message('Invalid message.')
+        log_msg('Invalid message: %s' % (message))
         return False
     for patch in message['patches']:
         if not valid_dictionary_structure(patch,
@@ -377,7 +384,7 @@ def message_handler(message):
                     'action': 'try.push' if data['try_run'] else 'branch.push',
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
                     'revision': patch_revision }
-            mq.send_message(msg, routing_key='db')
+            mq.send_message(msg, 'db')
 
         else:
             # TODO - send message to autolanddb here?

@@ -1,7 +1,6 @@
 import time
 import os, errno, sys
 import re
-import threading
 import logging as log
 import logging.handlers
 import datetime
@@ -24,6 +23,9 @@ bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         username=config['bz_username'], password=config['bz_password'])
 mq = mq_utils.mq_util()
 db = DBHandler(config['databases_autoland_db_url'])
+
+if config.get('staging', False):
+    runs_to_poll = []
 
 def log_msg(message, log_to=log.error):
     """
@@ -315,10 +317,14 @@ def message_handler(message):
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             print "Got patchset back from DB: %s" % ps
             print "Msg = %s" % msg
-            ps.revision = msg['revision']
+            ps.revision = msg['revision']`
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
+
+            if config.get('staging', False):
+                runs_to_poll.append(msg['revision'])
+
         elif '.run' in msg['action']:
             # this is a result from schedulerDBpoller
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
@@ -439,6 +445,12 @@ def main():
         # search bugzilla for any relevant bugs
         bz_search_handler()
         next = time.time() + int(config['bz_poll_frequency'])
+
+        if config.get('staging', False):
+            for revision in runs_to_poll:
+                cmd = ['./run_scheduleDbPoller_staging']
+                cmd.extend(rev)
+                subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         while time.time() < next:
             patchset = db.PatchSetGetNext()
