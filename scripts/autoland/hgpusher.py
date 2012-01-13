@@ -119,7 +119,10 @@ def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o
     if try_run:
         # if there is no custom syntax, try defaults will get triggered
         # get custom syntax from whiteboard tag
-        cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
+        if config.get('staging', False):
+            cmd.extend(['-m "try: %s bug %s"' % (custom_syntax, bug_id)])
+        else:
+            cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -213,8 +216,6 @@ def process_patchset(data):
     comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
                (' => try' if try_run else ''), push_url )]
-
-
 
     if not has_sufficient_permissions(data['patches'],
             data['branch'] if not try_run else 'try'):
