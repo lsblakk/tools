@@ -66,9 +66,8 @@
    SQL query might not pull a try run if mozilla-central (or whatever branch
    is in the branch field) is either above threshold or disabled.
 5. autoland_queue needs to poll the database for jobs that have been in the queue for a long time
-7. Attempt count -> update -c and clone alternating on cleanup.
-8. Ability to run multiple hgpushers -> generate a tmp dir and work in there.
-9. Handle clone failures properly.
+6. Attempt count -> update -c and clone alternating on cleanup.
+7. Handle clone failures properly.
 
 ## Dear Future Autolanding
 0. HgExtension (using Pbiggar's trychooser one) - could take your patches(diff) and create bugzilla 

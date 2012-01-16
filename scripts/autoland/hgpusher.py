@@ -4,6 +4,7 @@ import subprocess
 import logging as log
 import logging.handlers
 import shutil
+from tempfile import mkdtemp
 
 from util.hg import mercurial, apply_and_push, cleanOutgoingRevs, out, \
                     remove_path, HgUtilError, update, get_revision
@@ -408,13 +409,21 @@ def main():
     try:
         if not os.access(config['work_dir'], os.F_OK):
             os.makedirs(config['work_dir'])
-        os.chdir(config['work_dir'])
+        print "Creating working directory"
+        work_dir = mkdtemp(prefix='hgpusher.', dir=config['work_dir'])
+        print "Working directory: %s" % (work_dir)
+        os.chdir(work_dir)
     except os.error, e:
         log_msg('Error switching to working directory: %s' % e)
         exit(1)
 
-    mq.listen(queue=config['mq_hgp_queue'], callback=message_handler,
-            routing_key='hgpusher')
+    try:
+        mq.listen(queue=config['mq_hgp_queue'], callback=message_handler,
+                routing_key='hgpusher')
+    except:
+        os.chdir(base_dir)
+        shutil.rmtree(work_dir)
+        raise
 
 if __name__ == '__main__':
     os.chdir(base_dir)
