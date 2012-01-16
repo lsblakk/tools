@@ -232,7 +232,7 @@ def process_patchset(data):
                 retry_exceptions=(RETRY,),
                 args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
-                            ssh_key=config['hg_ssh_key'], force=True))
+                            ssh_key=config['hg_ssh_key']))
         revision = get_revision(active_repo)
         shutil.rmtree(active_repo)
     except (HgUtilError, RETRY) as error:
@@ -370,10 +370,16 @@ def message_handler(message):
             data['branch'] = 'mozilla-central'
             data['branch_url'] = data['branch_url'].replace('try','mozilla-central', 1)
 
-        clone_revision = clone_branch(data['branch'], data['branch_url'])
+        clone_revision = None
+        for attempts in range(3):
+            clone_revision = clone_branch(data['branch'], data['branch_url'])
+            if clone_revision:
+                break
         if clone_revision == None:
-            # Handle clone error
+            # TODO: Handle clone error
             log_msg('[HgPusher] Clone error...')
+            msg = { 'type' : 'error', 'action' : 'repo.clone',
+                    'patchsetid' : data['patchsetid'] }
             return
         patch_revision = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:

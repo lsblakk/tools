@@ -317,7 +317,7 @@ def message_handler(message):
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             print "Got patchset back from DB: %s" % ps
             print "Msg = %s" % msg
-            ps.revision = msg['revision']`
+            ps.revision = msg['revision']
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
@@ -337,6 +337,8 @@ def message_handler(message):
                         % (ps.id, ps.revision), log.DEBUG)
             else:
                 # close it!
+                if config.get('staging', False):
+                    runs_to_poll.remove(ps.revision)
                 bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
@@ -358,6 +360,8 @@ def message_handler(message):
         if ps:
             # remove it from the queue, error should have been comented to bug
             # (shall we confirm that here with bz_utils.has_coment?)
+            if config.get('staging', False):
+                runs_to_poll.remove(ps.revision)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'

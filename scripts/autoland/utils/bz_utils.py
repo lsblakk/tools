@@ -206,7 +206,7 @@ class bz_util():
                 if int(m) > 9000:
                     retval.append(int(m))
         return retval
-                
+
     def notify_bug(self, message, bug_num, retries=5):
         print message
         result = 0
