@@ -1,4 +1,5 @@
 import unittest
+import urllib2
 import os, shutil, sys
 import tempfile
 import mock
@@ -89,6 +90,16 @@ class TestBzUtils(unittest.TestCase):
         self.assertTrue(bz.has_comment(comment, bug))
         print "has_recent_comment"
         self.assertTrue(bz.has_recent_comment(dt, bug))
+
+    def testPutRequest(self):
+        with mock.patch('utils.bz_utils.bz_util.request') as bur:
+            bur.side_effect = urllib2.HTTPError('path', 400, 'Bad Request',
+                    None, None)
+            try:
+                bz.put_request('path', 'data', 2, 2)
+            except Exception, exception:
+                self.assertEquals(str(exception), 'PutError')
+            self.assertTrue(bur.call_count == 2)
 
 if __name__ == '__main__':
     unittest.main()

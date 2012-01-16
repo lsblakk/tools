@@ -5,12 +5,13 @@ import mock
 sys.path.append('..')
 from autoland_queue import get_first_autoland_tag, valid_autoland_tag,\
         get_branch_from_tag, get_reviews, get_patchset, bz_search_handler,\
-        message_handler, DBHandler, PatchSet, bz_utils
+        message_handler, DBHandler, PatchSet, bz_utils, config,\
+        handle_patchset
 from utils.db_handler import PatchSet
 
 class TestAutolandQueue(unittest.TestCase):
     def setUp(self):
-        pass
+        config['staging'] = False
 
     def testGetFirstAutolandTag(self):
         tag = get_first_autoland_tag('[Autoland-try]')
