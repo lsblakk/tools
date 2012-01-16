@@ -223,7 +223,7 @@ class SchedulerDBPoller():
                     bugs = self.bz.bugs_from_comments(comment)
         return bugs
     
-    def ProcessPushType(self, revision, buildrequests):
+    def ProcessPushType(self, revision, buildrequests, flag_check=True):
         """ Search buildrequest comments for try syntax and query autoland_db 
             
        returns type as "try", "auto", or None
@@ -237,8 +237,12 @@ class SchedulerDBPoller():
         for key,value in buildrequests.items():
             br = value.to_dict()
             for comments in br['comments']:
-                if 'try: ' in comments and '--post-to-bugzilla' in comments:
-                    type = "try"
+                if 'try: ' in comments:
+                    if flag_check:
+                        if '--post-to-bugzilla' in comments:
+                            type = "try"
+                    else:
+                        type = "try"
                 if 'autoland-' in comments:
                     type = "auto"
         return type
@@ -473,7 +477,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         
         return bug_post
 
-    def PollByRevision(self, revision, bugs=None):
+    def PollByRevision(self, revision, flag_check=False):
         """ Run a single revision through the polling process to determine if it is complete, 
             or not, returns information on the revision in a dict which includes the message
             that can be posted to a bug (if not in dryrun mode), whether the message was 
@@ -487,10 +491,8 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
             'discard': False,
         }
         buildrequests = self.scheduler_db.GetBuildRequests(revision, self.branch)
-        type = self.ProcessPushType(revision, buildrequests)
-        # if no bugs passed in, check comments for --post-to-bugzilla bug XXXXXX
-        if bugs == None:
-            bugs = self.GetBugNumbers(buildrequests)
+        type = self.ProcessPushType(revision, buildrequests, flag_check)
+        bugs = self.GetBugNumbers(buildrequests)
         info['status'], info['is_complete'] = self.CalculateBuildRequestStatus(buildrequests, revision)
         if self.verbose:
             log.debug("POLL_BY_REVISION: RESULTS: %s BUGS: %s TYPE: %s IS_COMPLETE: %s" % (info['status'], bugs, type, info['is_complete']))
@@ -643,7 +645,10 @@ if __name__ == '__main__':
                         dest="messages", 
                         help="toggle for sending messages to queue",
                         action='store_false')
-
+    parser.add_argument("--flag-check", 
+                        dest="flag_check", 
+                        help="toggle for checking if --post-to-bugzilla is in the build's comments",
+                        action='store_true')
     parser.set_defaults(
         branch="try",
         cache_dir="cache",
@@ -652,6 +657,7 @@ if __name__ == '__main__':
         endtime = time(),
         dry_run = False,
         messages = True,
+        flag_check = False,
     )
 
     options, args = parser.parse_known_args()
@@ -664,7 +670,7 @@ if __name__ == '__main__':
         poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
                                     user=options.user, password=options.password, dry_run=options.dry_run, 
                                     verbose=options.verbose)
-        result, posted_to_bug = poller.PollByRevision(options.revision)
+        result, posted_to_bug = poller.PollByRevision(options.revision, options.flag_check)
         if options.verbose:
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
     else:
