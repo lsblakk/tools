@@ -101,6 +101,16 @@ class TestBzUtils(unittest.TestCase):
                 self.assertEquals(str(exception), 'PutError')
             self.assertTrue(bur.call_count == 2)
 
+    def testBugsFromComments(self):
+        ret = bz.bugs_from_comments("this is a comment with no bug mentioned")
+        self.assertEquals(ret, [])
+        ret = bz.bugs_from_comments("this comment is about bug 10480 only")
+        self.assertEquals(ret, [10480])
+        ret = bz.bugs_from_comments("comment is about bugs 10480, 10411")
+        self.assertEquals(ret, [10480, 10411])
+        ret = bz.bugs_from_comments("commet about b10480")
+        self.assertEquals(ret, [10480])
+
 if __name__ == '__main__':
     unittest.main()
 
