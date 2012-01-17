@@ -17,7 +17,7 @@ class bz_util():
 # add a check_bug so that other functions can clear that it exists before doing a request
 # change return codes so that schedulerdbpoller knows when to quit - raise the exceptions up from request to all the other functions
 
-# Catch these exceptions: 
+# Catch these exceptions:
 # bug doesn't exist
 # bug can't be accessed
 
@@ -170,6 +170,8 @@ class bz_util():
         reg = re.compile(regex, flags=re.I)
         # get the current whiteboard tag
         bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        if not 'update_token' in bug:
+            return False
         if not 'whiteboard' in bug:
             # In case regex is '^$' or similar, we still want to add it.
             bug['whiteboard'] = ''
@@ -190,7 +192,7 @@ class bz_util():
 
     def bugs_from_comments(self, comments):
         """Finds things that look like bugs in comments and returns as a list of bug numbers.
-    
+
         Supported formats:
             Bug XXXXX
             Bugs XXXXXX, YYYYY
@@ -247,7 +249,7 @@ class bz_util():
                     result = 1
         except urllib2.HTTPError, e:
             log.debug("HTTPError, Can't check comments on bug: %s" % e)
-        
+
         return result
 
     def has_recent_comment(self, regex, bugid, hours=4):
