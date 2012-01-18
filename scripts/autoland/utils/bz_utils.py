@@ -1,10 +1,12 @@
 import urllib2, re
-import logging as log
+import logging
 import os, time, datetime
 try:
     import simplejson as json
 except ImportError:
     import json
+
+log = logging.getLogger(__name__)
 
 class bz_util():
     def __init__(self, api_url, url, attachment_url=None, username=None, password=None):
@@ -44,7 +46,7 @@ class bz_util():
             data = result.read()
             return json.loads(data)
         except urllib2.HTTPError, e:
-            log.debug('REQUEST ERROR: %s: %s' % (e, url))
+            log.error('REQUEST ERROR: %s: %s' % (e, url))
             raise
 
     def put_request(self, path, data, retries, interval):
@@ -134,7 +136,7 @@ class bz_util():
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
         except urllib2.HTTPError, e:
-            log.debug("Did not remove whiteboard tag to bug %s : %s" % (bugid, e))
+            log.error("Did not remove whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
     def add_whiteboard_tag(self, tag, bugid, retries=5, interval=10):
@@ -295,5 +297,4 @@ class bz_util():
         for b in page['bugs']:
             bugs.append((b['id'], b[field]))
         return bugs
-
 

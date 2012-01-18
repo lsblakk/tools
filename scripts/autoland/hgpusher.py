@@ -158,7 +158,7 @@ def process_patchset(data):
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
-            # Handle clone error
+            # TODO: Handle clone error
             log_msg('[HgPusher] Clone error...')
         return
     def apply_patchset(dir, attempt):
@@ -261,7 +261,10 @@ def process_patchset(data):
                 % (os.path.join(config['self_serve_url'],
                    '%s/rev/%s' % (data['branch'], revision))))
     log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-    bz.notify_bug('\n'.join(comment), data['bug_id'])
+    if not comment:
+        log_msg("Exiting without a comment to be posted.")
+    else:
+        bz.notify_bug('\n'.join(comment), data['bug_id'])
     return revision
 
 def clone_branch(branch, branch_url):

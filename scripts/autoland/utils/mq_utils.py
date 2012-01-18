@@ -44,10 +44,10 @@ class mq_util():
             except (sockerr, pika.exceptions.AMQPConnectionError):
                 if block:
                     print >>sys.stderr, '[RabbitMQ] Failed connection', \
-                            'to %s, retry in 60s' % (self.host)
+                            'to %s, retry in 30s' % (self.host)
                     log.info('[RabbitMQ] Failed connection ' +
-                            'to %s, retry in 60s' % (self.host))
-                    time.sleep(60)
+                            'to %s, retry in 30s' % (self.host))
+                    time.sleep(30)
                     continue
                 else:
                     print >>sys.stderr, '[RabbitMQ] Failed connection', \
