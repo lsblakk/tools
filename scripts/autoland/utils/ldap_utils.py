@@ -98,9 +98,12 @@ class ldap_util():
         result = urllib2.urlopen(req)
         data = result.read()
         data = data[:-1]
-        print "Required permissions for %s: |%s|" % (branch, data)
         if data.find('is not an hg repository') > 0 or \
-                data.find('Need a repository') > 0:
-            data = None
+                data.find('Need a repository') > 0 or \
+                data.find('A problem occurred') > 0:
+            print 'An error has occurred with branch permissions api:'
+            print 'url: %s\nresponse: %s' % (url, data)
+            return None
+        print 'Required permissions for %s: |%s|' % (branch, data)
         return data
 
