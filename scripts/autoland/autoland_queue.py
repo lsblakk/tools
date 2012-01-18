@@ -25,6 +25,7 @@ mq = mq_utils.mq_util()
 db = DBHandler(config['databases_autoland_db_url'])
 
 if config.get('staging', False):
+    import subprocess
     runs_to_poll = []
 
 def log_msg(message, log_to=log.error):
@@ -200,13 +201,13 @@ def bz_search_handler():
         elif not valid_autoland_tag(tag):
             bz.notify_bug('Poorly formed whiteboard tag %s.' %(tag), bug_id)
             log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
-            bz.remove_whiteboard_tag(tag, bug_id)
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
         branch = get_branch_from_tag(tag)
         if db.BranchQuery(Branch(name=branch)) == None:
             bz.notify_bug('Bad autoland tag: branch %s does not exist.' % (branch), bug_id)
             log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
-            bz.remove_whiteboard_tag(tag, bug_id)
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
 
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
@@ -238,7 +239,7 @@ def bz_search_handler():
             print "No patches listed right now, will be monitoring this bug."
             continue
         else:
-            ps.author = patches[0]['author']['email'] if patches != None else ""
+            ps.author = patches[0]['author']['email']
 
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
