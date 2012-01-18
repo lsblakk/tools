@@ -46,9 +46,10 @@ sub GetReleaseBlock {
     my $stagingServer = $args{'stagingServer'};
     my $localeInfo = $args{'localeInfo'};
     my $platforms = $args{'platforms'};
+    my $schema = $args{'schema'};
 
     my $releaseBlock = {};
-    $releaseBlock->{'schema'} = '1';
+    $releaseBlock->{'schema'} = $schema;
     $releaseBlock->{'version'} = $appVersion;
     $releaseBlock->{'extension-version'} = $appVersion;
     $releaseBlock->{'prettyVersion'} = $prettyVersion;
@@ -76,6 +77,10 @@ sub GetReleaseBlock {
       '/pub/mozilla.org/' . $product . '/nightly/' . $version . '-candidates/' .
       $buildStr . '/update/%platform%/%locale%/' . $product . '-' . $version .
       '.complete.mar';
+    $releaseBlock->{'checksumsurl'} = 'http://' . $stagingServer .
+      '/pub/mozilla.org/' . $product . '/nightly/' . $version . '-candidates/' .
+      $buildStr . '/%platform%/%locale%/' . $product . '-' . $version .
+      '.checksums';
 
     $releaseBlock->{'exceptions'} = {};
 
@@ -140,15 +145,15 @@ sub BumpFilePath {
     $newPath =~ s/.*\/build\d+\///;
     # We need to handle partials and complete MARs differently
     if ($newPath =~ m/\.partial\.mar$/) {
-        $newPath =~ s/($oldMarName|$marName)-.+?-($escapedOldVersion|$escapedVersion)\.
-                     /$marName-$oldVersion-$version./x
+        $newPath =~ s/($oldMarName|$marName)-.+?-($escapedOldVersion|$escapedVersion)\.partial
+                     /$marName-$oldVersion-$version.partial/x
                      or die("ASSERT: BumpFilePath() - Could not bump path: " .
-                            "$oldFilePath");
+                            "'$oldFilePath' from '$oldVersion' to '$version'");
     } elsif ($newPath =~ m/\.complete\.mar$/) {
-        $newPath =~ s/($oldMarName|$marName)-($escapedOldVersion|$escapedVersion)\.
-                     /$marName-$version./x
+        $newPath =~ s/($oldMarName|$marName)-($escapedOldVersion|$escapedVersion)\.complete
+                     /$marName-$version.complete/x
                      or die("ASSERT: BumpFilePath() - Could not bump path: " .
-                            "$oldFilePath");
+                            "'$oldFilePath' from '$oldVersion' to '$version'");
     } else {
         die("ASSERT: BumpFilePath() - Unknown file type for '$oldFilePath'");
     }

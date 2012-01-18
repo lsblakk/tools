@@ -18,6 +18,10 @@ platform=$1
 branchConfig=$2
 chunks=$3
 thisChunk=$4
+generatePartials=$5
+if [ "$generatePartials" = "generatePartials" ]; then
+  generatePartials="--generate-partials"
+fi
 
 branch=$(basename $($JSONTOOL -k properties.branch $PROPERTIES_FILE))
 builder=$($JSONTOOL -k properties.buildername $PROPERTIES_FILE)
@@ -34,14 +38,16 @@ if [ -z "$CLOBBERER_URL" ]; then
     export CLOBBERER_URL="http://build.mozilla.org/clobberer"
 fi
 
+export MOZ_SIGN_CMD="$MOZ_SIGN_CMD"
+
 cd $SCRIPTS_DIR/../..
 $PYTHON $SCRIPTS_DIR/clobberer/clobberer.py -s scripts -s buildprops.json \
   $CLOBBERER_URL $branch $builder $slavebuilddir $slavename $master
 cd $SCRIPTS_DIR/..
 $PYTHON $SCRIPTS_DIR/buildfarm/maintenance/purge_builds.py \
-  -s 6 -n info -n 'rel-*' -n $slavebuilddir
+  -s 7 -n info -n 'rel-*' -n $slavebuilddir
 cd $workdir
 
 $PYTHON $MY_DIR/create-release-repacks.py -c $branchConfig -r $releaseConfig \
   -b $BUILDBOT_CONFIGS -t $releaseTag -p $platform \
-  --chunks $chunks --this-chunk $thisChunk
+  --chunks $chunks --this-chunk $thisChunk $generatePartials

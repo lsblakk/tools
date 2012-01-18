@@ -5,7 +5,7 @@ import time
 import random
 import socket
 import datetime
-import devicemanager
+import devicemanagerSUT as devicemanager
 
 from sut_lib import getOurIP, calculatePort, clearFlag, setFlag, checkDeviceRoot, \
                     getDeviceTimestamp, setDeviceTimestamp, \
@@ -32,7 +32,7 @@ else:
     processName = 'org.mozilla.fennec'
 
 print "connecting to: %s" % sys.argv[1]
-dm = devicemanager.DeviceManager(sys.argv[1])
+dm = devicemanager.DeviceManagerSUT(sys.argv[1])
 # Moar data!
 dm.debug = 3
 devRoot  = checkDeviceRoot(dm)
@@ -84,7 +84,12 @@ if dm.pushFile(source, target):
             dm.getInfo('process')
             dm.getInfo('memory')
             dm.getInfo('uptime')
-            print dm.sendCMD(['exec su -c "logcat -d -v time *:W"'])
+            try:
+                print dm.sendCMD(['exec su -c "logcat -d -v time *:W"'])
+            except devicemanager.DMError, e:
+                print "Exception hit while trying to run logcat: %s" % str(e)
+                setFlag(errorFile, "Remote Device Error: can't run logcat")
+                sys.exit(1)
         else:
             clearFlag(proxyFile)
             setFlag(errorFile, "Remote Device Error: updateApp() call failed - exiting")

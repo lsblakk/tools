@@ -2,7 +2,7 @@
 
 import os, sys
 import time
-import devicemanager
+import devicemanagerSUT as devicemanager
 
 from sut_lib import clearFlag, setFlag, checkDeviceRoot, stopProcess, waitForDevice
 
@@ -27,13 +27,13 @@ if os.path.exists(flagFile):
     clearFlag(flagFile)
 
 print "Connecting to: " + sys.argv[1]
-dm = devicemanager.DeviceManager(sys.argv[1])
+dm = devicemanager.DeviceManagerSUT(sys.argv[1])
 
 dm.debug = 5
 devRoot  = checkDeviceRoot(dm)
 
-if devRoot is None or devRoot == '/tests':
-    setFlag(errorFile, "Remote Device Error: devRoot from devicemanager [%s] is not correct" % devRoot)
+if not str(devRoot).startswith("/mnt/sdcard"):
+    setFlag(errorFile, "Remote Device Error: devRoot from devicemanager [%s] is not correct" % str(devRoot))
     sys.exit(1)
 
 if dm.dirExists(devRoot):
@@ -42,6 +42,21 @@ if dm.dirExists(devRoot):
     if status is None or not status:
        setFlag(errorFile, "Remote Device Error: call to removeDir() returned [%s]" % status)
        sys.exit(1)
+
+if dm.fileExists('/system/etc/hosts'):
+    print "removing /system/etc/hosts file"
+    try:
+        dm.sendCMD(['exec mount -o remount,rw -t yaffs2 /dev/block/mtdblock3 /system'])
+        dm.sendCMD(['exec rm /system/etc/hosts'])
+    except devicemanager.DMError, e:
+        print "Exception hit while trying to remove /system/etc/hosts: %s" % str(e)
+        setFlag(errorFile, "failed to remove /system/etc/hosts")
+        sys.exit(1)
+    if dm.fileExists('/system/etc/hosts'):
+        setFlag(errorFile, "failed to remove /system/etc/hosts")
+        sys.exit(1)
+    else:
+        print "successfully removed hosts file, we can test!!!"
 
 for f in ('runtestsremote', 'remotereftest', 'remotereftest.pid.xpcshell'):
     pidFile = os.path.join(pidDir, '%s.pid' % f)

@@ -15,13 +15,34 @@ import subprocess
 import random
 
 from optparse import OptionParser
-import sentrypdu
+import json
 
 
 log = logging.getLogger()
 
-# all PDUs that might own a tegra
-pdus = [ 'pdu%d.build.mozilla.org' % n for n in range(1,4) ]
+try:
+    tegras  = json.load(open('/builds/tools/buildfarm/mobile/tegras.json', 'r'))
+except:
+    tegras  = {}
+
+try:
+    masters = json.load(open('/builds/tools/buildfarm/maintenance/production-masters.json', 'r'))
+except:
+    masters = {}
+
+
+def getMaster(hostname):
+    # remove all the datacenter cruft from the hostname
+    # because we can never really know if a buildbot.tac
+    # hostname entry is FQDN or not
+    host   = hostname.strip().split('.')[0]
+    result = None
+    for o in masters:
+        if 'hostname' in o:
+            if o['hostname'].startswith(host):
+                result = o
+                break
+    return result
 
 def dumpException(msg):
     """Gather information on the current exception stack and log it
@@ -36,6 +57,7 @@ def dumpException(msg):
             log.debug(s[:-1])
     log.debug('Traceback End')
 
+# copied runCommand to tools/buildfarm/utils/run_jetpack.py
 def runCommand(cmd, env=None, logEcho=True):
     """Execute the given command.
     Sends to the logger all stdout and stderr output.
@@ -76,16 +98,20 @@ def pingTegra(tegra):
             break
     return result, out
 
-def getOurIP(hostname='bm-remote.build.mozilla.org'):
+def getOurIP(hostname=None):
     """Open a socket against a known server to discover our IP address
     """
+    if hostname is None:
+        testname = socket.gethostname()
+    else:
+        testname = hostname
     if 'CP_IP' in os.environ:
         result = os.environ['CP_IP']
     else:
         result = None
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            s.connect((hostname, 80))
+            s.connect((testname, 22))
             result = s.getsockname()[0]
             s.close()
         except:
@@ -324,7 +350,12 @@ def getDeviceTimestamp(dm):
 def setDeviceTimestamp(dm):
     s = datetime.datetime.now().strftime('%Y/%m/%d %H:%M:%S')
     print("Setting device time to %s" % s)
-    dm.sendCMD(['settime %s' % s])
+    try:
+        dm.sendCMD(['settime %s' % s])
+        return True
+    except devicemanager.DMError, e:
+        print "Exception while setting device time: %s" % str(e)
+        return False
 
 def checkDeviceRoot(dm):
     dr = dm.getDeviceRoot()
@@ -351,60 +382,54 @@ def waitForDevice(dm, waitTime=60):
         print("Remote Device Error: waiting for tegra timed out.")
         sys.exit(1)
 
-def find_pdu(tegra, force_search=False):
-    """
-    Search for the PDU containing the given tegra.  If this information is
-    cached in the current directory and force_search is not set, the cached
-    value will be returned; otherwise, it will search all of the known PDUs
-    (see the top of this file) for the named PDU, and cache the result.
-    """
-    # first see if we know where this tegra lives
-    pdufile = '%s.pdu' % tegra
-    tegra_pdu = None
-    if not force_search and os.path.exists(pdufile):
-        try:
-            tegra_pdu = open(pdufile).read().strip()
-        except IOError:
-            pass
-
-    if tegra_pdu:
-        return tegra_pdu
-
-    # otherwise, scan the PDUs to find it
-    for pdu in pdus:
-        if sentrypdu.SentryPDU(pdu).status(tegra):
-            tegra_pdu = pdu
-            break
-
-    if not tegra_pdu:
-        raise KeyError("Cannot find PDU for tegra '%s'" % tegra)
-
-    open(pdufile, "w").write(tegra_pdu)
-
-    return tegra_pdu
-
-def reboot_tegra(tegra):
+def reboot_tegra(tegra, debug=False):
     """
     Try to reboot the given tegra, returning True if successful.
-
-    This uses a local filesystem cache (see find_pdu) to remember which PDU the
-    tegra is on.  It uses teh PDUs' own notion of which tegra is on which port,
-    and in the absence of any location information will search all available
-    PDUs for the given tegra.
-
-    This handles tegras moving between PDUs by re-trying with force_search=True.
+    
+    snmpset -c private pdu4.build.mozilla.org 1.3.6.1.4.1.1718.3.2.3.1.11.1.1.13 i 3
+    1.3.6.1.4.1.1718.3.2.3.1.11.a.b.c
+                                ^^^^^ outlet id
+                             ^^       control action
+                           ^          outlet entry
+                         ^            outlet tables
+                       ^              system tables
+                     ^                sentry
+    ^^^^^^^^^^^^^^^^                  serverTech enterprises
+    a   Sentry enclosure ID: 1 master 2 expansion
+    b   Input Power Feed: 1 infeed-A 2 infeed-B
+    c   Outlet ID (1 - 16)
+    y   command: 1 turn on, 2 turn off, 3 reboot
+    
+    a and b are determined by the DeviceID we get from the tegras.json file
+    
+       .AB14
+          ^^ Outlet ID
+         ^   InFeed code
+        ^    Enclosure ID (we are assuming 1 (or A) below)
     """
-    pdu = find_pdu(tegra)
-    if sentrypdu.SentryPDU(pdu).reboot(tegra):
-        return True
+    result = False
+    if tegra in tegras:
+        pdu      = tegras[tegra]['pdu']
+        deviceID = tegras[tegra]['pduid']
+        if deviceID.startswith('.'):
+            if deviceID[2] == 'B':
+                b = 2
+            else:
+                b = 1
+            try:
+                c   = int(deviceID[3:])
+                s   = '3.2.3.1.11.1.%d.%d' % (b, c)
+                oib = '1.3.6.1.4.1.1718.%s' % s
+                cmd = '/usr/bin/snmpset -c private %s %s i 3' % (pdu, oib)
+                if debug:
+                    print 'rebooting %s at %s %s' % (tegra, pdu, deviceID)
+                if os.system(cmd) == 0:
+                    result = True
+            except:
+                dumpException('error running [%s]' % cmd)
+                result = False
 
-    # let's try again, forcing a search this time
-    pdu2 = find_pdu(tegra, force_search=True)
-    if pdu == pdu2:
-        # hm, same PDU - something else is wrong
-        return False
-
-    return sentrypdu.SentryPDU(pdu2).reboot(tegra)
+    return result
 
 def loadOptions(defaults=None):
     """Parse command line parameters and populate the options object.

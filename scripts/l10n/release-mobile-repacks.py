@@ -32,9 +32,8 @@ def createRepacks(sourceRepo, revision, l10nRepoDir, l10nBaseRepo,
                   mozconfigPath, objdir, makeDirs, locales, ftpProduct,
                   appName, version, appVersion, buildNumber, stageServer,
                   stageUsername, stageSshKey, compareLocalesRepo, merge,
-                  platform, stage_platform, brand):
+                  platform, stage_platform, brand, mobileDirName):
     sourceRepoName = path.split(sourceRepo)[-1]
-    mobileDirName = "mobile"
     nightlyDir = "candidates"
     localeSrcDir = path.join(sourceRepoName, objdir, mobileDirName, "locales")
     # Even on Windows we need to use "/" as a separator for this because
@@ -48,6 +47,9 @@ def createRepacks(sourceRepo, revision, l10nRepoDir, l10nBaseRepo,
         "UPLOAD_USER": stageUsername,
         "UPLOAD_SSH_KEY": stageSshKey,
         "UPLOAD_TO_TEMP": "1",
+        # Android signing
+        "JARSIGNER": os.path.join(os.getcwd(), "scripts", "release",
+                                  "signing", "mozpass.py")
     }
     build.misc.cleanupObjdir(sourceRepoName, objdir, mobileDirName)
     retry(mercurial, args=(sourceRepo, sourceRepoName))
@@ -165,8 +167,11 @@ if __name__ == "__main__":
     mozconfig = path.join("buildbot-configs", "mozilla2", options.platform,
                           sourceRepoInfo['name'], "release", "l10n-mozconfig")
 
+    if 'android' in options.platform:
+        makeDirs.append('config')
 
     stage_platform = branchConfig['platforms'][options.platform].get('stage_platform', options.platform)
+    mobileDirName = branchConfig['platforms'][options.platform].get('mobile_dir', 'mobile')
 
     if options.chunks:
         locales = retry(getReleaseLocalesFromJsonForChunk,
@@ -195,4 +200,4 @@ if __name__ == "__main__":
         make_hg_url(branchConfig["hghost"],
                     branchConfig["compare_locales_repo_path"]),
         releaseConfig["mergeLocales"], options.platform,
-        stage_platform, releaseConfig["productName"])
+        stage_platform, releaseConfig["productName"], mobileDirName)
