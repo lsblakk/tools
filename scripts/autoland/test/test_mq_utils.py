@@ -18,16 +18,23 @@ class TestMqUtils(unittest.TestCase):
         self.mq = mq_utils.mq_util()
         self.mq.set_host('localhost')
         self.mq.set_exchange('autoland-new')
+        self.mq.connect()
+    def tearDown(self):
+        self.mq._disconnect_()
     def testConnectNoHost(self):
         self.mq.set_host(None)
         self.assertRaises(AssertionError, self.mq.connect, False)
     def testSetHost(self):
         self.mq.set_host('localhost')
     def testConnectionNoBlockFail(self):
+        self.mq._disconnect_()
         self.mq.set_host('bad_hostname')
-        self.assertEqual(self.mq.listen(queue='queue', callback=str, routing_key=['db.message'], block=False), None)
-    def testDisconnectFail(self):
-        self.assertRaises(AssertionError, self.mq._disconnect_)
+        self.mq.connect(block=False)
+        self.assertEqual(self.mq.listen(queue='queue', callback=str,
+            routing_key='db.message', block=False), None)
+    #def testDisconnectFail(self):
+        #self.mq._disconnect_()
+        #self.assertRaises(AssertionError, self.mq._disconnect_)
     def testDisconnect(self):
         self.mq.connect()
         self.assertEqual(self.mq._disconnect_(), None)
@@ -48,9 +55,11 @@ class TestMqUtils(unittest.TestCase):
         listener = mq_utils.mq_util()
         listener.set_host('localhost')
         listener.set_exchange('autoland-new')
+        listener.connect()
         try:
             # For some reason assertRaises won't work here
-            listener.listen(queue='test-new', callback=message_handler_topic1, routing_key='autoland.db', durable=False)
+            listener.listen(queue='test-new', callback=message_handler_topic1,
+                    routing_key='autoland.db', durable=False)
         except RECEIVED:
             raised = True
         self.assertFalse(raised)
@@ -60,9 +69,11 @@ class TestMqUtils(unittest.TestCase):
         listener2 = mq_utils.mq_util()
         listener2.set_host('localhost')
         listener2.set_exchange('autoland-new')
+        listener2.connect()
         try:
             # For some reason assertRaises won't work here
-            listener2.listen(queue='test-new', callback=message_handler_topic2, routing_key='hgpusher.pushes', durable=False)
+            listener2.listen(queue='test-new', callback=message_handler_topic2,
+                    routing_key='hgpusher.pushes', durable=False)
         except RECEIVED:
             raised = True
         self.assertFalse(raised)

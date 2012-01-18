@@ -3,10 +3,10 @@ import sys
 import json
 import mock
 sys.path.append('..')
-from autoland_queue import get_first_autoland_tag, valid_autoland_tag,\
-        get_branch_from_tag, get_reviews, get_patchset, bz_search_handler,\
-        message_handler, DBHandler, PatchSet, bz_utils, config,\
-        handle_patchset
+from autoland_queue import get_first_autoland_tag, valid_autoland_tag, \
+        get_branch_from_tag, get_reviews, get_patchset, bz_search_handler, \
+        message_handler, DBHandler, PatchSet, bz_utils, config, \
+        handle_patchset, main
 from utils.db_handler import PatchSet
 
 class TestAutolandQueue(unittest.TestCase):
@@ -229,5 +229,55 @@ class TestAutolandQueue(unittest.TestCase):
         DBHandler.PatchSetUpdate = orig[2]
         DBHandler.PatchSetDelete = orig[3]
 
+    def testLoop(self):
+        import autoland_queue as aq
+
+        def runMain():
+            try:
+                aq.main()
+            #except done:   # doesn't work for some reason
+            except Exception, e:
+                if e != done:
+                    raise
+            else:
+                self.assertEquals("time.sleep didn't run", None)
+
+        orig = []
+        orig.append(aq.mq_utils.mq_util.get_message)
+        orig.append(aq.mq_utils.mq_util.connect)
+        orig.append(aq.bz_search_handler)
+        orig.append(aq.subprocess.Popen)
+        orig.append(DBHandler.PatchSetGetNext)
+        orig.append(aq.handle_patchset)
+        orig.append(aq.time.sleep)
+
+        done = Exception("Done")
+
+        aq.time.sleep = mock.Mock(side_effect = done)
+        aq.handle_patchset = mock.Mock(return_value = True)
+        DBHandler.PatchSetGetNext = mock.Mock(return_value = True)
+        aq.subprocess.Popen = mock.Mock(return_value = True)
+        aq.bz_search_handler = mock.Mock(return_value = True)
+        aq.mq_utils.mq_util.connect = mock.Mock(return_value = True)
+        aq.mq_utils.mq_util.get_message = mock.Mock(return_value = True)
+
+        runMain()
+
+        DBHandler.PatchSetGetNext.return_value = None
+        runMain()
+        self.assertEquals(aq.handle_patchset.call_count, 1)
+
+        aq.time.sleep = orig.pop()
+        aq.handle_patchset = orig.pop()
+        DBHandler.PatchSetGetNext = orig.pop()
+        aq.subprocess.Popen = orig.pop()
+        aq.bz_search_handler = orig.pop()
+        aq.mq_utils.mq_util.connect = orig.pop()
+        aq.mq_utils.mq_util.get_message = orig.pop()
+
+    def testHolder(self):
+        pass
+
 if __name__ == '__main__':
     unittest.main()
+
