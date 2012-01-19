@@ -7,7 +7,7 @@ import datetime
 import urllib2
 
 from utils import mq_utils, bz_utils, common
-from utils.db_handler import DBHandler, PatchSet, Branch
+from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
 base_dir = common.get_base_dir(__file__)
 
@@ -438,6 +438,32 @@ def handle_patchset(patchset):
         patchset.retries += 1
         db.PatchSetUpdate(patchset)
 
+def handle_comments():
+    """
+    Queries the Autoland DB for any outstanding comments to be posted.
+    Gets the five oldest comments and tries to post them on the corresponding
+    bug. In case of failure, the comments attempt count is updated, to be
+    picked up again later.
+    If we have attempted 5 times, get rid of the comment and log it.
+    """
+    comments = db.CommentGetNext(limit=5)   # Get up to 5 comments
+    for comment in comments:
+        # Note that notify_bug makes multiple retries
+        success = bz.notify_bug(comment.comment, commend.bug_id)
+        if success:
+            # Posted. Get rid of it.
+            db.CommentDelete(comment.id)
+        else if comment.attempts = 5:
+            # 5 attempts have been made, drop this comment as it is
+            # probably not going anywhere.
+            # XXX: Perhaps this should be written to a file.
+            log_msg("Could not post comment to bug %s. Dropping comment: %s"
+                    % (comment.bug_id, comment.comment))
+            db.CommentDelete(comment.id)
+        else:
+            comment.attempts += 1
+            db.CommentUpdate(comment)
+
 def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
@@ -452,6 +478,9 @@ def main():
         next = time.time() + int(config['bz_poll_frequency'])
 
         if config.get('staging', False):
+            # if this is a staging instance, launch schedulerDbPoller in order
+            # to poll by revision. This will allow for posting back to
+            # landfill.
             for revision in runs_to_poll:
                 cmd = ['./run_scheduleDbPoller_staging']
                 cmd.extend(rev)
@@ -462,9 +491,11 @@ def main():
             if patchset != None:
                 handle_patchset(patchset)
 
+            # take care of any comments that couldn't previously be posted
+            comment_handler()
+
             mq.get_message(config['mq_autoland_queue'],
                     message_handler, routing_key='db')
-            time.sleep(5)
 
 
 if __name__ == '__main__':
