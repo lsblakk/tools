@@ -134,11 +134,17 @@ def process_patchset(data):
     Process, apply, and push the patchset to the correct location.
     If try_run is specified, it will be pushed to try, and otherwise
     will be pushed to branch if the credentials are correct.
+
+    process_patchset returns a 2-tuple, (return_code, comment).
+    Note that there should _always_ be a comment.
     """
+
     class RETRY(Exception):
         pass
 
     def cleanup_wrapper():
+        # use an attribute full_clean in order to keep track of
+        # whether or not a full cleanup is required.
         if not hasattr(cleanup_wrapper, 'full_clean'):
             cleanup_wrapper.full_clean = False
         if not hasattr(cleanup_wrapper, 'branch'):
@@ -161,6 +167,7 @@ def process_patchset(data):
             # TODO: Handle clone error
             log_msg('[HgPusher] Clone error...')
         return
+
     def apply_patchset(dir, attempt):
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
@@ -356,6 +363,7 @@ def message_handler(message):
     Handles all incoming messages.
     """
     data = message['payload']
+
     if 'job_type' not in data:
         log_msg('[HgPusher] Erroneous message: %s' % (message))
         return
@@ -365,6 +373,7 @@ def message_handler(message):
         # check that all necessary data is present
         if not valid_job_message(data):
             # comment?
+            # XXX: This is a bit more important than this...
             print "Not valid job message %s" % data
             return
 
