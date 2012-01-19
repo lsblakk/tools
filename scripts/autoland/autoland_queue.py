@@ -199,14 +199,14 @@ def bz_search_handler():
             # Strange that it showed up if None
             continue
         elif not valid_autoland_tag(tag):
-            bz.notify_bug('Poorly formed whiteboard tag %s.' %(tag), bug_id)
-            log_msg('Poorly formed whiteboard tag %s. Comment posted.' % (tag))
+            bz.notify_bug('Invalid autoland tag "%s".' %(tag), bug_id)
+            log_msg('Invalid autoland tag "%s". Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
         branch = get_branch_from_tag(tag)
         if db.BranchQuery(Branch(name=branch)) == None:
-            bz.notify_bug('Bad autoland tag: branch %s does not exist.' % (branch), bug_id)
-            log_msg('Bad autoland tag: branch %s does not exist.' % (branch))
+            bz.notify_bug('Bad autoland tag: branch "%s" does not exist.' % (branch), bug_id)
+            log_msg('Bad autoland tag: branch "%s" does not exist.' % (branch))
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
 
