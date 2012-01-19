@@ -293,7 +293,8 @@ class TestHgPusher(unittest.TestCase):
             'branch_url' : 'try_url',
             'patchsetid' : 1,
             'try_run' : 1,
-            'bug_id' : 1 } })
+            'bug_id' : 1,
+            'patches' : [{ 'id' : 1 }] } })
         with mock.patch('hgpusher.clone_branch') as cb:
             with mock.patch('hgpusher.log_msg') as log:
                 with mock.patch('hgpusher.valid_job_message') as vjm:
