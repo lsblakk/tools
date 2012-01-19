@@ -3,7 +3,7 @@ try:
 except ImportError:
     import simplejson as json
 from sqlalchemy import MetaData, create_engine, func
-from sqlalchemy import outerjoin, or_, select, not_, and_
+from sqlalchemy import outerjoin, or_, select, not_, and_, asc
 from db_utils import PENDING, RUNNING, COMPLETE, CANCELLED, \
 INTERRUPTED, MISC
 from db_utils import NO_RESULT
@@ -341,6 +341,51 @@ class DBHandler(object):
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 author=next[3], retries=next[4], branch=next[5], try_run=next[6])
 
+    def CommentInsert(self, cmnt):
+        """
+        Adds a new Comment object into the comments table.
+        """
+        r = self.scheduler_db_meta.tables['comments']
+        if cmnt.id != None:
+            cmnt.id = None
+        q = r.insert(cmnt)
+        connection = self.engine.connect()
+        result = connection.execute(q)
+        return result.inserted_primary_key[0]
+
+    def CommentUpdate(self, cmnt):
+        """
+        Update by Comment.id passed in cmnt.
+        """
+        r = self.scheduler_db_meta.tables['comments']
+        if not patch_set.id:
+            return False
+        q = r.update(r.c.id == cmnt.id, cmnt)
+        connection = self.engine.connect()
+        connection.execute(q)
+        return True
+
+    def CommentDelete(self, cmnt):
+        """
+        Delete the corresponding comment.
+        """
+        r = self.scheduler_db_meta.tables['comments']
+        q = r.delete(r.c.id == cmnt.id)
+        connection = self.engine.connect()
+        connection.execute(q)
+
+    def CommentGetNext(self, limit=5):
+        """
+        Get the next set of comments to try posting.
+        Will limit the query to count number of comments.
+        """
+        r = self.scheduler_db_meta.tables['comments']
+        q = r.select().order_by(r.c.insertion_time).asc().limit(count)
+        connection = self.engine.connect()
+        result = connection.execute(q)
+        return result
+
+
 class Branch(object):
     def __init__(self, id=False, name=False, repo_url=False,
             threshold=False, status=False):
@@ -377,7 +422,7 @@ class PatchSet(object):
         self.bug_id = bug_id
         # Patches needs to be a string so that sqlalchemy can insert it
         if patches:
-	        self.patches = re.sub('\[|\]', '', str(patches))
+            self.patches = re.sub('\[|\]', '', str(patches))
         else:
             self.patches = False
         self.revision = str(revision) if revision != False else revision
@@ -419,6 +464,29 @@ class PatchSet(object):
         if self.retries != False: d['retries'] = self.retries
         if self.author != False: d['author'] = self.author
         return d
+
+class Comment(object):
+    def __init__(self, id=False, comment=False, bug=False, attempts=1, insertion_time=False):
+        self.id = id
+        self.comment = comment
+        self.bug = bug
+        self.attempts = attempts
+        insertion_time = insertion_time
+
+    def __repr__(self):
+        return str(self.toDict())
+
+    def iteritems(self):
+        return self.toDict().items()
+
+    def toDict(self):
+        d = {
+            'id' : self.id,
+            'comment' : self.comment,
+            'bug' : self.bug,
+            'attempts' : self.attempts,
+            'insertion_time' : self.insertion_time,
+        }
 
 class BuildRequest(object):
 
