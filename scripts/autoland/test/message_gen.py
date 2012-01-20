@@ -33,7 +33,9 @@ success_messages.append({'payload' : {
     'type' : 'success',
     'action' : 'try.push',
     'patchsetid' : 0,
-    'revision' : '1a2b3c4d' }})
+    'bug_id' : 12345,
+    'revision' : '1a2b3c4d',
+    'comment' : 'Try run has started...' }})
 # Successful try run
 success_messages.append({'payload' : {
     'type' : 'success',
@@ -43,7 +45,9 @@ success_messages.append({'payload' : {
 # Successful branch push
 success_messages.append({'payload': {
     'type' : 'branch.push',
-    'patchsetid' : 0 }})
+    'patchsetid' : 0,
+    'bug_id' : 12345,
+    'comment' : 'successful push to branch' }})
 
 failure_messages = []
 #FAILURES
@@ -51,7 +55,9 @@ failure_messages = []
 failure_messages.append({'payload' : {
     'type' : 'failure',
     'action' : 'try.push',
-    'patchsetid' : 1 }})
+    'patchsetid' : 1,
+    'bug_id' :  12345,
+    'comment' : 'failed to push to try' }})
 # Failed try run
 failure_messages.append({'payload' : {
     'type': 'error',
@@ -61,7 +67,9 @@ failure_messages.append({'payload' : {
 failure_messages.append({'payload' : {
     'type' : 'failure',
     'action' : 'patchset.apply',
-    'patchsetid' : 1}})
+    'patchsetid' : 1,
+    'bug_id' : 12345,
+    'comment' : 'failed to apply patchset' }})
 
 messages = [run_messages, success_messages, failure_messages]
 

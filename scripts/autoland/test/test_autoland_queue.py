@@ -6,8 +6,10 @@ sys.path.append('..')
 from autoland_queue import get_first_autoland_tag, valid_autoland_tag, \
         get_branch_from_tag, get_reviews, get_patchset, bz_search_handler, \
         message_handler, DBHandler, PatchSet, bz_utils, config, \
-        handle_patchset, main
+        handle_patchset, main, handle_comments, Comment
 from utils.db_handler import PatchSet
+
+TEST_DB = 'sqlite:///test/autoland.sqlite'
 
 class TestAutolandQueue(unittest.TestCase):
     def setUp(self):
@@ -213,7 +215,16 @@ class TestAutolandQueue(unittest.TestCase):
         DBHandler.PatchSetQuery = mock.Mock(return_value=[PatchSet(id=1),])
         DBHandler.PatchSetUpdate = mock.Mock(return_value=True)
         DBHandler.PatchSetDelete = mock.Mock(return_value=True)
+        orig.append(bz_utils.bz_util.notify_bug)
         bz_utils.bz_util.remove_whiteboard_tag = mock.Mock(return_value=True)
+        def nbr(c, i):
+            print >>sys.stderr, 'nbr called...'
+            return 0
+        bz_utils.bz_util.notify_bug = mock.Mock(side_effect=nbr)
+        for msg_set in messages:
+            for msg in msg_set:
+                message_handler(msg)
+        bz_utils.bz_util.notify_bug = mock.Mock(return_value=1)
         for msg_set in messages:
             for msg in msg_set:
                 message_handler(msg)
@@ -224,10 +235,10 @@ class TestAutolandQueue(unittest.TestCase):
         args.extend(DBHandler.PatchSetUpdate.call_args_list)
         for arg in map(lambda x: x[0][0], args):
             self.assertEqual(type(arg), PatchSet)
-        DBHandler.PatchSetInsert = orig[0]
-        DBHandler.PatchSetQuery = orig[1]
-        DBHandler.PatchSetUpdate = orig[2]
-        DBHandler.PatchSetDelete = orig[3]
+        DBHandler.PatchSetDelete = orig.pop()
+        DBHandler.PatchSetUpdate = orig.pop()
+        DBHandler.PatchSetQuery = orig.pop()
+        DBHandler.PatchSetInsert = orig.pop()
 
     def testLoop(self):
         import autoland_queue as aq
@@ -275,8 +286,19 @@ class TestAutolandQueue(unittest.TestCase):
         aq.mq_utils.mq_util.connect = orig.pop()
         aq.mq_utils.mq_util.get_message = orig.pop()
 
-    def testHolder(self):
-        pass
+    def testHandleComments(self):
+        nbr = [1, 0]
+        db = DBHandler(TEST_DB)
+        def nb_ret(c, id):
+            n = nbr.pop()
+            if n == 1:
+                self.assertEquals(db.CommentGetNext()[0].attempts, 2)
+            return n
+        db.CommentInsert(Comment(comment='test1', bug=12345))
+        with mock.patch('utils.bz_utils.bz_util.notify_bug') as nb:
+            nb.side_effect = nb_ret
+            handle_comments()
+
 
 if __name__ == '__main__':
     unittest.main()

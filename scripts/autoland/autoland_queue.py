@@ -278,7 +278,7 @@ def message_handler(message):
         }
     """
     msg = message['payload']
-    if not 'type' in msg: 
+    if not 'type' in msg:
         log_msg('Got bad mq message: %s' % (msg))
         return
     if msg['type'] == 'job':
@@ -312,7 +312,24 @@ def message_handler(message):
         patchset_id = db.PatchSetInsert(ps)
         print "PatchSetID: %s" % patchset_id
 
-    elif msg['type'] == 'success':
+    comment = msg.get('comment', None)
+    print >>sys.stderr, "Comment: %s" % (str(comment))
+    if comment:
+        # Handle the posting of a comment
+        bug_id = msg.get('bug_id', None)
+        if not bug_id:
+            log_msg('Have comment, but no bug_id')
+        else:
+            success = bz.notify_bug(comment, bug_id)
+            if not success:
+                print >>sys.stderr, "Comment not posted, add to db"
+                log_msg('Comment being added to comments table.', log.DEBUG)
+                cmnt = Comment(comment=comment, bug=bug_id)
+                db.CommentInsert(cmnt)
+            else:
+                log_msg('Comment successfully posted.', log.DEBUG)
+
+    if msg['type'] == 'success':
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
@@ -370,8 +387,6 @@ def message_handler(message):
 
 def handle_patchset(patchset):
     """
-    Threaded bugzilla search, also handles the jobs coming through the queue.
-
     Message sent to HgPusher is of the JSON structure:
         {
           'job_type' : 'patchset',
@@ -449,14 +464,16 @@ def handle_comments():
     comments = db.CommentGetNext(limit=5)   # Get up to 5 comments
     for comment in comments:
         # Note that notify_bug makes multiple retries
-        success = bz.notify_bug(comment.comment, commend.bug_id)
+        success = bz.notify_bug(comment.comment, comment.bug)
         if success:
             # Posted. Get rid of it.
-            db.CommentDelete(comment.id)
-        else if comment.attempts = 5:
+            db.CommentDelete(comment)
+        elif comment.attempts == 5:
             # 5 attempts have been made, drop this comment as it is
             # probably not going anywhere.
             # XXX: Perhaps this should be written to a file.
+            print >>sys.sterr,"Could not post comment to bug %s. Dropping comment: %s" \
+                    % (comment.bug_id, comment.comment)
             log_msg("Could not post comment to bug %s. Dropping comment: %s"
                     % (comment.bug_id, comment.comment))
             db.CommentDelete(comment.id)
@@ -492,8 +509,9 @@ def main():
                 handle_patchset(patchset)
 
             # take care of any comments that couldn't previously be posted
-            comment_handler()
+            handle_comments()
 
+            # get any incoming messages
             mq.get_message(config['mq_autoland_queue'],
                     message_handler, routing_key='db')
 
