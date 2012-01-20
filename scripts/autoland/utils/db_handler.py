@@ -358,7 +358,7 @@ class DBHandler(object):
         Update by Comment.id passed in cmnt.
         """
         r = self.scheduler_db_meta.tables['comments']
-        if not patch_set.id:
+        if not cmnt.id:
             return False
         q = r.update(r.c.id == cmnt.id, cmnt)
         connection = self.engine.connect()
@@ -380,9 +380,13 @@ class DBHandler(object):
         Will limit the query to count number of comments.
         """
         r = self.scheduler_db_meta.tables['comments']
-        q = r.select().order_by(r.c.insertion_time).asc().limit(count)
+        q = r.select().order_by(asc(r.c.attempts)).limit(limit)
         connection = self.engine.connect()
-        result = connection.execute(q)
+        tmp = connection.execute(q).fetchall()
+        result = []
+        for t in tmp:
+            result.append(Comment(id=t[0], comment=t[1], bug=t[2],
+                attempts=t[3], insertion_time=t[4]))
         return result
 
 
@@ -471,7 +475,7 @@ class Comment(object):
         self.comment = comment
         self.bug = bug
         self.attempts = attempts
-        insertion_time = insertion_time
+        self.insertion_time = insertion_time
 
     def __repr__(self):
         return str(self.toDict())
@@ -485,8 +489,9 @@ class Comment(object):
             'comment' : self.comment,
             'bug' : self.bug,
             'attempts' : self.attempts,
-            'insertion_time' : self.insertion_time,
         }
+        if self.insertion_time: d['insertion_time'] = self.insertion_time
+        return d
 
 class BuildRequest(object):
 

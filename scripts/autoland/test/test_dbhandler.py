@@ -2,7 +2,7 @@ import unittest
 import sys
 import datetime
 sys.path.append('..')
-from utils.db_handler import Branch, PatchSet, DBHandler
+from utils.db_handler import Branch, PatchSet, Comment, DBHandler
 
 TEST_DB = 'sqlite:///test/autoland.sqlite'
 
@@ -138,6 +138,16 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.PatchSetDelete(ps1)
         self.db.PatchSetDelete(ps2)
         self.db.PatchSetDelete(ps3)
+
+    def testCommentInsert(self):
+        c1 = Comment(comment='This is comment 1', bug=12345)
+        c1.id = self.db.CommentInsert(c1)
+        c1.attempts = 3
+        self.db.CommentUpdate(c1)
+        c_got = self.db.CommentGetNext()
+        self.assertEquals(c_got[0].comment, 'This is comment 1')
+        self.db.CommentDelete(c1)
+
 
 if __name__ == '__main__':
     unittest.main()
