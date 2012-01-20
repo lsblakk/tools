@@ -150,7 +150,7 @@ def process_patchset(data):
     comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
                (' => try' if try_run else ''), push_url )]
-    comment = commend_hdr
+    comment = comment_hdr
 
     class RETRY(Exception):
         pass
