@@ -25,6 +25,7 @@ CREATE TABLE `patch_sets` (
   `revision` text,
   `branch` text,
   `try_run` int(11) DEFAULT NULL,
+  `try_syntax` text,
   `creation_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `push_time` timestamp NULL DEFAULT NULL,
   `completion_time` timestamp NULL DEFAULT NULL

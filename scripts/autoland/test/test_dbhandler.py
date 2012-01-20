@@ -60,11 +60,11 @@ class TestAutolandDbHandler(unittest.TestCase):
 
     def testPatchSetGetNext(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
-            try_run=1, author='lsblakk@mozilla.com', retries=None)
+            try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
         ps2 = PatchSet(bug_id=4, patches='543352,91223', branch='mozilla-central',
-                try_run=0, author='lsblakk@mozilla.com', retries=None)
+                try_run=0, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
         ps3 = PatchSet(bug_id=12577, patches='534442', branch='try',
-            try_run=1, author='lsblakk@mozilla.com', retries=None)
+            try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
         b1 = Branch(name='mozilla-central', repo_url='https://hg.m.o/mozilla-central',
                 threshold=50, status='enabled')
         b2 = Branch(name='try', repo_url='https://hg.m.o/mozilla-central',
@@ -112,7 +112,7 @@ class TestAutolandDbHandler(unittest.TestCase):
 
     def testBranchRunningJobsQuery(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
-            try_run=1, push_time=datetime.datetime.utcnow(), author='lsblakk@mozilla.com')
+            try_run=1, try_syntax=None, push_time=datetime.datetime.utcnow(), author='lsblakk@mozilla.com')
         ps2 = PatchSet(bug_id=4, patches='543352,91223', branch='try',
                 try_run=0, author='lsblakk@mozilla.com')
         b = Branch(name='try', repo_url='https://hg.m.o/try',
