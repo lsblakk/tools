@@ -460,7 +460,7 @@ def main():
         if config.get('staging', False):
             for revision in runs_to_poll:
                 cmd = ['./run_scheduleDbPoller_staging']
-                cmd.extend(rev)
+                cmd.extend(revision)
                 subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         while time.time() < next:
