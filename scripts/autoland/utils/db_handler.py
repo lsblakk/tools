@@ -290,7 +290,7 @@ class DBHandler(object):
             return None
         next_q = \
             '''
-            SELECT DISTINCT patch_sets.id,bug_id,patches,author,retries,patch_sets.branch,try_run
+            SELECT DISTINCT patch_sets.id,bug_id,patches,author,retries,patch_sets.branch,try_run,try_syntax
             FROM patch_sets
             JOIN
             (
@@ -339,7 +339,7 @@ class DBHandler(object):
         if not next:
             return None
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
-                author=next[3], retries=next[4], branch=next[5], try_run=next[6])
+                author=next[3], retries=next[4], branch=next[5], try_run=next[6], try_syntax=next[7])
 
     def CommentInsert(self, cmnt):
         """
@@ -419,7 +419,7 @@ class Branch(object):
 
 class PatchSet(object):
     def __init__(self, id=False, bug_id=False, patches=False, revision=False,
-            branch=False, try_run=False, creation_time=False,
+            branch=False, try_run=False, try_syntax=False, creation_time=False,
             push_time=False, completion_time=False, author=False, retries=False):
         import datetime, re
         self.id = id
@@ -430,8 +430,9 @@ class PatchSet(object):
         else:
             self.patches = False
         self.revision = str(revision) if revision != False else revision
-        self.branch = str(branch) if branch != False else branch
+        self.branch = branch
         self.try_run = try_run
+        self.try_syntax = try_syntax
         self.creation_time = creation_time
         self.push_time = push_time
         self.completion_time = completion_time
@@ -462,6 +463,7 @@ class PatchSet(object):
         if self.revision != False: d['revision'] = self.revision
         if self.branch != False: d['branch'] = self.branch
         if self.try_run in [1,0]: d['try_run'] = self.try_run
+        if self.try_syntax != False: d['try_syntax'] = self.try_syntax
         if self.creation_time != False: d['creation_time'] = self.creation_time
         if self.push_time != False: d['push_time'] = self.push_time
         if self.completion_time != False: d['completion_time'] = self.completion_time

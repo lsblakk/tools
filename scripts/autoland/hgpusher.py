@@ -107,7 +107,7 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o -u none"):
+def import_patch(repo, patch, try_run, bug_id=None, try_syntax="-p win32 -b o -u none"):
     """
     Import patch file patch into repo.
     If it is a try run, replace commit message with "try:"
@@ -118,12 +118,11 @@ def import_patch(repo, patch, try_run, bug_id=None, custom_syntax="-p win32 -b o
     cmd = ['import', '-R']
     cmd.append(repo)
     if try_run:
-        # if there is no custom syntax, try defaults will get triggered
-        # get custom syntax from whiteboard tag
+        # if there is no try_syntax, try defaults will get triggered by the 'try: ' alone
         if config.get('staging', False):
-            cmd.extend(['-m "try: %s bug %s"' % (custom_syntax, bug_id)])
+            cmd.extend(['-m "try: %s bug %s"' % (try_syntax, bug_id)])
         else:
-            cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (custom_syntax, bug_id)])
+            cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (try_syntax, bug_id)])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
@@ -205,7 +204,7 @@ def process_patchset(data):
                     comment.append(msg)
                 raise RETRY
 
-            (patch_success,err) = import_patch(active_repo, patch_file, try_run, bug_id=data.get('bug_id', None))
+            (patch_success,err) = import_patch(active_repo, patch_file, try_run, bug_id=data.get('bug_id', None), try_syntax=data.get('try_syntax', None))
             if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
                 msg = 'Error applying patch %s to %s.\n%s' \

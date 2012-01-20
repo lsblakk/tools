@@ -54,7 +54,7 @@ def valid_autoland_tag(tag):
 
 def get_branch_from_tag(tag):
     """
-    Returns the branch name from the given autoland tag.
+    Returns a list of branch names from the given autoland tag.
     Given a tag that does not include '-branch',
     'try' will be returned.
     """
@@ -63,6 +63,12 @@ def get_branch_from_tag(tag):
     if s == None:
         return 'try'
     return s.groups()[0].lower()
+
+def get_try_syntax_from_tag(tag):
+    parts = tag.strip('[]').split(':')
+    for part in parts:
+        if part.startswith('-'):
+            return part
 
 def get_reviews(attachment):
     """
@@ -203,12 +209,22 @@ def bz_search_handler():
             log_msg('Invalid autoland tag "%s". Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
-        branch = get_branch_from_tag(tag)
-        if db.BranchQuery(Branch(name=branch)) == None:
-            bz.notify_bug('Bad autoland tag: branch "%s" does not exist.' % (branch), bug_id)
-            log_msg('Bad autoland tag: branch "%s" does not exist.' % (branch))
-            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            continue
+
+        # get the branches
+        branches = get_branch_from_tag(tag)
+        print "Getting branches: %s" % branches
+        if branches != 'try':
+            goto_next = False
+            for branch in branches:
+                # clean out any invalid branch names
+                if db.BranchQuery(Branch(name=branch)) == None:
+                    branches.remove(branch)
+                    log_msg('Branch %s does not exist.' % (branch))
+                    bz.notify_bug('Bad autoland tag: branch "%s" does not exist.' % (branch), bug_id)
+                    bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
+                    goto_next = True
+                    break
+            if goto_next: continue
 
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
         # get the explicitly listed patches
@@ -219,14 +235,14 @@ def bz_search_handler():
             patch_group.append(int(id.group()))
             print "PATCH GROUP %s" % patch_group
 
-        ps = PatchSet()
-        if branch == 'try':
-            ps.to_branch = 0
-        else:
-            ps.to_branch = 1
+        # get try syntax, if any
+        try_syntax = get_try_syntax_from_tag(tag)
 
+        ps = PatchSet()
+        # all runs will get a try_run by default for now
         ps.try_run = 1
-        ps.branch = branch
+        ps.try_syntax = try_syntax
+        ps.branch = branches
         ps.patches = patch_group
         ps.bug_id = bug_id
 
@@ -258,12 +274,8 @@ def message_handler(message):
             'bug_id' : 12345,
             'branch' : 'mozilla-central',
             'try_run' : 1,
-            'to_branch' : 0,
             'patches' : [ 53432, 64512 ],
         }
-        NOTE: Try run specifies whether or not this should be run on try,
-        whether to_branch is specified or not.
-              If try_run and to_branch are both 0, job won't be added to queue.
     For a SUCCESS/FAILURE:
         {
             'type' : 'error',
@@ -284,29 +296,28 @@ def message_handler(message):
     if msg['type'] == 'job':
         if 'try_run' not in msg:
             msg['try_run'] = 1
-        if 'to_branch' not in msg:
-            msg['to_branch'] = 0
         if 'bug_id' not in msg:
             log_msg('Bug ID not specified.')
             return
-        if 'branch' not in msg:
-            log_msg('Branch not specified.')
+        if 'branches' not in msg:
+            log_msg('Branches not specified.')
             return
         if 'patches' not in msg:
             log_msg('Patch list not specified')
             return
-        if msg['try_run'] == 0 and msg['to_branch'] == 0:
+        if msg['try_run'] == 0:
             # XXX: Nothing to do, don't add.
-            log_msg('ERROR: Neither try_run nor to_branch specified.')
+            log_msg('ERROR: try_run not specified.')
             return
 
-        if msg['branch'].lower() == 'try':
-            msg['branch'] = 'mozilla-central'
+        if msg['branches'].lower() == ['try']:
+            msg['branches'] = ['mozilla-central']
             msg['try_run'] = 1
 
         ps = PatchSet(bug_id=msg.get('bug_id'),
                       branch=msg.get('branch'),
                       try_run=msg.get('try_run'),
+                      try_syntax=msg.get('try_syntax'),
                       patches=msg.get('patches')
                      )
         patchset_id = db.PatchSetInsert(ps)
@@ -346,12 +357,12 @@ def message_handler(message):
         elif '.run' in msg['action']:
             # this is a result from schedulerDBpoller
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
-            # try run before push to branch?
+            # is this the try run before push to branch?
             if ps.try_run and msg['action'] == 'try.run' and ps.branch != 'try':
-                # remove try_run, when it comes up in the queue it will trigger push to branch
+                # remove try_run, when it comes up in the queue it will trigger push to branch(es)
                 ps.try_run = 0
                 ps.push_time = None
-                log_msg('Flagging patchset %s revision %s for push-to_branch.'
+                log_msg('Flagging patchset %s revision %s for push to branch(es).'
                         % (ps.id, ps.revision), log.DEBUG)
             else:
                 # close it!
@@ -395,6 +406,7 @@ def handle_patchset(patchset):
           'push_url' : 'ssh://hg.mozilla.org/try',
           'branch_url' : 'ssh://hg.mozilla.org/mozilla-central',
           'try_run' : 1,
+          'try_syntax': '-p linux -u mochitests',
           'patchsetid' : 42L,
           'patches' :
                 [
@@ -438,6 +450,7 @@ def handle_patchset(patchset):
         message = { 'job_type':'patchset','bug_id':patchset.bug_id,
                 'branch_url':branch.repo_url,
                 'branch':patchset.branch, 'try_run':patchset.try_run,
+                'try_syntax':patchset.try_syntax,
                 'patchsetid':patchset.id, 'patches':patches }
         if patchset.try_run == 1:
             tb = db.BranchQuery(Branch(name='try'))
@@ -500,7 +513,7 @@ def main():
             # landfill.
             for revision in runs_to_poll:
                 cmd = ['./run_scheduleDbPoller_staging']
-                cmd.extend(rev)
+                cmd.extend(revision)
                 subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
         while time.time() < next:

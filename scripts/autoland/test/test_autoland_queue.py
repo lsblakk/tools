@@ -3,10 +3,11 @@ import sys
 import json
 import mock
 sys.path.append('..')
-from autoland_queue import get_first_autoland_tag, valid_autoland_tag, \
-        get_branch_from_tag, get_reviews, get_patchset, bz_search_handler, \
-        message_handler, DBHandler, PatchSet, bz_utils, config, \
-        handle_patchset, main, handle_comments, Comment
+from autoland_queue import get_first_autoland_tag, valid_autoland_tag,\
+        get_branch_from_tag, get_reviews, get_patchset, bz_search_handler,\
+        message_handler, DBHandler, PatchSet, bz_utils, config,\
+        handle_patchset, get_try_syntax_from_tag, main,\
+        handle_comments, Comment
 from utils.db_handler import PatchSet
 
 TEST_DB = 'sqlite:///test/autoland.sqlite'
@@ -41,11 +42,17 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertTrue(valid_autoland_tag('[autoland:123,456,789]'))
 
     def testGetBranchFromTag(self):
-        self.assertEqual('try', get_branch_from_tag('[autoland]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland-try]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland:12345]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland-try:1,2,3]'))
-        self.assertEqual('moz-cen', get_branch_from_tag('[autoland-moz-cen]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland-try]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland:12345]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland-try:1,2,3]'))
+        self.assertEqual(['moz-cen'], get_branch_from_tag('[autoland-moz-cen]'))
+
+    def testGetTrySyntaxFromTag(self):
+        self.assertEqual('-p linux -u none', get_try_syntax_from_tag('[autoland:-p linux -u none]'))
+        self.assertEqual('-p all -t all', get_try_syntax_from_tag('[autoland-try:-p all -t all]'))
+        self.assertEqual(None, get_try_syntax_from_tag('[autoland:12345]'))
+        self.assertEqual('-p win32 -u mochitest-1,mochitest-2', get_try_syntax_from_tag('[autoland-try:1,2,3:-p win32 -u mochitest-1,mochitest-2]'))
 
     def testGetReviews(self):
         bug = open('test/bug1.json', 'r').read()
@@ -186,15 +193,15 @@ class TestAutolandQueue(unittest.TestCase):
                             bz_search_handler()
                             DBHandler.BranchQuery = old_bq
         jobs = []
-        jobs.append({'branch':'try', 'try_run':1,
+        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1,
+        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'branch', 'try_run':1,
+        jobs.append({'branch':['branch'], 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1,
+        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
             'patches':'2113, 2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':'try', 'try_run':1,
+        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
             'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         print jobs
         print db
