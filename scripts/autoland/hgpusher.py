@@ -182,8 +182,6 @@ def process_patchset(data):
         return
 
     def apply_patchset(dir, attempt):
-        global comment
-        comment = comment_hdr
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
             log_msg('[Branch %s] Could not clone from %s.' \
