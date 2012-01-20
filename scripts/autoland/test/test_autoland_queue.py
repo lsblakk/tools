@@ -42,11 +42,11 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertTrue(valid_autoland_tag('[autoland:123,456,789]'))
 
     def testGetBranchFromTag(self):
-        self.assertEqual(['try'], get_branch_from_tag('[autoland]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland-try]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland:12345]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland-try:1,2,3]'))
-        self.assertEqual(['moz-cen'], get_branch_from_tag('[autoland-moz-cen]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland-try]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland:12345]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland-try:1,2,3]'))
+        self.assertEqual('moz-cen', get_branch_from_tag('[autoland-moz-cen]'))
 
     def testGetTrySyntaxFromTag(self):
         self.assertEqual('-p linux -u none', get_try_syntax_from_tag('[autoland:-p linux -u none]'))
@@ -193,15 +193,15 @@ class TestAutolandQueue(unittest.TestCase):
                             bz_search_handler()
                             DBHandler.BranchQuery = old_bq
         jobs = []
-        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
+        jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
+        jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':['branch'], 'try_run':1, 'try_syntax': None,
+        jobs.append({'branch':'branch', 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
+        jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'2113, 2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        jobs.append({'branch':['try'], 'try_run':1, 'try_syntax': None,
+        jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         print jobs
         print db
