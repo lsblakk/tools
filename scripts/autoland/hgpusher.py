@@ -150,7 +150,7 @@ def process_patchset(data):
     comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
                (' => try' if try_run else ''), push_url )]
-    comment = commend_hdr
+    comment = comment_hdr
 
     class RETRY(Exception):
         pass
@@ -182,8 +182,6 @@ def process_patchset(data):
         return
 
     def apply_patchset(dir, attempt):
-        global comment
-        comment = comment_hdr
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
             log_msg('[Branch %s] Could not clone from %s.' \
