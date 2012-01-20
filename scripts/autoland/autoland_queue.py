@@ -485,7 +485,7 @@ def handle_comments():
             # 5 attempts have been made, drop this comment as it is
             # probably not going anywhere.
             # XXX: Perhaps this should be written to a file.
-            print >>sys.sterr,"Could not post comment to bug %s. Dropping comment: %s" \
+            print >>sys.stderr,"Could not post comment to bug %s. Dropping comment: %s" \
                     % (comment.bug_id, comment.comment)
             log_msg("Could not post comment to bug %s. Dropping comment: %s"
                     % (comment.bug_id, comment.comment))
@@ -514,7 +514,11 @@ def main():
             for revision in runs_to_poll:
                 cmd = ['./run_scheduleDbPoller_staging']
                 cmd.extend(revision)
-                subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                (out, err) = proc.communicate()
+                print proc.returncode
+                print out
+                print err
 
         while time.time() < next:
             patchset = db.PatchSetGetNext()

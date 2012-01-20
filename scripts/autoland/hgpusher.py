@@ -139,6 +139,13 @@ def process_patchset(data):
     out by process_patchset.
     There should always be a comment posted.
     """
+    active_repo = os.path.join('active/%s' % (data['branch']))
+    try_run = (data['try_run'] == True)
+    if 'push_url' in data:
+        push_url = data['push_url']
+    else:
+        push_url = data['branch_url']
+    push_url = push_url.replace('https', 'ssh', 1)
 
     comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
@@ -213,14 +220,6 @@ def process_patchset(data):
                     comment.append(msg)
                 raise RETRY
         return True
-
-    active_repo = os.path.join('active/%s' % (data['branch']))
-    try_run = (data['try_run'] == True)
-    if 'push_url' in data:
-        push_url = data['push_url']
-    else:
-        push_url = data['branch_url']
-    push_url = push_url.replace('https', 'ssh', 1)
 
     if not has_sufficient_permissions(data['patches'],
             data['branch'] if not try_run else 'try'):

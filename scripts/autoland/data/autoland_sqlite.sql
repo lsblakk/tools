@@ -40,6 +40,6 @@ CREATE TABLE `comments` (
     `id` INTEGER PRIMARY KEY,
     `comment` text,
     `bug` int(11) DEFAULT NULL,
-    `attempts` int(11) DEFAULT 1,
+    `attempts` int(11),
     `insertion_time` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
