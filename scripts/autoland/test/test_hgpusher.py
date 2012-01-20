@@ -309,9 +309,9 @@ class TestHgPusher(unittest.TestCase):
                     cb.return_value = '7124a8c22d'
                     with mock.patch('hgpusher.process_patchset') as pp:
                         with mock.patch('hgpusher.mq.send_message') as sm:
-                            pp.return_value = cb.return_value
+                            pp.return_value = (cb.return_value, 'This is a comment')
                             # XXX: Need to check that this case is covered.
-                            pp.return_value = 'aaaaaa'
+                            pp.return_value = ('aaaaaa', 'comment')
                             sm.return_value = True
                             sm.assert_called_once()
                             message_handler(msg[0])

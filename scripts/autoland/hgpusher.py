@@ -136,8 +136,15 @@ def process_patchset(data):
     will be pushed to branch if the credentials are correct.
 
     process_patchset returns a 2-tuple, (return_code, comment).
-    Note that there should _always_ be a comment.
+    Comment will be none in the case of an error, as the message is sent
+    out by process_patchset.
+    There should always be a comment posted.
     """
+
+    comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
+            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
+               (' => try' if try_run else ''), push_url )]
+    comment = commend_hdr
 
     class RETRY(Exception):
         pass
@@ -169,6 +176,8 @@ def process_patchset(data):
         return
 
     def apply_patchset(dir, attempt):
+        global comment
+        comment = comment_hdr
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
             log_msg('[Branch %s] Could not clone from %s.' \
@@ -199,7 +208,6 @@ def process_patchset(data):
             (patch_success,err) = import_patch(active_repo, patch_file, try_run, bug_id=data.get('bug_id', None))
             if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
-                # append comment to comment
                 msg = 'Error applying patch %s to %s.\n%s' \
                         % (patch['id'], data['branch'], err)
                 if msg not in comment:
@@ -207,23 +215,13 @@ def process_patchset(data):
                 raise RETRY
         return True
 
-    if not data:
-        log_msg("Empty message to process_patchset")
-        return False
     active_repo = os.path.join('active/%s' % (data['branch']))
     try_run = (data['try_run'] == True)
-    if not 'branch_url' in data:
-        log_msg("Bad message, no branch_url")
-        return False
     if 'push_url' in data:
         push_url = data['push_url']
     else:
         push_url = data['branch_url']
     push_url = push_url.replace('https', 'ssh', 1)
-
-    comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
-            % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
-               (' => try' if try_run else ''), push_url )]
 
     if not has_sufficient_permissions(data['patches'],
             data['branch'] if not try_run else 'try'):
@@ -231,9 +229,8 @@ def process_patchset(data):
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
         comment.append(msg)
-        log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-        bz.notify_bug('\n'.join(comment), data['bug_id'])
-        return False
+        log_msg('%s should go to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        return (False, '\n'.join(comment))
 
     try:
         retry(apply_and_push, cleanup=cleanup_wrapper,
@@ -248,12 +245,8 @@ def process_patchset(data):
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
         log_msg('commenting "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-        bz.notify_bug('\n'.join(comment), data['bug_id'])
         # TODO need to remove whiteboard tag here or in autoland_queue?
-        mq_msg = { 'type' : 'error', 'action' : 'patchset.apply',
-                   'patchsetid' : data['patchsetid'] }
-        mq.send_message(mq_msg, 'db')
-        return False
+        return (False, '\n'.join(comment))
 
     if try_run:
         # comment to bug with link to the try run on self-serve
@@ -261,18 +254,20 @@ def process_patchset(data):
                 % (revision, os.path.join(config['self_serve_url'],
                                           'try/rev/%s' % (revision))) )
     else:
-        comment.append('Successfully applied and pushed patchset.\n\tRevision: %s\n\tBranch: %s\n\tPatches: %s'
+        comment.append('Successfully applied and pushed patchset.\n\tRevision: %s'
                 % (revision, data['branch'],
                    ', '.join(map(lambda x: x['id'], data['patches']))))
         comment.append('To monitor the commit, see: %s'
                 % (os.path.join(config['self_serve_url'],
                    '%s/rev/%s' % (data['branch'], revision))))
-    log_msg('%s to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-    if not comment:
+
+    log_msg('%s should go to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+    if length(comment) == 1:
+        # The only thing in our comment is the header.
         log_msg("Exiting without a comment to be posted.")
     else:
-        bz.notify_bug('\n'.join(comment), data['bug_id'])
-    return revision
+        comment = '\n'.join(comment)
+    return (revision, comment)
 
 def clone_branch(branch, branch_url):
     """
@@ -392,9 +387,11 @@ def message_handler(message):
             # TODO: Handle clone error
             log_msg('[HgPusher] Clone error...')
             msg = { 'type' : 'error', 'action' : 'repo.clone',
-                    'patchsetid' : data['patchsetid'] }
+                    'patchsetid' : data['patchsetid'],
+                    'bug_id' : data['bug_id'],
+                    'comment' : 'Autoland Error:\n\tCould note clone repository %s' % (data['branch']) }
             return
-        patch_revision = process_patchset(data)
+        (patch_revision, comment) = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
             # comment already posted in process_patchset
             log_msg('[Patchset] Successfully applied patchset %s'
@@ -402,12 +399,15 @@ def message_handler(message):
             msg = { 'type'  : 'success',
                     'action': 'try.push' if data['try_run'] else 'branch.push',
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
-                    'revision': patch_revision }
+                    'revision' : patch_revision,
+                    'comment' : comment }
             mq.send_message(msg, 'db')
-
         else:
-            # TODO - send message to autolanddb here?
-            # comment already posted in process_patchset -- is it? how do we know?
+            msg = { 'type' : 'error', 'action' : 'patchset.apply',
+                    'patchsetid' : data['patchsetid'],
+                    'bug_id' : data['bug_id'],
+                    'comment' : comment }
+            mq.send_message(msg, 'db')
             pass
 
 def main():
