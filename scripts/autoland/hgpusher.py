@@ -66,7 +66,7 @@ def has_valid_header(filename):
             if not re.match('# User [\w\s]+ <[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$', line):
                 print 'Bad header.'
                 return False
-        elif re.match('^bug (\d+|\w+)[:\s]', line, re.I):   # comment line
+        elif re.match('^bug\s?(\d+|\w+)[:\s]', line, re.I):   # comment line
             return True
         elif re.match('^$', line):
             # done with header
@@ -147,6 +147,8 @@ def process_patchset(data):
         push_url = data['branch_url']
     push_url = push_url.replace('https', 'ssh', 1)
 
+    # The comment header. The comment is constructed incrementally at any possible
+    # failure/success point.
     comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
                (' => try' if try_run else ''), push_url )]
@@ -158,6 +160,8 @@ def process_patchset(data):
     def cleanup_wrapper():
         # use an attribute full_clean in order to keep track of
         # whether or not a full cleanup is required.
+        # This is done since cleanup_wrapper's scope doesn't let us
+        # access process_patchset globals, given the way it is used.
         if not hasattr(cleanup_wrapper, 'full_clean'):
             cleanup_wrapper.full_clean = False
         if not hasattr(cleanup_wrapper, 'branch'):
@@ -225,7 +229,7 @@ def process_patchset(data):
                 % ((data['branch'] if not try_run else 'try'))
         log_msg(msg)
         comment.append(msg)
-        log_msg('%s should go to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        log_msg('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         return (False, '\n'.join(comment))
 
     try:
@@ -241,9 +245,12 @@ def process_patchset(data):
         msg = 'Could not apply and push patchset:\n%s' % (error)
         log_msg('[PatchSet] %s' % (msg))
         comment.append(msg)
-        log_msg('commenting "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        log_msg('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
         # TODO need to remove whiteboard tag here or in autoland_queue?
         return (False, '\n'.join(comment))
+
+    # Successful push. Clear any errors that might be in the comments
+    comment = comment_hdr
 
     if try_run:
         # comment to bug with link to the try run on self-serve
@@ -400,6 +407,7 @@ def message_handler(message):
                     'comment' : comment }
             mq.send_message(msg, 'db')
         else:
+            # error came when applying a ptch.
             msg = { 'type' : 'error', 'action' : 'patchset.apply',
                     'patchsetid' : data['patchsetid'],
                     'bug_id' : data['bug_id'],
