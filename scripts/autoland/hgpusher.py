@@ -266,12 +266,7 @@ def process_patchset(data):
                    '%s/rev/%s' % (data['branch'], revision))))
 
     log_msg('%s should go to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-    if length(comment) == 1:
-        # The only thing in our comment is the header.
-        log_msg("Exiting without a comment to be posted.")
-    else:
-        comment = '\n'.join(comment)
-    return (revision, comment)
+    return (revision, '\n'.join(comment))
 
 def clone_branch(branch, branch_url):
     """
