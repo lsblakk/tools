@@ -233,7 +233,8 @@ def process_patchset(data):
                 retry_exceptions=(RETRY,),
                 args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
-                            ssh_key=config['hg_ssh_key']))
+                            ssh_key=config['hg_ssh_key'],
+                            force=try_run))     # Force only on try pushes
         revision = get_revision(active_repo)
         shutil.rmtree(active_repo)
     except (HgUtilError, RETRY) as error:
