@@ -366,7 +366,7 @@ def message_handler(message):
                         % (ps.id, ps.revision), log.DEBUG)
             else:
                 # close it!
-                if config.get('staging', False):
+                if config.get('staging', False) and ps.revision in runs_to_poll:
                     runs_to_poll.remove(ps.revision)
                 bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
                 db.PatchSetDelete(ps)
@@ -389,7 +389,7 @@ def message_handler(message):
         if ps:
             # remove it from the queue, error should have been comented to bug
             # (shall we confirm that here with bz_utils.has_coment?)
-            if config.get('staging', False):
+            if config.get('staging', False) and ps.revision in runs_to_poll:
                 runs_to_poll.remove(ps.revision)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
