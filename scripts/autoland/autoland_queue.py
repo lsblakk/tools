@@ -521,6 +521,8 @@ def main():
             mq.get_message(config['mq_autoland_queue'],
                     message_handler, routing_key='db')
 
+            time.sleep(5)
+
 
 if __name__ == '__main__':
     main()
