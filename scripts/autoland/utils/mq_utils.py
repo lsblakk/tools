@@ -151,7 +151,6 @@ class mq_util():
                     self.connect(block=block)
                     if not block:
                         return None
-                log.info('[RabbitMQ] Get message from %s.' % (routing_key))
                 self.channel.basic_qos(prefetch_count=1)
                 # getting errors with callback parameter to basic_get,
                 # manually call the callback
