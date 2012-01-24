@@ -223,7 +223,7 @@ def process_patchset(data):
                 # This is a try run, since we haven't exited
                 # so author header not needed. Place in the author information
                 # from bugzilla as committer.
-                    user='%s <%s>' % (patch['author']['name'], patch['author']['email'])
+                user='%s <%s>' % (patch['author']['name'], patch['author']['email'])
 
             (patch_success,err) = import_patch(active_repo, patch_file,
                     try_run, bug_id=data.get('bug_id', None),
