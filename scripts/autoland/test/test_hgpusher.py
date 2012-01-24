@@ -248,7 +248,7 @@ class TestHgPusher(unittest.TestCase):
         gen_headers()
         valid_patches = []
         bad_patches = []
-        sleep(10)
+        sleep(1)
         for rs,ds,fs in os.walk('.'):
             for f in fs:
                 if re.match('valid.+\.patch$', f):

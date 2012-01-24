@@ -670,9 +670,9 @@ if __name__ == '__main__':
         poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
                                     user=options.user, password=options.password, dry_run=options.dry_run, 
                                     verbose=options.verbose)
-        result, posted_to_bug = poller.PollByRevision(options.revision, options.flag_check)
+        result = poller.PollByRevision(options.revision, options.flag_check)
         if options.verbose:
-            log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, posted_to_bug))
+            log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, result['posted_to_bug']))
     else:
         if options.starttime > time():
             log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, time.localtime()))

@@ -250,16 +250,6 @@ class TestAutolandQueue(unittest.TestCase):
     def testLoop(self):
         import autoland_queue as aq
 
-        def runMain():
-            try:
-                aq.main()
-            #except done:   # doesn't work for some reason
-            except Exception, e:
-                if e != done:
-                    raise
-            else:
-                self.assertEquals("time.sleep didn't run", None)
-
         orig = []
         orig.append(aq.mq_utils.mq_util.get_message)
         orig.append(aq.mq_utils.mq_util.connect)
@@ -268,23 +258,26 @@ class TestAutolandQueue(unittest.TestCase):
         orig.append(DBHandler.PatchSetGetNext)
         orig.append(aq.handle_patchset)
         orig.append(aq.time.sleep)
+        orig.append(aq.handle_comments)
 
         done = Exception("Done")
 
-        aq.time.sleep = mock.Mock(side_effect = done)
-        aq.handle_patchset = mock.Mock(return_value = True)
-        DBHandler.PatchSetGetNext = mock.Mock(return_value = True)
-        aq.subprocess.Popen = mock.Mock(return_value = True)
-        aq.bz_search_handler = mock.Mock(return_value = True)
-        aq.mq_utils.mq_util.connect = mock.Mock(return_value = True)
-        aq.mq_utils.mq_util.get_message = mock.Mock(return_value = True)
+        aq.time.sleep = mock.Mock(side_effect=done)
+        aq.handle_patchset = mock.Mock(return_value=True)
+        DBHandler.PatchSetGetNext = mock.Mock(return_value=True)
+        aq.subprocess.Popen = mock.Mock(return_value=True)
+        aq.bz_search_handler = mock.Mock(return_value=True)
+        aq.mq_utils.mq_util.connect = mock.Mock(return_value=True)
+        aq.mq_utils.mq_util.get_message = mock.Mock(return_value=True)
+        aq.handle_comments = mock.Mock(return_value=True)
 
-        runMain()
+        self.assertRaises(Exception, aq.main)
 
         DBHandler.PatchSetGetNext.return_value = None
-        runMain()
+        self.assertRaises(Exception, aq.main)
         self.assertEquals(aq.handle_patchset.call_count, 1)
 
+        aq.handle_comments = orig.pop()
         aq.time.sleep = orig.pop()
         aq.handle_patchset = orig.pop()
         DBHandler.PatchSetGetNext = orig.pop()

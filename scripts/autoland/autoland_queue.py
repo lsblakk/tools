@@ -26,7 +26,6 @@ db = DBHandler(config['databases_autoland_db_url'])
 
 if config.get('staging', False):
     import subprocess
-    runs_to_poll = []
 
 def log_msg(message, log_to=log.error):
     """
@@ -152,13 +151,13 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
                 if not reviews: # No reviews, fail
                     # comment that no reviews on patch x
                     if review_comment:
-                        bz.notify_bug('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
+                        post_comment('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
                     return None
                 for review in reviews:
                     if review['result'] != '+': # Bad review, fail
                         # comment bad review
                         if review_comment:
-                            bz.notify_bug('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
+                            post_comment('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
                         return None
                     review['reviewer'] = bz.get_user_info(review['reviewer'])
                 patch['reviews'] = reviews
@@ -170,19 +169,10 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
         # comment that all requested patches didn't get applied
         # XXX TODO - should we still push what patches _did_ get applied?
         log_msg('Autoland failure. Publishing comment...', log.DEBUG)
-        c = bz.notify_bug(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
-        if c:
-            log_msg('Comment published to bug %s' % (bug_id), log.DEBUG)
-        else:
-            log_msg('ERROR: Could not comment to bug %s' % (bug_id))
+        post_comment(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
         return None
     if len(patchset) == 0:
-        c = bz.notify_bug('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
-        if c:
-            log_msg('Comment published to bug %s' % (bug_id), log.DEBUG)
-        else:
-            log_msg('ERROR: Could not comment to bug %s' % (bug_id))
-        return None
+        post_comment('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
     return patchset
 
 def bz_search_handler():
@@ -205,7 +195,7 @@ def bz_search_handler():
             # Strange that it showed up if None
             continue
         elif not valid_autoland_tag(tag):
-            bz.notify_bug('Invalid autoland tag "%s".' %(tag), bug_id)
+            post_comment('Invalid autoland tag "%s".' %(tag), bug_id)
             log_msg('Invalid autoland tag "%s". Comment posted.' % (tag))
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             continue
@@ -252,7 +242,6 @@ def bz_search_handler():
             # do not have all the necessary permissions, let the job
             # sit in Bugzilla so it can be picked up again later.
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            print "No patches listed right now, will be monitoring this bug."
             continue
         else:
             ps.author = patches[0]['author']['email']
@@ -331,14 +320,7 @@ def message_handler(message):
         if not bug_id:
             log_msg('Have comment, but no bug_id')
         else:
-            success = bz.notify_bug(comment, bug_id)
-            if not success:
-                print >>sys.stderr, "Comment not posted, add to db"
-                log_msg('Comment being added to comments table.', log.DEBUG)
-                cmnt = Comment(comment=comment, bug=bug_id)
-                db.CommentInsert(cmnt)
-            else:
-                log_msg('Comment successfully posted.', log.DEBUG)
+            post_comment(comment, bug_id)
 
     if msg['type'] == 'success':
         if msg['action'] == 'try.push':
@@ -350,9 +332,6 @@ def message_handler(message):
             db.PatchSetUpdate(ps)
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
-
-            if config.get('staging', False):
-                runs_to_poll.append(msg['revision'])
 
         elif '.run' in msg['action']:
             # this is a result from schedulerDBpoller
@@ -366,8 +345,6 @@ def message_handler(message):
                         % (ps.id, ps.revision), log.DEBUG)
             else:
                 # close it!
-                if config.get('staging', False) and ps.revision in runs_to_poll:
-                    runs_to_poll.remove(ps.revision)
                 bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
@@ -389,8 +366,6 @@ def message_handler(message):
         if ps:
             # remove it from the queue, error should have been comented to bug
             # (shall we confirm that here with bz_utils.has_coment?)
-            if config.get('staging', False) and ps.revision in runs_to_poll:
-                runs_to_poll.remove(ps.revision)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'
@@ -486,13 +461,27 @@ def handle_comments():
             # probably not going anywhere.
             # XXX: Perhaps this should be written to a file.
             print >>sys.stderr,"Could not post comment to bug %s. Dropping comment: %s" \
-                    % (comment.bug_id, comment.comment)
+                    % (comment.bug, comment.comment)
             log_msg("Could not post comment to bug %s. Dropping comment: %s"
-                    % (comment.bug_id, comment.comment))
+                    % (comment.bug, comment.comment))
             db.CommentDelete(comment.id)
         else:
             comment.attempts += 1
             db.CommentUpdate(comment)
+
+def post_comment(comment, bug_id):
+    """
+    Post a comment that isn't in the comments db.
+    Add it if posting fails.
+    """
+    success = bz.notify_bug(comment, bug_id)
+    if success:
+        log_msg('Posted comment: "%s" to %s' % (comment, bug_id))
+    else:
+        log_msg('Could not post comment to bug %s. Adding to comments table'
+                % (bug_id))
+        cmnt = Comment(comment=comment, bug=bug_id)
+        db.CommentInsert(cmnt)
 
 def main():
     mq.set_host(config['mq_host'])
@@ -511,8 +500,8 @@ def main():
             # if this is a staging instance, launch schedulerDbPoller in order
             # to poll by revision. This will allow for posting back to
             # landfill.
-            for revision in runs_to_poll:
-                cmd = ['./run_scheduleDbPoller_staging']
+            for revision in db.PatchSetGetRevs():
+                cmd = ['python', 'run_scheduleDbPoller_staging']
                 cmd.extend(revision)
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 (out, err) = proc.communicate()
@@ -531,6 +520,8 @@ def main():
             # get any incoming messages
             mq.get_message(config['mq_autoland_queue'],
                     message_handler, routing_key='db')
+
+            time.sleep(5)
 
 
 if __name__ == '__main__':

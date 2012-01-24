@@ -108,7 +108,8 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run, bug_id=None, try_syntax="-p win32 -b o -u none"):
+def import_patch(repo, patch, try_run, bug_id=None, user=None,
+        try_syntax="-p win32 -b o -u none"):
     """
     Import patch file patch into repo.
     If it is a try run, replace commit message with "try:"
@@ -118,6 +119,8 @@ def import_patch(repo, patch, try_run, bug_id=None, try_syntax="-p win32 -b o -u
     """
     cmd = ['import', '-R']
     cmd.append(repo)
+    if user:
+        cmd.append('-u %s' % (user))
     if try_run:
         # if there is no try_syntax, try defaults will get triggered by the 'try: ' alone
         if config.get('staging', False):
@@ -205,7 +208,8 @@ def process_patchset(data):
                 if msg not in comment:
                     comment.append(msg)
                 raise RETRY
-            if not try_run and not has_valid_header(patch_file):
+            valid_header = has_valid_header(patch_file)
+            if not try_run and not valid_header:
                 log_msg('[Patch %s] Invalid header.' % (patch['id']))
                 # append comment to comment
                 msg = 'Patch %s does not have a properly formatted header.' \
@@ -214,7 +218,16 @@ def process_patchset(data):
                     comment.append(msg)
                 raise RETRY
 
-            (patch_success,err) = import_patch(active_repo, patch_file, try_run, bug_id=data.get('bug_id', None), try_syntax=data.get('try_syntax', None))
+            user = None
+            if not valid_header:
+                # This is a try run, since we haven't exited
+                # so author header not needed. Place in the author information
+                # from bugzilla as committer.
+                user='%s <%s>' % (patch['author']['name'], patch['author']['email'])
+
+            (patch_success,err) = import_patch(active_repo, patch_file,
+                    try_run, bug_id=data.get('bug_id', None),
+                    user=user, try_syntax=data.get('try_syntax', None))
             if patch_success != 0:
                 log_msg('[Patch %s] %s' % (patch['id'], err))
                 msg = 'Error applying patch %s to %s.\n%s' \
@@ -266,7 +279,7 @@ def process_patchset(data):
                 % (os.path.join(config['self_serve_url'],
                    '%s/rev/%s' % (data['branch'], revision))))
 
-    log_msg('%s should go to %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+    log_msg('Comment %s to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
     return (revision, '\n'.join(comment))
 
 def clone_branch(branch, branch_url):
@@ -390,6 +403,7 @@ def message_handler(message):
                     'patchsetid' : data['patchsetid'],
                     'bug_id' : data['bug_id'],
                     'comment' : 'Autoland Error:\n\tCould note clone repository %s' % (data['branch']) }
+            mq.send_message(msg, 'db')
             return
         (patch_revision, comment) = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
@@ -409,12 +423,6 @@ def message_handler(message):
                     'bug_id' : data['bug_id'],
                     'comment' : comment }
             mq.send_message(msg, 'db')
-            pass
-
-def clone_all_branches(dir='.'):
-    """
-    Clone all enabled branches into the specified directory.
-    """
 
 def main():
     # set up logging
