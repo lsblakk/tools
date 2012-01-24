@@ -424,11 +424,6 @@ def message_handler(message):
                     'comment' : comment }
             mq.send_message(msg, 'db')
 
-def clone_all_branches(dir='.'):
-    """
-    Clone all enabled branches into the specified directory.
-    """
-
 def main():
     # set up logging
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
