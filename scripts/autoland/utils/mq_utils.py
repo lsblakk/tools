@@ -129,8 +129,8 @@ class mq_util():
             if not '_meta' in message:
                 message['_meta'] = {}
             message['_meta']['received_time'] = str(datetime.datetime.utcnow())
-            callback(message)
             ch.basic_ack(delivery_tag = method.delivery_tag)
+            callback(message)
         callback_wrapper.callback = callback
         return callback_wrapper
 
