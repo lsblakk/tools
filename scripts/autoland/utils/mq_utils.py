@@ -129,8 +129,8 @@ class mq_util():
             if not '_meta' in message:
                 message['_meta'] = {}
             message['_meta']['received_time'] = str(datetime.datetime.utcnow())
-            callback(message)
             ch.basic_ack(delivery_tag = method.delivery_tag)
+            callback(message)
         callback_wrapper.callback = callback
         return callback_wrapper
 
@@ -151,7 +151,6 @@ class mq_util():
                     self.connect(block=block)
                     if not block:
                         return None
-                log.info('[RabbitMQ] Get message from %s.' % (routing_key))
                 self.channel.basic_qos(prefetch_count=1)
                 # getting errors with callback parameter to basic_get,
                 # manually call the callback

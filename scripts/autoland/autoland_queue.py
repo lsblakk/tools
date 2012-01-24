@@ -217,14 +217,13 @@ def bz_search_handler():
             goto_next = False
             for branch in branches:
                 # clean out any invalid branch names
+                # job will still land to any correct branches
                 if db.BranchQuery(Branch(name=branch)) == None:
                     branches.remove(branch)
                     log_msg('Branch %s does not exist.' % (branch))
-                    bz.notify_bug('Bad autoland tag: branch "%s" does not exist.' % (branch), bug_id)
-                    bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-                    goto_next = True
-                    break
-            if goto_next: continue
+        # If there are no correct branch names, go to next bug
+        if not branches:
+            continue
 
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
         # get the explicitly listed patches
@@ -252,6 +251,7 @@ def bz_search_handler():
         if patches == None:
             # do not have all the necessary permissions, let the job
             # sit in Bugzilla so it can be picked up again later.
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             print "No patches listed right now, will be monitoring this bug."
             continue
         else:

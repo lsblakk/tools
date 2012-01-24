@@ -5,6 +5,7 @@ import logging as log
 import logging.handlers
 import shutil
 from tempfile import mkdtemp
+from mercurial import error, lock   # For lockfile on working dirs
 
 from util.hg import mercurial, apply_and_push, cleanOutgoingRevs, out, \
                     remove_path, HgUtilError, update, get_revision
@@ -410,6 +411,11 @@ def message_handler(message):
             mq.send_message(msg, 'db')
             pass
 
+def clone_all_branches(dir='.'):
+    """
+    Clone all enabled branches into the specified directory.
+    """
+
 def main():
     # set up logging
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
@@ -421,21 +427,38 @@ def main():
     try:
         if not os.access(config['work_dir'], os.F_OK):
             os.makedirs(config['work_dir'])
-        print "Creating working directory"
-        work_dir = mkdtemp(prefix='hgpusher.', dir=config['work_dir'])
-        print "Working directory: %s" % (work_dir)
-        os.chdir(work_dir)
+        os.chdir(config['work_dir'])
+
+        # look for available (not locked) hgpusher.# in the working directoy
+        i = 0
+        while True:
+            hgp_lock = None
+            work_dir = 'hgpusher.%d' % (i)
+            if not os.access(work_dir, os.F_OK):
+                os.makedirs(work_dir)
+            try:
+                print "Trying dir: %s" % (work_dir)
+                hgp_lock = lock.lock(os.path.join(work_dir, '.lock'), timeout=1)
+                print "Working directory: %s" % (work_dir)
+                os.chdir(work_dir)
+                # get rid of active dir
+                if os.access('active/', os.F_OK):
+                    shutil.rmtree('active/')
+                os.makedirs('active/')
+
+                mq.listen(queue=config['mq_hgp_queue'], callback=message_handler,
+                        routing_key='hgpusher')
+            except error.LockHeld:
+                # couldn't take the lock, check next workdir
+                i += 1
+                continue
+            else:
+                hgp_lock.release()
+                print "Released working directory"
+                break
     except os.error, e:
         log_msg('Error switching to working directory: %s' % e)
         exit(1)
-
-    try:
-        mq.listen(queue=config['mq_hgp_queue'], callback=message_handler,
-                routing_key='hgpusher')
-    except:
-        os.chdir(base_dir)
-        shutil.rmtree(work_dir)
-        raise
 
 if __name__ == '__main__':
     os.chdir(base_dir)
