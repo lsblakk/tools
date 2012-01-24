@@ -251,6 +251,7 @@ def bz_search_handler():
         if patches == None:
             # do not have all the necessary permissions, let the job
             # sit in Bugzilla so it can be picked up again later.
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             print "No patches listed right now, will be monitoring this bug."
             continue
         else:
