@@ -125,9 +125,14 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.PatchSetInsert(ps2)
         self.db.PatchSetInsert(ps3)
         revs = self.db.PatchSetGetRevs()
-        print >>sys.stderr, revs
+        print revs
         for r in ['ps1', 'ps2', 'ps3']:
             self.assertTrue(r in revs)
+        self.db.PatchSetDelete(ps1)
+        self.db.PatchSetDelete(ps2)
+        self.db.PatchSetDelete(ps3)
+        revs = self.db.PatchSetGetRevs()
+        self.assertEqual([], revs)
 
     def testBranchRunningJobsQuery(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
