@@ -403,6 +403,7 @@ def message_handler(message):
                     'patchsetid' : data['patchsetid'],
                     'bug_id' : data['bug_id'],
                     'comment' : 'Autoland Error:\n\tCould note clone repository %s' % (data['branch']) }
+            mq.send_message(msg, 'db')
             return
         (patch_revision, comment) = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
@@ -422,7 +423,6 @@ def message_handler(message):
                     'bug_id' : data['bug_id'],
                     'comment' : comment }
             mq.send_message(msg, 'db')
-            pass
 
 def clone_all_branches(dir='.'):
     """
