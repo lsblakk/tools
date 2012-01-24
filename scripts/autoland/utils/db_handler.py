@@ -341,6 +341,19 @@ class DBHandler(object):
         return PatchSet(id=next[0], bug_id=next[1], patches=str(next[2]),
                 author=next[3], retries=next[4], branch=next[5], try_run=next[6], try_syntax=next[7])
 
+    def PatchSetGetRevs(self):
+        """
+        Get all active revisions from the patch set table.
+        """
+        r = self.scheduler_db_meta.tables['patch_sets']
+        q = r.select(r.c.revision).where(r.c.revision != None)
+        connection = self.engine.connect()
+        tmp = connection.execute(q).fetchall()
+        result = []
+        for t in tmp:
+            result.append(t[0])
+        return result
+
     def CommentInsert(self, cmnt):
         """
         Adds a new Comment object into the comments table.

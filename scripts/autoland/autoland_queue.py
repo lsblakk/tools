@@ -26,7 +26,6 @@ db = DBHandler(config['databases_autoland_db_url'])
 
 if config.get('staging', False):
     import subprocess
-    runs_to_poll = []
 
 def log_msg(message, log_to=log.error):
     """
@@ -334,9 +333,6 @@ def message_handler(message):
             log_msg('Added revision %s to patchset %s'
                     % (ps.revision, ps.id), log.DEBUG)
 
-            if config.get('staging', False):
-                runs_to_poll.append(msg['revision'])
-
         elif '.run' in msg['action']:
             # this is a result from schedulerDBpoller
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
@@ -349,8 +345,6 @@ def message_handler(message):
                         % (ps.id, ps.revision), log.DEBUG)
             else:
                 # close it!
-                if config.get('staging', False) and ps.revision in runs_to_poll:
-                    runs_to_poll.remove(ps.revision)
                 bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
                 db.PatchSetDelete(ps)
                 log_msg('Deleting patchset %s' % (ps.id), log.DEBUG)
@@ -372,8 +366,6 @@ def message_handler(message):
         if ps:
             # remove it from the queue, error should have been comented to bug
             # (shall we confirm that here with bz_utils.has_coment?)
-            if config.get('staging', False) and ps.revision in runs_to_poll:
-                runs_to_poll.remove(ps.revision)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'
@@ -508,8 +500,8 @@ def main():
             # if this is a staging instance, launch schedulerDbPoller in order
             # to poll by revision. This will allow for posting back to
             # landfill.
-            for revision in runs_to_poll:
-                cmd = ['./run_scheduleDbPoller_staging']
+            for revision in db.PatchSetGetRevs():
+                cmd = ['python', 'run_scheduleDbPoller_staging']
                 cmd.extend(revision)
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 (out, err) = proc.communicate()

@@ -110,6 +110,25 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.PatchSetDelete(ps2)
         self.db.PatchSetDelete(ps3)
 
+    def testPatchSetGetRevs(self):
+        ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
+                revision='ps1',
+            try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
+        ps2 = PatchSet(bug_id=4, patches='543352,91223', branch='mozilla-central',
+                revision='ps2',
+                try_run=0, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
+        ps3 = PatchSet(bug_id=12577, patches='534442', branch='try',
+                revision='ps3',
+            try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
+
+        self.db.PatchSetInsert(ps1)
+        self.db.PatchSetInsert(ps2)
+        self.db.PatchSetInsert(ps3)
+        revs = self.db.PatchSetGetRevs()
+        print >>sys.stderr, revs
+        for r in ['ps1', 'ps2', 'ps3']:
+            self.assertTrue(r in revs)
+
     def testBranchRunningJobsQuery(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
             try_run=1, try_syntax=None, push_time=datetime.datetime.utcnow(), author='lsblakk@mozilla.com')

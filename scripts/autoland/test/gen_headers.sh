@@ -13,6 +13,10 @@ echo '# User HG Pusher <hg.pusher@mozilla.org>' > valid_header-bugnum.patch
 echo 'bug 12345: test commit' >> valid_header-bugnum.patch
 echo '' >> valid_header-bugnum.patch
 
+echo '# User HGPusher <hg.pusher@mozilla.org>' > valid_header-bugnum2.patch
+echo 'BUG12345: test commit' >> valid_header-bugnum2.patch
+echo '' >> valid_header-bugnum2.patch
+
 echo '# User HG Pusher <hg.pusher@mozilla.org>' > valid_header-bug_reason.patch
 echo 'bug REASON: test commit' >> valid_header-bug_reason.patch
 echo '' >> valid_header-bug_reason.patch
