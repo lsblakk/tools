@@ -246,7 +246,7 @@ def bz_search_handler():
         if patches == None:
             # do not have patches to push, kick it out of the queue
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            print "No patches listed, nothing to do here."
+            post_comment('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.' % (patch['id']), bug_id)
             continue
         else:
             # XXX TODO - we will need to figure out how to have multiple authors

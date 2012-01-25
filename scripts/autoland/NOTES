@@ -1,6 +1,6 @@
 ## BUGS!
-* [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch)
-* multiple postings when the patchID is incorrect:
+* FIXED: [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch)
+* FIXED: multiple postings when the patchID is incorrect:
     Autoland Failure
     Specified patches [2429] do not exist, or are not posted on this bug.
     Comment published to bug 657828
