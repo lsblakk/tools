@@ -1,17 +1,18 @@
 ## BUGS!
-* WORKING ON IT: [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch) -- would like to be able to be flexible enough
+* FIXED: [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch) -- would like to be able to be flexible enough
 to grab either or both try_syntax/patchIDs
-** How about doing something like this instead of getting more intense regex?:
-[autoland:branch=try;patches=1234,23525;syntax=-p linux -u none]
 
 * FIXED: multiple postings when the patchID is incorrect:
     Autoland Failure
     Specified patches [2429] do not exist, or are not posted on this bug.
     Comment published to bug 657828
     No patches listed right now, will be monitoring this bug.
-* hgpusher died on trying to pull the patch (incorrectly formed url for attachments) and there was no comment inserted to db or message back to autoland_queue
-* Why does autolanduser post as Marc Jessome?? :) (answer: .hgrc)
-* Got three pushes to try --- we really need to check for dupe patch_sets here -- why did i get three patch_sets?  There were only two patch_sets in the db even - so the message queue was holding on to things that were not even in the db anymore.  Let's look at some serious queue purge & dupe checking here.
+* WRITE A TEST - check 404 on attachment url: hgpusher died on trying to pull the patch (incorrectly formed url for attachments) and there was no comment inserted to db or message back to autoland_queue
+* FIXED: Why does autolanduser post as Marc Jessome?? :) (answer: .hgrc)
+* FIXED: Need to check for dupe patch_sets here 
+* add queue purge flag
+* NIT: autoland_queue log gets 3x the bug comment text (only one post to bug thankfully)
+* We need better handling on try fail - when try is down all jobs should pause/wait for try up again
 
 
 ## Lukas Notes
