@@ -227,18 +227,27 @@ def bz_search_handler():
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
         # get the explicitly listed patches, if any
         patch_group = get_patches_from_tag(tag) if not None else []
-        print "PATCH GROUP %s" % patch_group
 
         # get try syntax, if any
         try_syntax = get_try_syntax_from_tag(tag)
 
         ps = PatchSet()
         # all runs will get a try_run by default for now
-        ps.try_run = 1
         ps.try_syntax = try_syntax
         ps.branch = branches
         ps.patches = patch_group
         ps.bug_id = bug_id
+
+        if db.PatchSetQuery(ps) != None:
+            # we already have this in the db, don't add it.
+            # Remove whiteboard tag, but don't add to db and don't comment.
+            log_msg('Duplicate patchset, removing whiteboard tag.', log.DEBUG)
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']','\]'), bug_id)
+            continue
+
+        # add try_run attribute here so that PatchSetQuery will match patchsets
+        # in any stage of their lifecycle
+        ps.try_run = 1
 
         # check patch reviews & permissions
         patches = get_patchset(ps.bug_id, ps.try_run,
