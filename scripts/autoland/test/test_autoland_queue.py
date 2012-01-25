@@ -30,6 +30,11 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual(tag, '[autoland-try]')
         tag = get_first_autoland_tag('[Autoland]')
         self.assertEqual(tag, '[autoland]')
+        tag = get_first_autoland_tag('[autoland:-p linux -u none]')
+        self.assertEqual(tag, '[autoland:-p linux -u none]')
+        tag = get_first_autoland_tag('[autoland:35246:-p linux -u none]')
+        self.assertEqual(tag, '[autoland:35246:-p linux -u none]')
+
 
     def testGetPatchesFromTag(self):
         self.assertEqual([], get_patches_from_tag('autoland-try'))

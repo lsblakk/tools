@@ -1,5 +1,9 @@
 ## BUGS!
-* FIXED: [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch)
+* WORKING ON IT: [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch) -- would like to be able to be flexible enough
+to grab either or both try_syntax/patchIDs
+** How about doing something like this instead of getting more intense regex?:
+[autoland:branch=try;patches=1234,23525;syntax=-p linux -u none]
+
 * FIXED: multiple postings when the patchID is incorrect:
     Autoland Failure
     Specified patches [2429] do not exist, or are not posted on this bug.
