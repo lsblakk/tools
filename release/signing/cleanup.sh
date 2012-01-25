@@ -3,7 +3,7 @@
 set -e
 
 DIR=~/signing-work
-TARGET_FREE_SPACE=20000000
+TARGET_FREE_SPACE=40000000
 
 function get_df(){
     df -k $1 |tail -n 1 | awk '{print $4}'
@@ -30,7 +30,7 @@ echo "========================================================================"
 ls -rt $DIR
 echo "========================================================================"
 
-for dir in $(ls -rt $DIR); do
+for dir in $(ls -rt $DIR | grep -v removed_binaries); do
     curr_df=$(get_df $DIR)
     if [ $curr_df -lt $TARGET_FREE_SPACE ]; then
         echo "Do you really want to remove binaries from $dir? [y/n]" >&2

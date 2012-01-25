@@ -35,9 +35,11 @@ DEFAULT_RSYNC_EXCLUDES = ['--exclude=*tests*',
                           '--exclude=*partner-repacks*',
                           '--exclude=*.checksums',
                           '--exclude=logs',
+                          '--exclude=jsshell*',
                           ]
 
-VIRUS_SCAN_CMD = ['extract_and_run_command.py', '-j4', 'clamdscan', '-m',
+VIRUS_SCAN_CMD = ['nice', 'ionice', '-c2', '-n7',
+                  'extract_and_run_command.py', '-j2', 'clamdscan', '-m',
                   '--no-summary', '--']
 
 def validate(options, args):
@@ -108,9 +110,16 @@ def pushToMirrors(productName, version, buildNumber, stageServer,
     if extra_excludes:
         excludes += extra_excludes
 
-    # fail if target directory exists
-    run_remote_cmd(['test', '!', '-d', target_dir], server=stageServer,
-                   username=stageUsername, sshKey=stageSshKey)
+    # fail/warn if target directory exists depending on dry run mode
+    try:
+        run_remote_cmd(['test', '!', '-d', target_dir], server=stageServer,
+                       username=stageUsername, sshKey=stageSshKey)
+    except CalledProcessError:
+        if not dryRun:
+            raise
+        else:
+            log.warning('WARN: target directory %s exists', target_dir)
+
     if not dryRun:
         run_remote_cmd(['mkdir', '-p', target_dir], server=stageServer,
                        username=stageUsername, sshKey=stageSshKey)
