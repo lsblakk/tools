@@ -40,7 +40,7 @@ def get_first_autoland_tag(whiteboard):
     """
     Returns the first autoland tag in the whiteboard
     """
-    r = re.compile('\[autoland(-[^\[\]]+)?(:\d+(,\d+)*)?|(:-)?\]', re.I)
+    r = re.compile('\[autoland(-[^\[\]:]+)?((:\d+(,\d+)*)|(:-[^\[\]:]+)){0,2}\]', re.I)
     s = r.search(whiteboard)
     if s != None:
         s = s.group().lower()
