@@ -13,7 +13,7 @@ to grab either or both try_syntax/patchIDs
 * add queue purge flag
 * NIT: autoland_queue log gets 3x the bug comment text (only one post to bug thankfully)
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again
-
+* Add tests to test_dbhandler for querying patchsets on other params than branch
 
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
@@ -35,8 +35,7 @@ to grab either or both try_syntax/patchIDs
 
 
 ## Marc Notes
-0.0 IMPORTANT : Failure to push in hgpusher leaves [autoland-in-queue] in the whiteboard
-0. Sometimes get a "bad msg" when trying to send to hgpusher (the first one on system start?) and yet that patchset gets a pushtime inserted to the db - should wait and retry it until a non-bad msg is returned -- when hgpusher fails it also sends a bad msg
+0. Set up autoland-staging02 as the staging box (autoland-staging01 becomes production)
 1. The use case of "Flag bug for landing --> Wait for review --> land":
     -  Will not currently work, due to an early design mistake. The fix is
        fairly straight forward, but will require some time. I can redesign
@@ -62,27 +61,13 @@ to grab either or both try_syntax/patchIDs
               o  I'm sure there are better ideas out there
         - NOTE: Check patch headers at this point, so users aren't waiting
                 a while just for a failure.
-2. A lot of this code needs to be cleaned up a bit. Some improvements I would
-   like to make are:
-    - Bugzilla represents its numbers as strings, but internally the autoland
-      tools represent them as integers. There is quite a bit of type
-      conversion and it would be nice to change that. Either convert at the
-      earliest point, or internally store as strings. I prefer the former.
-    - Simply fix some of the messy program flow, and code reuse problems.
-    - After x # of retries on apply/push in hgpusher.py:apply_patchset(),
-      clean_repo should be blown away and cloned again.
+2. Some improvements I would like to make are:
     - Get tests using a static test config, rather than the default config
       file.
-    - After landing on branch, should set attachment flag checked-in+
-3. The whole enforcement of "full headers" on patches might be a bit difficult
-   & disliked, possibly leading to many issues with developers/bugzilla spam.
-   They are not required on try runs, however they are for landing to branch.
-4. There is a possible issue with db_handler.py:PatchSetGetNext(), where the
-   SQL query might not pull a try run if mozilla-central (or whatever branch
-   is in the branch field) is either above threshold or disabled.
-5. autoland_queue needs to poll the database for jobs that have been in the queue for a long time
-6. Handle clone failures properly.
-7. Do something about the split config/auth.ini usage in hgpusher.
+    - After landing on branch, should set attachment flag checked-in+ (if it's possible to do a whiteboard tag, comment, checkin flag as one transaction that would be great)
+3. autoland_queue needs to poll the database for jobs that have been in the queue for a long time (waiting for tests to be written)
+4. Handle clone failures properly. (see Code review question)
+5. Do something about the split config/auth.ini usage in hgpusher (sync the production values with puppet?)
 
 ## Dear Future Autolanding
 0. HgExtension (using Pbiggar's trychooser one) - could take your patches(diff) and create bugzilla 

@@ -64,6 +64,7 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
         self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
         self.db.PatchSetDelete(ps2)
+        # Add tests for querying on other params than just branch
 
     def testPatchSetGetNext(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',

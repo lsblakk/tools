@@ -185,7 +185,7 @@ def process_patchset(data):
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
-            # TODO: Handle clone error
+            # TODO: Handle clone error -- Code Review question
             log_msg('[HgPusher] Clone error...')
         return
 
