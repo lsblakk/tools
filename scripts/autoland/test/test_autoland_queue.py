@@ -49,6 +49,7 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual([123,789], get_patches_from_tag('[autoland:123,456wesd,789:-p linux -u none]'))
         self.assertEqual([123789], get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
         self.assertEqual([], get_patches_from_tag('[autoland:-t all]'))
+        self.assertEqual([123], get_patches_from_tag('[autoland:-t all: 123]'))
 
     def testGetBranchFromTag(self):
         self.assertEqual('try', get_branch_from_tag('[autoland]'))
