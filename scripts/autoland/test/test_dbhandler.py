@@ -9,6 +9,12 @@ TEST_DB = 'sqlite:///test/autoland.sqlite'
 class TestAutolandDbHandler(unittest.TestCase):
     def setUp(self):
         self.db = DBHandler(TEST_DB)
+        # before every test, clear the tables
+        qs = ['delete from patch_sets;', 'delete from comments;',
+             'delete from branches']
+        connection = self.db.engine.connect()
+        for q in qs:
+            connection.execute(q)
 
     def testBranch(self):
         b = Branch(name='mozilla-central', repo_url='https://hg.m.o/mozilla-central',
@@ -42,9 +48,10 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.db.PatchSetDelete(ps_query)
 
     def testPatchSetQuery(self):
+        self.db.PatchSetDelete(PatchSet(branch=''))
         ps2 = PatchSet(bug_id=3, patches='543352,91223', branch='mozilla-central',
                 try_run=0, author='lsblakk@mozilla.com')
-        print "before psi"
+        print "before psi %s" % (ps2.toDict())
         ps2.id = self.db.PatchSetInsert(ps2)
         print "before psq"
         ps2_query = self.db.PatchSetQuery(ps2)
@@ -121,9 +128,9 @@ class TestAutolandDbHandler(unittest.TestCase):
                 revision='ps3',
             try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)
 
-        self.db.PatchSetInsert(ps1)
-        self.db.PatchSetInsert(ps2)
-        self.db.PatchSetInsert(ps3)
+        ps1.id = self.db.PatchSetInsert(ps1)
+        ps2.id = self.db.PatchSetInsert(ps2)
+        ps3.id = self.db.PatchSetInsert(ps3)
         revs = self.db.PatchSetGetRevs()
         print revs
         for r in ['ps1', 'ps2', 'ps3']:

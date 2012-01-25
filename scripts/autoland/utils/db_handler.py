@@ -234,13 +234,21 @@ class DBHandler(object):
             q = q.where(r.c.revision.like(patch_set.revision))
         if patch_set.branch != False:
             q = q.where(r.c.branch.like(patch_set.branch))
+        if patch_set.try_syntax != False:
+            q = q.where(r.c.try_syntax.like(patch_set.try_syntax))
+        if not isinstance(patch_set.retries, bool):
+            q = q.where(r.c.retries == patch_set.retries)
         if not isinstance(patch_set.try_run, bool):
             q = q.where(r.c.try_run == patch_set.try_run)
         connection = self.engine.connect()
         q_results = connection.execute(q)
         rows = q_results.fetchall()
         if rows:
-            ps = map(lambda x: PatchSet(**x), rows)
+            ps = map(lambda x: PatchSet(
+                id=x[0],bug_id=x[1],patches=x[2],author=x[3],retries=x[4],
+                revision=x[5],branch=x[6],try_run=x[7],try_syntax=x[8],
+                creation_time=x[9],push_time=x[10],completion_time=x[11]),
+                rows)
             print ps
             return ps
         return None
@@ -346,12 +354,12 @@ class DBHandler(object):
         Get all active revisions from the patch set table.
         """
         r = self.scheduler_db_meta.tables['patch_sets']
-        q = r.select(r.c.revision).where(r.c.revision != None)
+        q = r.select().where(r.c.revision != None)
         connection = self.engine.connect()
         tmp = connection.execute(q).fetchall()
         result = []
         for t in tmp:
-            result.append(t[0])
+            result.append(t[5])
         return result
 
     def CommentInsert(self, cmnt):
