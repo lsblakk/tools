@@ -24,8 +24,6 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual(tag, '[autoland-try]')
         tag = get_first_autoland_tag('[Another Tag][Autoland-try:12345,23456]')
         self.assertEqual(tag, '[autoland-try:12345,23456]')
-        tag = get_first_autoland_tag('[Another Tag]')
-        self.assertEqual(tag, None)
         tag = get_first_autoland_tag('[Autoland-try][Autoland-moz-central]')
         self.assertEqual(tag, '[autoland-try]')
         tag = get_first_autoland_tag('[Autoland]')
@@ -34,7 +32,13 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual(tag, '[autoland:-p linux -u none]')
         tag = get_first_autoland_tag('[autoland:35246:-p linux -u none]')
         self.assertEqual(tag, '[autoland:35246:-p linux -u none]')
-
+        # failures
+        tag = get_first_autoland_tag('[autoland:32456:12345:-p linux]')
+        self.assertEqual(tag, None)
+        tag = get_first_autoland_tag('[autoland-try:1:-p linux:2]')
+        self.assertEqual(tag, None)
+        tag = get_first_autoland_tag('[Another Tag]')
+        self.assertEqual(tag, None)
 
     def testGetPatchesFromTag(self):
         self.assertEqual([], get_patches_from_tag('autoland-try'))
@@ -52,6 +56,9 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual('try', get_branch_from_tag('[autoland:12345]'))
         self.assertEqual('try', get_branch_from_tag('[autoland-try:1,2,3]'))
         self.assertEqual('moz-cen', get_branch_from_tag('[autoland-moz-cen]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland:1,2:-p linux -u none]'))
+        self.assertEqual('try', get_branch_from_tag('[autoland:-p linux -u none]'))
+        self.assertEqual('m-c,m-i,try', get_branch_from_tag('[autoland-m-c,m-i,try]'))
 
     def testGetTrySyntaxFromTag(self):
         self.assertEqual('-p linux -u none', get_try_syntax_from_tag('[autoland:-p linux -u none]'))
@@ -292,8 +299,12 @@ class TestAutolandQueue(unittest.TestCase):
         aq.mq_utils.mq_util.get_message = orig.pop()
 
     def testHandleComments(self):
-        nbr = [1, 0]
+        nbr = [1, 0, 0]
         db = DBHandler(TEST_DB)
+        r = db.scheduler_db_meta.tables['comments']
+        q = "delete from comments;"
+        connection = db.engine.connect()
+        connection.execute(q)
         def nb_ret(c, id):
             n = nbr.pop()
             if n == 1:
