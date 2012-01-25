@@ -2,8 +2,9 @@ import unittest
 import sys
 import json
 import mock
+from nose.tools import nottest
 sys.path.append('..')
-from autoland_queue import get_first_autoland_tag, valid_autoland_tag,\
+from autoland_queue import get_first_autoland_tag, get_patches_from_tag,\
         get_branch_from_tag, get_reviews, get_patchset, bz_search_handler,\
         message_handler, DBHandler, PatchSet, bz_utils, config,\
         handle_patchset, get_try_syntax_from_tag, main,\
@@ -30,16 +31,15 @@ class TestAutolandQueue(unittest.TestCase):
         tag = get_first_autoland_tag('[Autoland]')
         self.assertEqual(tag, '[autoland]')
 
-    def testValidAutolandTag(self):
-        self.assertFalse(valid_autoland_tag('autoland-try'))
-        self.assertFalse(valid_autoland_tag('[not-autoland-try]'))
-        self.assertFalse(valid_autoland_tag('[autoland-nogood'))
-
-        self.assertTrue(valid_autoland_tag('[autoland-try]'))
-        self.assertTrue(valid_autoland_tag('[autoland-try:12345]'))
-        self.assertTrue(valid_autoland_tag('[autoland-try:123,456,678]'))
-        self.assertTrue(valid_autoland_tag('[autoland]'))
-        self.assertTrue(valid_autoland_tag('[autoland:123,456,789]'))
+    def testGetPatchesFromTag(self):
+        self.assertEqual([], get_patches_from_tag('autoland-try'))
+        self.assertEqual([],get_patches_from_tag ('[autoland-try]'))
+        self.assertEqual([12345], get_patches_from_tag('[autoland-try:12345]'))
+        self.assertEqual([123,456,678], get_patches_from_tag('[autoland-try:123,456,678]'))
+        self.assertEqual([123,456,789], get_patches_from_tag('[autoland:123,456,789,]'))
+        self.assertEqual([123,789], get_patches_from_tag('[autoland:123,456wesd,789:-p linux -u none]'))
+        self.assertEqual([123789], get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
+        self.assertEqual([], get_patches_from_tag('[autoland:-t all]'))
 
     def testGetBranchFromTag(self):
         self.assertEqual('try', get_branch_from_tag('[autoland]'))
@@ -138,7 +138,7 @@ class TestAutolandQueue(unittest.TestCase):
                 return_values.append('test/mjessome.json')
                 return_values.append('test/bug1.json')
                 patchset = get_patchset('bug5', try_run=False)
-                self.assertEqual(patchset, None)
+                self.assertEqual(patchset, [])
 
                 # Full patch set
                 # Try run = False
@@ -246,7 +246,7 @@ class TestAutolandQueue(unittest.TestCase):
         DBHandler.PatchSetUpdate = orig.pop()
         DBHandler.PatchSetQuery = orig.pop()
         DBHandler.PatchSetInsert = orig.pop()
-
+    @nottest
     def testLoop(self):
         import autoland_queue as aq
 
@@ -298,7 +298,6 @@ class TestAutolandQueue(unittest.TestCase):
         with mock.patch('utils.bz_utils.bz_util.notify_bug') as nb:
             nb.side_effect = nb_ret
             handle_comments()
-
 
 if __name__ == '__main__':
     unittest.main()

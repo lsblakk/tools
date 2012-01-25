@@ -38,18 +38,13 @@ def log_msg(message, log_to=log.error):
 
 def get_first_autoland_tag(whiteboard):
     """
-    Returns the first autoland tag in the whiteboard,
-    need not be well-formed.
+    Returns the first autoland tag in the whiteboard
     """
-    r = re.compile('\[autoland[^\[\]]*\]', re.I)
+    r = re.compile('\[autoland(-[^\[\]]+)?(:\d+(,\d+)*)?(:^-+)*\]', re.I)
     s = r.search(whiteboard)
     if s != None:
         s = s.group().lower()
     return s
-
-def valid_autoland_tag(tag):
-    r = re.compile('\[autoland(-[^\[\]]+)?(:\d+(,\d+)*)?\]', re.I)
-    return r.search(tag) != None
 
 def get_branch_from_tag(tag):
     """
@@ -64,10 +59,29 @@ def get_branch_from_tag(tag):
     return s.groups()[0].lower()
 
 def get_try_syntax_from_tag(tag):
+    # return a string of try_syntax (must start with -)
     parts = tag.strip('[]').split(':')
     for part in parts:
         if part.startswith('-'):
             return part
+
+def get_patches_from_tag(tag):
+    # return a string of comma-delimited digits that represent attachment IDs
+    patches = []
+    parts = tag.strip('[]').split(':')
+    r = re.compile('^[0-9]+(,^[0-9]+)*', re.I)
+    for part in parts:
+        s = r.search(part.strip())
+        if s != None:
+            values = part.strip().split(',')
+            print values
+            for v in values:
+                try:
+                    patches.append(int(v))
+                except:
+                    # well it's not valid then, don't include it
+                    pass
+    return patches
 
 def get_reviews(attachment):
     """
@@ -194,11 +208,6 @@ def bz_search_handler():
         if tag == None or re.search('in-queue', tag) != None:
             # Strange that it showed up if None
             continue
-        elif not valid_autoland_tag(tag):
-            post_comment('Invalid autoland tag "%s".' %(tag), bug_id)
-            log_msg('Invalid autoland tag "%s". Comment posted.' % (tag))
-            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            continue
 
         # get the branches
         branches = get_branch_from_tag(tag)
@@ -216,13 +225,9 @@ def bz_search_handler():
             continue
 
         log_msg('Found and processing tag %s' % (tag), log.DEBUG)
-        # get the explicitly listed patches
-        patch_group = []
-        r = re.compile('\d+')
-        for id in r.finditer(whiteboard):
-            print "ID: %d" % int(id.group())
-            patch_group.append(int(id.group()))
-            print "PATCH GROUP %s" % patch_group
+        # get the explicitly listed patches, if any
+        patch_group = get_patches_from_tag(tag) if not None else []
+        print "PATCH GROUP %s" % patch_group
 
         # get try syntax, if any
         try_syntax = get_try_syntax_from_tag(tag)
@@ -239,13 +244,15 @@ def bz_search_handler():
         patches = get_patchset(ps.bug_id, ps.try_run,
                                ps.patchList(), review_comment=False)
         if patches == None:
-            # do not have all the necessary permissions, let the job
-            # sit in Bugzilla so it can be picked up again later.
+            # do not have patches to push, kick it out of the queue
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
+            print "No patches listed, nothing to do here."
             continue
         else:
+            # XXX TODO - we will need to figure out how to have multiple authors
             ps.author = patches[0]['author']['email']
 
+        # XXX TODO - let's check here if it's a dupe before inserting the patch_set
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
         print "PatchsetID: %s" % patchset_id

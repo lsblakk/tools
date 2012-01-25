@@ -1,3 +1,15 @@
+## BUGS!
+* [autoland:$patchID:try_syntax] returned invalid whiteboard autoland tag (and shouldn't, should go forth with 'try' as branch)
+* multiple postings when the patchID is incorrect:
+    Autoland Failure
+    Specified patches [2429] do not exist, or are not posted on this bug.
+    Comment published to bug 657828
+    No patches listed right now, will be monitoring this bug.
+* hgpusher died on trying to pull the patch (incorrectly formed url for attachments) and there was no comment inserted to db or message back to autoland_queue
+* Why does autolanduser post as Marc Jessome?? :) (answer: .hgrc)
+* Got three pushes to try --- we really need to check for dupe patch_sets here -- why did i get three patch_sets?  There were only two patch_sets in the db even - so the message queue was holding on to things that were not even in the db anymore.  Let's look at some serious queue purge & dupe checking here.
+
+
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
 ** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
