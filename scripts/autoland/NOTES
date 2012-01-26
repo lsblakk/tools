@@ -7,7 +7,7 @@ to grab either or both try_syntax/patchIDs
     Specified patches [2429] do not exist, or are not posted on this bug.
     Comment published to bug 657828
     No patches listed right now, will be monitoring this bug.
-* WRITE A TEST - check 404 on attachment url: hgpusher died on trying to pull the patch (incorrectly formed url for attachments) and there was no comment inserted to db or message back to autoland_queue
+* FIXED: WRITE A TEST - check 404 on attachment url: hgpusher died on trying to pull the patch (incorrectly formed url for attachments) and there was no comment inserted to db or message back to autoland_queue
 * FIXED: Why does autolanduser post as Marc Jessome?? :) (answer: .hgrc)
 * FIXED: Need to check for dupe patch_sets here 
 * add queue purge flag
