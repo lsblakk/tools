@@ -50,7 +50,7 @@ class TestAutolandDbHandler(unittest.TestCase):
     def testPatchSetQuery(self):
         self.db.PatchSetDelete(PatchSet(branch=''))
         ps2 = PatchSet(bug_id=3, patches='543352,91223', branch='mozilla-central',
-                try_run=0, author='lsblakk@mozilla.com')
+                try_run=0, try_syntax='-p linux -u none', author='lsblakk@mozilla.com')
         print "before psi %s" % (ps2.toDict())
         ps2.id = self.db.PatchSetInsert(ps2)
         print "before psq"
@@ -63,9 +63,52 @@ class TestAutolandDbHandler(unittest.TestCase):
         self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
         self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
         self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps2_query_bugid = self.db.PatchSetQuery(PatchSet(branch='mozilla-central'))[0]
+        self.assertEqual(ps2_from_query.toDict()['bug_id'], ps2.toDict()['bug_id'])
+        self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
+        self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
+        self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps2_query_bugid = self.db.PatchSetQuery(PatchSet(patches='543352,91223'))[0]
+        self.assertEqual(ps2_from_query.toDict()['bug_id'], ps2.toDict()['bug_id'])
+        self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
+        self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
+        self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps2_query_bugid = self.db.PatchSetQuery(PatchSet(author='lsblakk@mozilla.com'))[0]
+        self.assertEqual(ps2_from_query.toDict()['bug_id'], ps2.toDict()['bug_id'])
+        self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
+        self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
+        self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps2_query_bugid = self.db.PatchSetQuery(PatchSet(bug_id=3))[0]
+        self.assertEqual(ps2_from_query.toDict()['bug_id'], ps2.toDict()['bug_id'])
+        self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
+        self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
+        self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps2_query_bugid = self.db.PatchSetQuery(PatchSet(try_syntax='-p linux -u none'))[0]
+        self.assertEqual(ps2_from_query.toDict()['bug_id'], ps2.toDict()['bug_id'])
+        self.assertEqual(ps2_from_query.toDict()['patches'], ps2.toDict()['patches'])
+        self.assertEqual(ps2_from_query.toDict()['branch'], ps2.toDict()['branch'])
+        self.assertEqual(ps2_from_query.toDict()['author'], ps2.toDict()['author'])
+        self.assertEqual(ps2_from_query.toDict()['try_syntax'], ps2.toDict()['try_syntax'])
+        ps3 = PatchSet(bug_id=4, patches='543352', branch='try',
+                try_run=1, author='lsblakk@mozilla.com')
+        ps3.id = self.db.PatchSetInsert(ps3)
+        ps3_from_query = self.db.PatchSetQuery(ps3)[0]
+        self.assertEqual(ps3_from_query.toDict()['bug_id'], ps3.toDict()['bug_id'])
+        self.assertEqual(ps3_from_query.toDict()['patches'], ps3.toDict()['patches'])
+        self.assertEqual(ps3_from_query.toDict()['branch'], ps3.toDict()['branch'])
+        self.assertEqual(ps3_from_query.toDict()['author'], ps3.toDict()['author'])
+        print ps3_from_query.toDict()['try_syntax']
+        print ps3.toDict()['try_syntax']
+        self.assertEqual(ps3_from_query.toDict()['try_syntax'], ps3.toDict()['try_syntax'])
         self.db.PatchSetDelete(ps2)
+        self.db.PatchSetDelete(ps3)
         # Add tests for querying on other params than just branch
-
+        
     def testPatchSetGetNext(self):
         ps1 = PatchSet(bug_id=12577, patches='534442', branch='try',
             try_run=1, author='lsblakk@mozilla.com', retries=None, try_syntax=None)

@@ -67,7 +67,7 @@ def get_try_syntax_from_tag(tag):
 
 def get_patches_from_tag(tag):
     # return a string of comma-delimited digits that represent attachment IDs
-    patches = []
+    patches = ''
     parts = tag.strip('[]').split(':')
     r = re.compile('^[0-9]+(,^[0-9]+)*', re.I)
     for part in parts:
@@ -77,10 +77,12 @@ def get_patches_from_tag(tag):
             print values
             for v in values:
                 try:
-                    patches.append(int(v))
+                    int(v)
                 except:
                     # well it's not valid then, don't include it
+                    values.remove(v)
                     pass
+            patches = ','.join(values)
     return patches
 
 def get_reviews(attachment):

@@ -234,7 +234,7 @@ class DBHandler(object):
             q = q.where(r.c.revision.like(patch_set.revision))
         if patch_set.branch != False:
             q = q.where(r.c.branch.like(patch_set.branch))
-        if patch_set.try_syntax != False:
+        if patch_set.try_syntax != None:
             q = q.where(r.c.try_syntax.like(patch_set.try_syntax))
         if not isinstance(patch_set.retries, bool):
             q = q.where(r.c.retries == patch_set.retries)
@@ -440,7 +440,7 @@ class Branch(object):
 
 class PatchSet(object):
     def __init__(self, id=False, bug_id=False, patches=False, revision=False,
-            branch=False, try_run=False, try_syntax=False, creation_time=False,
+            branch=False, try_run=False, try_syntax=None, creation_time=False,
             push_time=False, completion_time=False, author=False, retries=False):
         import datetime, re
         self.id = id
@@ -469,7 +469,7 @@ class PatchSet(object):
     def patchList(self):
         import re
         if not self.patches:
-            return []
+            return ''
         if isinstance(self.patches, list):
             return self.patches
         if isinstance(self.patches, str):

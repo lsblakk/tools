@@ -41,15 +41,15 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual(tag, None)
 
     def testGetPatchesFromTag(self):
-        self.assertEqual([], get_patches_from_tag('autoland-try'))
-        self.assertEqual([],get_patches_from_tag ('[autoland-try]'))
-        self.assertEqual([12345], get_patches_from_tag('[autoland-try:12345]'))
-        self.assertEqual([123,456,678], get_patches_from_tag('[autoland-try:123,456,678]'))
-        self.assertEqual([123,456,789], get_patches_from_tag('[autoland:123,456,789,]'))
-        self.assertEqual([123,789], get_patches_from_tag('[autoland:123,456wesd,789:-p linux -u none]'))
-        self.assertEqual([123789], get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
-        self.assertEqual([], get_patches_from_tag('[autoland:-t all]'))
-        self.assertEqual([123], get_patches_from_tag('[autoland:-t all: 123]'))
+        self.assertEqual('', get_patches_from_tag('autoland-try'))
+        self.assertEqual('',get_patches_from_tag ('[autoland-try]'))
+        self.assertEqual('12345', get_patches_from_tag('[autoland-try:12345]'))
+        self.assertEqual('123,456,678', get_patches_from_tag('[autoland-try:123,456,678]'))
+        self.assertEqual('123,456,789', get_patches_from_tag('[autoland:123,456,789,]'))
+        self.assertEqual('123,789', get_patches_from_tag('[autoland:123,456wesd,789:-p linux -u none]'))
+        self.assertEqual('123789', get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
+        self.assertEqual('', get_patches_from_tag('[autoland:-t all]'))
+        self.assertEqual('123', get_patches_from_tag('[autoland:-t all: 123]'))
 
     def testGetBranchFromTag(self):
         self.assertEqual('try', get_branch_from_tag('[autoland]'))
@@ -213,7 +213,7 @@ class TestAutolandQueue(unittest.TestCase):
         jobs.append({'branch':'branch', 'try_run':1, 'try_syntax': None,
             'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
-            'patches':'2113, 2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
+            'patches':'2113,2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         print jobs
