@@ -45,7 +45,7 @@ class bz_util():
             result = urllib2.urlopen(req)
             data = result.read()
             return json.loads(data)
-        except urllib2.HTTPError, e:
+        except (urllib2.HTTPError, urllib2.URLError), e:
             log.error('REQUEST ERROR: %s: %s' % (e, url))
             raise
 
@@ -64,7 +64,7 @@ class bz_util():
                     print "Put success"
                     return result
                 time.sleep(interval)
-            except urllib2.HTTPError, e:
+            except (urllib2.URLError, urllib2.HTTPError), e:
                 if i < retries:
                     continue
                 else:
@@ -88,7 +88,7 @@ class bz_util():
             return patch_file
         try:
             d = urllib2.urlopen(url).read()
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             print "Error reading patch %s: %s" % (e, url)
             return None
         if re.search('The attachment id %s is invalid' % str(patch_id), d):
@@ -158,7 +158,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             log.debug("Did not add whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
@@ -188,7 +188,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             log.debug("Did not replace whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
@@ -225,7 +225,7 @@ class bz_util():
                         data={"text": message, "is_private": False}, method="POST")
                 log.debug("Added comment to bug %s", bug_num)
                 result = 1
-            except urllib2.HTTPError, e:
+            except (urllib2.URLError, urllib2.HTTPError), e:
                 log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
                 result = 0
                 if i < retries:
@@ -249,7 +249,7 @@ class bz_util():
             for comment in page['comments']:
                 if comment['text'] == text:
                     result = 1
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             log.debug("HTTPError, Can't check comments on bug: %s" % e)
 
         return result
@@ -262,7 +262,7 @@ class bz_util():
         try:
             page = self.request('bug/%s/comment?include_fields=creation_time,text'
                 % (bugid))
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             log.debug("Couldn't get page: %s" % e)
             return False
         if not page or not 'comments' in page:

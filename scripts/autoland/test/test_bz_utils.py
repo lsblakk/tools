@@ -16,8 +16,14 @@ bz = bz_utils.bz_util(api_url='https://api-dev.bugzilla.mozilla.org/test/latest/
                       username='lsblakk@mozilla.com', password='password')
 
 class TestBzUtils(unittest.TestCase):
+    def setUp(self):
+        bz.attachment_url = 'https://bugzilla.mozilla.org/attachment.cgi?id='
     def testGetPatchBadID(self):
+        self.assertEqual(bz.get_patch('abcdefgbadpatchijklmnop'), None)
+        url = bz.attachment_url
+        bz.attachment_url = 'https://bugzilla.notreal/attachment.cgi?id='
         self.assertEqual(bz.get_patch(-1), None)
+        bz.attachment_url = url
 
     def testGetPatchGoodID(self):
         path = bz.get_patch(1)
