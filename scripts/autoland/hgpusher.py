@@ -121,6 +121,8 @@ def import_patch(repo, patch, try_run, bug_id=None, user=None,
     cmd.append(repo)
     if user:
         cmd.append('-u %s' % (user))
+    if try_syntax == None:
+        try_syntax = ''
     if try_run:
         # if there is no try_syntax, try defaults will get triggered by the 'try: ' alone
         if config.get('staging', False):
