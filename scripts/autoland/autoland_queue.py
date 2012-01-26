@@ -343,7 +343,11 @@ def message_handler(message):
     if msg['type'] == 'success':
         if msg['action'] == 'try.push':
             # Successful push, add corresponding revision to patchset
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            if ps == None:
+                log_msg('No corresponding patch set found for %s' % msg['patchsetid'])
+                return
+            ps = ps[0]
             print "Got patchset back from DB: %s" % ps
             print "Msg = %s" % msg
             ps.revision = msg['revision']
@@ -353,7 +357,11 @@ def message_handler(message):
 
         elif '.run' in msg['action']:
             # this is a result from schedulerDBpoller
-            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
+            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
+            if ps == None:
+                log_msg('Revision %s not found in database.' % msg['revision'])
+                return
+            ps = ps[0]
             # is this the try run before push to branch?
             if ps.try_run and msg['action'] == 'try.run' and ps.branch != 'try':
                 # remove try_run, when it comes up in the queue it will trigger push to branch(es)
@@ -378,10 +386,20 @@ def message_handler(message):
     elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
         if msg['action'] == 'try.run' or msg['action'] == 'branch.run':
-            # XXX TODO - really need this to not kill autoland_queue when returning None (ie: revisions that send messages but aren't tracked by autoland)
-            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
+            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
+            if ps == None:
+                log_msg('No corresponding patchset found for revision %s'
+                        % msg['revision'])
+                return
+            ps = ps[0]
         elif msg['action'] == 'patchset.apply':
-            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
+            ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
+            if ps == None:
+                log_msg('No corresponding patchset found for revision %s'
+                        % msg['revision'])
+                return
+            ps = ps[0]
+
         if ps:
             # remove it from the queue, error should have been comented to bug
             # (shall we confirm that here with bz_utils.has_coment?)
