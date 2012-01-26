@@ -378,6 +378,7 @@ def message_handler(message):
     elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
         if msg['action'] == 'try.run' or msg['action'] == 'branch.run':
+            # XXX TODO - really need this to not kill autoland_queue when returning None (ie: revisions that send messages but aren't tracked by autoland)
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))[0]
         elif msg['action'] == 'patchset.apply':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]

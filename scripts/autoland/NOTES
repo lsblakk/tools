@@ -14,6 +14,7 @@ to grab either or both try_syntax/patchIDs
 * NIT: autoland_queue log gets 3x the bug comment text (only one post to bug thankfully)
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again
 * Add tests to test_dbhandler for querying patchsets on other params than branch
+* Whenever schedulerdbpoller sends out messages that autoland doesn't track, line 381 dies on NoneType error
 
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
