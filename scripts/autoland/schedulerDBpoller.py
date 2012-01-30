@@ -675,7 +675,7 @@ if __name__ == '__main__':
             log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, result['posted_to_bug']))
     else:
         if options.starttime > time():
-            log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, time.localtime()))
+            log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, localtime()))
             sys.exit(1)
         elif options.endtime < options.starttime:
             log.debug("Endtime %s must be later than the starttime %s" % (options.endtime, options.starttime))
