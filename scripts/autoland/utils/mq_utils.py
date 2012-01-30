@@ -84,6 +84,29 @@ class mq_util():
         self.channel.queue_bind(exchange=self.exchange,
                 queue=queue, routing_key=routing_key)
 
+    def purge_queue(self, queue, prompt=True):
+        """
+        Purge the specified queue. If prompt is set, the user will be prompted
+        for confirmation of purging. Prompt includes queue depth, and count
+        of messages waiting acknowledgement.
+        """
+        try:
+            status = self.channel.queue_declare(queue=queue, passive=True)
+        except:
+            print "Could not purge queue %s, does not exist" % (queue)
+            return
+        if prompt:
+            print "Warning: Queue %s contains %s messages, and there may be unacknowledged messages."\
+                    % (status.method.message_count)
+            ans = None
+            while ans != 'y' and ans != 'n':
+                ans = raw_input("Are you sure you'd like to purge the queue?[y/n] ")
+                ans = ans.lower()
+            if ans.lower() == 'n':
+                return
+        self.channel.queue_purge(queue=queue)
+        print "Purged %s" % (queue)
+
     def send_message(self, message, routing_key, durable=True, block=True):
         """
         Send a single json message to host on the specified exchange.

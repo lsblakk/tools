@@ -528,6 +528,13 @@ def main():
     log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
             filename=LOGFILE, handler=LOGHANDLER)
 
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg == '--purge-queue':
+                # purge the autoland queue
+                mq.purge_queue(config['mq_autoland_queue'], prompt=True)
+                exit(1)
+
     while True:
         # search bugzilla for any relevant bugs
         bz_search_handler()
