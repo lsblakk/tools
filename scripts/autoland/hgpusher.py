@@ -355,17 +355,18 @@ def valid_job_message(message):
                 ['id', 'author', 'reviews']) or \
            not valid_dictionary_structure(patch['author'],
                 ['email', 'name']):
-            log_message('Invalid patchset in message.')
+            log_msg('Invalid patchset in message.')
             return False
-        for review in patch['reviews']:
-            if not valid_dictionary_structure(review,
-                ['reviewer', 'type', 'result']):
-                log_message('Invalid review in patchset')
-                return False
-            if not valid_dictionary_structure(review['reviewer'],
-                ['email', 'name']):
-                log_message('Invalid reviewer')
-                return False
+        if not message['try_run']:
+            for review in patch['reviews']:
+                if not valid_dictionary_structure(review,
+                    ['reviewer', 'type', 'result']):
+                    log_msg('Invalid review in patchset')
+                    return False
+                if not valid_dictionary_structure(review['reviewer'],
+                    ['email', 'name']):
+                    log_msg('Invalid reviewer')
+                    return False
     return True
 
 def message_handler(message):
