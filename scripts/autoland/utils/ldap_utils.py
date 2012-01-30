@@ -33,6 +33,8 @@ class ldap_util():
             except ldap.SERVER_DOWN, e:
                 self.connection = self.__connect__()
                 print 'Error: %s' % (e)
+                if i != retries:
+                    print 'Retrying'
         return False
 
     def get_group_members(self, group):
@@ -106,4 +108,13 @@ class ldap_util():
             return None
         print 'Required permissions for %s: |%s|' % (branch, data)
         return data
+
+    def get_bz_email(self, email):
+        email = self.get_member('bugzillaEmail=%s'
+                % (email), ['mail'])
+        try:
+            email = email[0][1]['mail'][0]
+        except IndexError,KeyError:
+            email = None
+        return email
 
