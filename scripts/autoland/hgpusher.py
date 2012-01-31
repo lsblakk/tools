@@ -155,9 +155,9 @@ def process_patchset(data):
 
     # The comment header. The comment is constructed incrementally at any possible
     # failure/success point.
-    comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s\n\tDestination: %s'
+    comment_hdr = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s'
             % (', '.join(map(lambda x: str(x['id']), data['patches'])), data['branch'],
-               (' => try' if try_run else ''), push_url )]
+               (' => try' if try_run else ''))]
     comment = comment_hdr
 
     class RETRY(Exception):
@@ -268,18 +268,19 @@ def process_patchset(data):
     # Successful push. Clear any errors that might be in the comments
     comment = comment_hdr
 
+    comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision) 
     if try_run:
         # comment to bug with link to the try run on self-serve
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
-                % (revision, os.path.join(config['self_serve_url'],
-                                          'try/rev/%s' % (revision))) )
+                % (revision, os.path.join(config['tbpl_url'],
+                                          '?tree=%s&rev=%s' % (data['branch'], revision))) )
     else:
         comment.append('Successfully applied and pushed patchset.\n\tRevision: %s'
                 % (revision, data['branch'],
                    ', '.join(map(lambda x: x['id'], data['patches']))))
         comment.append('To monitor the commit, see: %s'
-                % (os.path.join(config['self_serve_url'],
-                   '%s/rev/%s' % (data['branch'], revision))))
+                % (os.path.join(config['tbpl_url'],
+                   '?tree=%s&rev=%s' % (data['branch'], revision))))
 
     log_msg('Comment %s to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
     return (revision, '\n'.join(comment))
