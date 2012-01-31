@@ -268,7 +268,7 @@ def process_patchset(data):
     # Successful push. Clear any errors that might be in the comments
     comment = comment_hdr
 
-    comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision) 
+    comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision))
     if try_run:
         # comment to bug with link to the try run on self-serve
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
