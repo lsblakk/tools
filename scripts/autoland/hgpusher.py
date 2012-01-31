@@ -126,9 +126,9 @@ def import_patch(repo, patch, try_run, bug_id=None, user=None,
     if try_run:
         # if there is no try_syntax, try defaults will get triggered by the 'try: ' alone
         if config.get('staging', False):
-            cmd.extend(['-m "try: %s bug %s"' % (try_syntax, bug_id)])
+            cmd.extend(['-m "try: %s -n bug %s"' % (try_syntax, bug_id)])
         else:
-            cmd.extend(['-m "try: %s --post-to-bugzilla bug %s"' % (try_syntax, bug_id)])
+            cmd.extend(['-m "try: %s -n --post-to-bugzilla bug %s"' % (try_syntax, bug_id)])
     cmd.append(patch)
     print cmd
     (out, err, rc) = run_hg(cmd)
