@@ -435,6 +435,14 @@ def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
+
+    if len(sys.argv) > 1:
+        for arg in sys.argv[1:]:
+            if arg == '--purge-queue':
+                # purge the autoland queue
+                mq.purge_queue(config['mq_hgp_queue'], prompt=True)
+                exit(0)
+
     try:
         if not os.access(config['work_dir'], os.F_OK):
             os.makedirs(config['work_dir'])
