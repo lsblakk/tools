@@ -268,19 +268,25 @@ def process_patchset(data):
     # Successful push. Clear any errors that might be in the comments
     comment = comment_hdr
 
-    comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision))
     if try_run:
-        # comment to bug with link to the try run on self-serve
+        # comment to bug with link to the try run on tbpl and in hg
+        comment.append('\tDestination: http://hg.mozilla.org/try/rev/%s' % (revision))
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
                 % (revision, os.path.join(config['tbpl_url'],
-                                          '?tree=%s&rev=%s' % (data['branch'], revision))) )
+                                          '?tree=Try&rev=%s' % (data['branch'], revision))) )
     else:
+        comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision))
         comment.append('Successfully applied and pushed patchset.\n\tRevision: %s'
                 % (revision, data['branch'],
                    ', '.join(map(lambda x: x['id'], data['patches']))))
-        comment.append('To monitor the commit, see: %s'
-                % (os.path.join(config['tbpl_url'],
-                   '?tree=%s&rev=%s' % (data['branch'], revision))))
+        if data['branch'] == 'mozilla-central':
+            comment.append('To monitor the commit, see: %s'
+                    % (os.path.join(config['tbpl_url'],
+                       '?tree=Firefox&rev=%s' % (revision))))
+        elif data['branch'] == 'mozilla-inbound':
+            comment.append('To monitor the commit, see: %s'
+                    % (os.path.join(config['tbpl_url'],
+                       '?tree=Mozilla-Inbound&rev=%s' % (revision))))
 
     log_msg('Comment %s to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
     return (revision, '\n'.join(comment))
