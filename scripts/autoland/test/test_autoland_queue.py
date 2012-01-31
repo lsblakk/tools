@@ -52,14 +52,14 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual('123', get_patches_from_tag('[autoland:-t all: 123]'))
 
     def testGetBranchFromTag(self):
-        self.assertEqual('try', get_branch_from_tag('[autoland]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland-try]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland:12345]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland-try:1,2,3]'))
-        self.assertEqual('moz-cen', get_branch_from_tag('[autoland-moz-cen]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland:1,2:-p linux -u none]'))
-        self.assertEqual('try', get_branch_from_tag('[autoland:-p linux -u none]'))
-        self.assertEqual('m-c,m-i,try', get_branch_from_tag('[autoland-m-c,m-i,try]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland-try]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland:12345]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland-try:1,2,3]'))
+        self.assertEqual(['moz-cen'], get_branch_from_tag('[autoland-moz-cen]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland:1,2:-p linux -u none]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland:-p linux -u none]'))
+        self.assertEqual(['m-c','m-i','try'], get_branch_from_tag('[autoland-m-c,m-i,try]'))
 
     def testGetTrySyntaxFromTag(self):
         self.assertEqual('-p linux -u none', get_try_syntax_from_tag('[autoland:-p linux -u none]'))
@@ -216,10 +216,11 @@ class TestAutolandQueue(unittest.TestCase):
             'patches':'2113,2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
             'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        print jobs
-        print db
+        print "jobs: %s" % (jobs)
+        print "db: %s" % (db)
         for job in db:
             jd = job.toDict()
+            print "job: %s" % (jd)
             self.assertTrue(jd in jobs)
             jobs.remove(jd)
         self.assertEqual(jobs, [])

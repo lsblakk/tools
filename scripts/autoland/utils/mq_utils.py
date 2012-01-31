@@ -97,7 +97,7 @@ class mq_util():
             return
         if prompt:
             print "Warning: Queue %s contains %s messages, and there may be unacknowledged messages."\
-                    % (status.method.message_count)
+                    % (queue, status.method.message_count)
             ans = None
             while ans != 'y' and ans != 'n':
                 ans = raw_input("Are you sure you'd like to purge the queue?[y/n] ")

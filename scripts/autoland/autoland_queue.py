@@ -50,13 +50,13 @@ def get_branch_from_tag(tag):
     """
     Returns a list of branch names from the given autoland tag.
     Given a tag that does not include '-branch',
-    'try' will be returned.
+    ['try'] will be returned.
     """
     r = re.compile('\[autoland-([^:\]]+)', re.I)
     s = r.search(tag)
     if s == None:
-        return 'try'
-    return s.groups()[0].lower()
+        return ['try']
+    return re.split(',',s.groups()[0].lower())
 
 def get_try_syntax_from_tag(tag):
     # return a string of try_syntax (must start with -)
@@ -200,8 +200,9 @@ def bz_search_handler():
     bugs = []
     try:
         bugs = bz.get_matching_bugs('whiteboard', '\[autoland.*\]')
-    except urllib2.HTTPError, e:
+    except (urllib2.HTTPError,urllib2.URLError), e:
         log_msg("Error while polling bugzilla: %s" % (e))
+        return
 
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
@@ -214,15 +215,14 @@ def bz_search_handler():
         # get the branches
         branches = get_branch_from_tag(tag)
         print "Getting branches: %s" % branches
-        if branches != 'try':
-            goto_next = False
-            for branch in branches:
-                # clean out any invalid branch names
-                # job will still land to any correct branches
-                if db.BranchQuery(Branch(name=branch)) == None:
-                    branches.remove(branch)
-                    log_msg('Branch %s does not exist.' % (branch))
-        # If there are no correct branch names, go to next bug
+        for branch in branches:
+            # clean out any invalid branch names
+            # job will still land to any correct branches
+            if db.BranchQuery(Branch(name=branch)) == None:
+                branches.remove(branch)
+                log_msg('Branch %s does not exist.' % (branch))
+
+        # If there are no correct or permissive branches, go to next bug
         if not branches:
             continue
 
@@ -236,7 +236,7 @@ def bz_search_handler():
         ps = PatchSet()
         # all runs will get a try_run by default for now
         ps.try_syntax = try_syntax
-        ps.branch = branches
+        ps.branch = ','.join(branches)
         ps.patches = patch_group
         ps.bug_id = bug_id
 
@@ -257,7 +257,7 @@ def bz_search_handler():
         if patches == None:
             # do not have patches to push, kick it out of the queue
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            post_comment('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.' % (patch['id']), bug_id)
+            log_msg('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.')
             continue
         else:
             # XXX TODO - we will need to figure out how to have multiple authors
