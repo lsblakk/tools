@@ -54,6 +54,12 @@ class TestHgPusher(unittest.TestCase):
         self.assertTrue(hgpusher.valid_dictionary_structure(lower, lower.keys()))
         self.assertFalse(hgpusher.valid_dictionary_structure(lower, upper.keys()))
 
+    def hasSufficientPermissions(self):
+        self.assertTrue(has_sufficient_permissions(
+            [{'author':{'email': 'mjessome@mozilla.com'}}], 'try'))
+        self.assertTrue(has_sufficient_permissions(
+            [{'author':{'email': 'marc.jessome@gmail.com'}}], 'try'))
+
     def testValidJobMessage(self):
         msg = { 'bug_id' : '12345',
                 'branch' : 'mozilla-central',

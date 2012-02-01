@@ -106,7 +106,7 @@ class ldap_util():
             print 'An error has occurred with branch permissions api:'
             print 'url: %s\nresponse: %s' % (url, data)
             return None
-        print 'Required permissions for %s: |%s|' % (branch, data)
+        print 'Required permissions for %s: %s' % (branch, data)
         return data
 
     def get_bz_email(self, email):

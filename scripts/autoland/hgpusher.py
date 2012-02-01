@@ -74,6 +74,14 @@ def has_valid_header(filename):
             break
     return False
 
+def in_ldap_group(email, group):
+    """
+    Checks ldap if either email or the bz_email are a member of the group.
+    """
+    bz_email = ldap.get_bz_email(email)
+    return ldap.is_member_of_group(email, group) \
+            or (bz_email and ldap.is_member_of_group(bz_email, group))
+
 def has_sufficient_permissions(patches, branch):
     """
     Searches LDAP to see if any of the users (author, reviewers) have
@@ -82,25 +90,18 @@ def has_sufficient_permissions(patches, branch):
     if any patch is missing those permissions the whole patchset
     cannot be pushed.
     """
-    def bz_email_is_member(email, group):
-        email = ldap.get_member('bugzillaEmail=%s'
-                % (email), ['mail'])
-        try:
-            email = email[0][1]['mail'][0]
-        except IndexError,KeyError:
-            email = []
-        return email and ldap.is_member_of_group(email, group)
-
     group = ldap.get_branch_permissions(branch)
     if group == None:
         return False
 
     for patch in patches:
         found = False
-        if bz_email_is_member(patch['author']['email'], group):
+        if in_ldap_group(patch['author']['email'], group):
             continue    # next patch
-        for review in patch['reviews']:
-            if bz_email_is_member(review['reviewer']['email'], group):
+        for review in patch.get('reviews'):
+            if not review.get('reviewer'):
+                continue
+            if in_ldap_group(review['reviewer'], group):
                 found = True
                 break   # next patch
         if not found:
@@ -305,9 +306,9 @@ def clone_branch(branch, branch_url):
         os.mkdir(clean)
     try:
         mercurial(remote, clean_repo)
-    except subprocess.CalledProcessError as error:
+    except subprocess.CalledProcessError as e:
         log_msg('[Clone] error cloning \'%s\' into clean repository:\n%s'
-                % (remote, error))
+                % (remote, e))
         return None
     # Clone that clean repository to active and return that revision
     active = os.path.join('active')
@@ -407,7 +408,6 @@ def message_handler(message):
             if clone_revision:
                 break
         if clone_revision == None:
-            # TODO: Handle clone error
             log_msg('[HgPusher] Clone error...')
             msg = { 'type' : 'error', 'action' : 'repo.clone',
                     'patchsetid' : data['patchsetid'],

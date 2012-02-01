@@ -135,7 +135,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except urllib2.HTTPError, e:
+        except (urllib2.URLError, urllib2.HTTPError), e:
             log.error("Did not remove whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
