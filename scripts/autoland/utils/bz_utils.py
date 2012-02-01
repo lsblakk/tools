@@ -70,6 +70,8 @@ class bz_util():
                 else:
                     raise
         log.debug(result)
+        # XXX: This exceptions will need to be made a class member, and
+        # explicitly caught.
         raise Exception('PutError')
 
     def get_patch(self, patch_id, path='.', create_path=False, overwrite_patch=False):
@@ -135,7 +137,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except (urllib2.URLError, urllib2.HTTPError), e:
+        except (Exception, urllib2.URLError, urllib2.HTTPError), e:
             log.error("Did not remove whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
@@ -158,7 +160,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except (urllib2.URLError, urllib2.HTTPError), e:
+        except (Exception, urllib2.URLError, urllib2.HTTPError), e:
             log.debug("Did not add whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
@@ -188,7 +190,7 @@ class bz_util():
         try:
             self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
             return True
-        except (urllib2.URLError, urllib2.HTTPError), e:
+        except (Exception, urllib2.URLError, urllib2.HTTPError), e:
             log.debug("Did not replace whiteboard tag to bug %s : %s" % (bugid, e))
             return False
 
@@ -225,7 +227,7 @@ class bz_util():
                         data={"text": message, "is_private": False}, method="POST")
                 log.debug("Added comment to bug %s", bug_num)
                 result = 1
-            except (urllib2.URLError, urllib2.HTTPError), e:
+            except (Exception, urllib2.URLError, urllib2.HTTPError), e:
                 log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
                 result = 0
                 if i < retries:
