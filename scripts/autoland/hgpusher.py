@@ -251,7 +251,7 @@ def process_patchset(data):
 
     try:
         retry(apply_and_push, cleanup=cleanup_wrapper,
-                retry_exceptions=(RETRY,),
+                retry_exceptions=(RETRY,HgUtilError),
                 args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
                             ssh_key=config['hg_ssh_key'],
