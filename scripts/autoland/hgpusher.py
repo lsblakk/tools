@@ -274,12 +274,11 @@ def process_patchset(data):
         comment.append('\tDestination: http://hg.mozilla.org/try/rev/%s' % (revision))
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
                 % (revision, os.path.join(config['tbpl_url'],
-                                          '?tree=Try&rev=%s' % (data['branch'], revision))) )
+                                          '?tree=Try&rev=%s' % (revision))) )
     else:
         comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision))
         comment.append('Successfully applied and pushed patchset.\n\tRevision: %s'
-                % (revision, data['branch'],
-                   ', '.join(map(lambda x: x['id'], data['patches']))))
+                % (revision))
         if data['branch'] == 'mozilla-central':
             comment.append('To monitor the commit, see: %s'
                     % (os.path.join(config['tbpl_url'],
