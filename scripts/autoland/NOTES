@@ -16,6 +16,7 @@ to grab either or both try_syntax/patchIDs
 * FIXED: Why does autolanduser post as Marc Jessome?? :) (answer: .hgrc)
 * FIXED: Need to check for dupe patch_sets here 
 * FIXED: add queue purge flag
+* FIXED: Do something about the split config/auth.ini usage in hgpusher (sync the production values with puppet?)
 
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
@@ -69,7 +70,6 @@ to grab either or both try_syntax/patchIDs
     - After landing on branch, should set attachment flag checked-in+ (if it's possible to do a whiteboard tag, comment, checkin flag as one transaction that would be great)
 3. autoland_queue needs to poll the database for jobs that have been in the queue for a long time (waiting for tests to be written)
 4. Handle clone failures properly. (see Code review question)
-5. Do something about the split config/auth.ini usage in hgpusher (sync the production values with puppet?)
 
 ## Dear Future Autolanding
 0. HgExtension (using Pbiggar's trychooser one) - could take your patches(diff) and create bugzilla 
