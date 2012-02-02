@@ -544,7 +544,7 @@ def main():
             # to poll by revision. This will allow for posting back to
             # landfill.
             for revision in db.PatchSetGetRevs():
-                cmd = ['bash', os.path.join(base_dir, 'run_scheduleDbPoller_staging')]
+                cmd = ['bash', os.path.join(base_dir, 'run_schedulerDbPoller_staging')]
                 cmd.append(revision)
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 (out, err) = proc.communicate()
