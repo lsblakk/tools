@@ -330,7 +330,6 @@ def message_handler(message):
         print "PatchSetID: %s" % patchset_id
 
     comment = msg.get('comment', None)
-    print >>sys.stderr, "Comment: %s" % (str(comment))
     if comment:
         # Handle the posting of a comment
         bug_id = msg.get('bug_id', None)

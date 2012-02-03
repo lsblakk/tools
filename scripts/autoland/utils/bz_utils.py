@@ -54,7 +54,7 @@ class bz_util():
         Perform a PUT request, raise 'PutError' if can't complete.
         """
         result = 0
-        print path, data
+        # print path, data
         for i in range(retries):
             print "Put attempt %s of %s" % (i + 1, retries)
             # PUT the changes
