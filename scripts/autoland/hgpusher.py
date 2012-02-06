@@ -270,12 +270,12 @@ def process_patchset(data):
 
     if try_run:
         # comment to bug with link to the try run on tbpl and in hg
-        comment.append('\tDestination: http://hg.mozilla.org/try/rev/%s' % (revision))
+        comment.append('\tDestination: http://hg.mozilla.org/try/pushloghtml?changeset=%s' % (revision))
         comment.append('Try run started, revision %s. To cancel or monitor the job, see: %s'
                 % (revision, os.path.join(config['tbpl_url'],
                                           '?tree=Try&rev=%s' % (revision))) )
     else:
-        comment.append('\tDestination: http://hg.mozilla.org/%s/rev/%s' % (data['branch'],revision))
+        comment.append('\tDestination: http://hg.mozilla.org/%s/pushloghtml?changeset=%s' % (data['branch'],revision))
         comment.append('Successfully applied and pushed patchset.\n\tRevision: %s'
                 % (revision))
         if data['branch'] == 'mozilla-central':
