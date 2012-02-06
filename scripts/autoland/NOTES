@@ -1,6 +1,6 @@
 ## BUGS!
-* in hgpusher has_sufficient_permissions, should check the author email directly, as well as the BugzillaEmail field. (see inline XXX)
-* We need better handling on try fail - when try is down all jobs should pause/wait for try up again
+* We need better handling on try fail - when try is down all jobs should pause/wait for try up again. (Pending on Catlee's tree status application?)
+* Incoming try syntax should be stripped of "bug XXXX" or "--post-to-bug" or "-n", since we add those anyways.
 
 * FIXED: Add tests to test_dbhandler for querying patchsets on other params than branch
 * FIXED: Whenever schedulerdbpoller sends out messages that autoland doesn't track, line 381 dies on NoneType error
@@ -17,6 +17,7 @@ to grab either or both try_syntax/patchIDs
 * FIXED: add queue purge flag
 * FIXED: Do something about the split config/auth.ini usage in hgpusher (sync the production values with puppet?)
 * FIXED: NIT: autoland_queue log gets 3x the bug comment text (only one post to bug thankfully)
+* FIXED: in hgpusher has_sufficient_permissions, should check the author email directly, as well as the BugzillaEmail field. (see inline XXX)
 
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
