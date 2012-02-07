@@ -262,7 +262,6 @@ def bz_search_handler():
             # XXX TODO - we will need to figure out how to have multiple authors
             ps.author = patches[0]['author']['email']
 
-        # XXX TODO - let's check here if it's a dupe before inserting the patch_set
         log_msg("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
         print "PatchsetID: %s" % patchset_id
@@ -380,14 +379,27 @@ def message_handler(message):
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Successful push to branch of patchset %s.' % (ps.id), log.DEBUG)
-
+    elif msg['type'] == 'timed out':
+        ps = None
+        if msg['action'] == 'try.run':
+            ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
+            if ps == None:
+                log_msg('No corresponding patchset found for timed out revision %s' % msg['revision'])
+                return
+            ps = ps[0]
+        if ps:
+            # remove it from the queue, timeout should have been comented to bug
+            # XXX: (shall we confirm that here with bz_utils.has_comment?)
+            bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
+            db.PatchSetDelete(ps)
+            log_msg('Received time out on %s, deleting patchset %s'
+                    % (msg['action'], ps.id), log.DEBUG)
     elif msg['type'] == 'error' or msg['type'] == 'failure':
         ps = None
         if msg['action'] == 'try.run' or msg['action'] == 'branch.run':
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
             if ps == None:
-                log_msg('No corresponding patchset found for revision %s'
-                        % msg['revision'])
+                log_msg('No corresponding patchset found for revision %s' % msg['revision'])
                 return
             ps = ps[0]
         elif msg['action'] == 'patchset.apply':
@@ -400,7 +412,7 @@ def message_handler(message):
 
         if ps:
             # remove it from the queue, error should have been comented to bug
-            # (shall we confirm that here with bz_utils.has_coment?)
+            # XXX: (shall we confirm that here with bz_utils.has_coment?)
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log_msg('Received error on %s, deleting patchset %s'
