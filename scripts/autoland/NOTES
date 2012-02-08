@@ -1,5 +1,6 @@
 ## BUGS!
 ===Notes from code review====
+* Take another look at timeout time, maybe consider time & number of jobs still running, or change postback to an update rather a "timeout" message.
 * append branch or repo to cache file names to avoid clash with matching cset
 * dry.run - "Would have written to cache" in SchedulerDBPoller, pollByRevision
 * Add documentation notes about security bugs
