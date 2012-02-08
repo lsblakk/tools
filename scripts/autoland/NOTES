@@ -5,15 +5,12 @@
 * dry.run - "Would have written to cache" in SchedulerDBPoller, pollByRevision
 * Add documentation notes about security bugs
 * Check status of bug - do we poll _all_ bugs or only a subset of FIXED,NEW,etc? Just check scalability here as # of bugs to poll grows over time
-* Change all prints to logging and log_msg to logging
-* try() on the int(attachment['id']) in autoland_queue.py instead of just casting to int()
-* make line 99 autoland_queue review_type in a tuple instead of a list (bear says faster)
+* Change all prints to logging (or remove unnecessary prints)
 * 161-164 of autoland_queue can be removed
 * add more tests to check if we need to non-greedy the replacement matches for inserting [autoland-in-queue] like: '[autoland]blahblahblah]'
 * haven't finished multiple branch handling - with the patchset being pulled from DB
 * let's make sure we are prioritizing high retry patchsets when pulling out patchset from DB
 * clean interrupt of the modules
-* do we time.sleep(5)? - while messages incoming continue reading them not sleeping or we'll get a pile up
 * break up the handling of the returned messages a bit more?
 * handling timed_out - as exemplified yesterday it is possible for schedulerdbpoller to never manage to post to the bug and send out the message to autoland of status = 'timed_out' so we need to tie this into the comments system somehow...another flag in the message that bug message was never made?
 * bear said something about strings and not having to replace them all over the code - remember this? ** helper class and schema revision - version number of API and payload to save grief if there are other message structures in the future
@@ -26,10 +23,9 @@
 * never do anything long running in your callback handler
 * handling clone errors - Nagios alert whether it can recover on its own or not - sometimes we will have manual intervention - try gets reset, we'd hit this case for a little while - keep retrying (forever) and if we made it to this point we know the repo did exist once before
 * if a worker is having hg errors, maybe that's a notice back to the system (heartbeat)
-* 
-
-
+* need a lock file on schedulerDbPoller, in case cron job runs a long time?
 =============================
+
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again. (Pending on Catlee's tree status application?)
 * Incoming try syntax should be stripped of "bug XXXX" or "--post-to-bug" or "-n", since we add those anyways.
 * I would like to see a handling of a "shutdown" message being sent to hgpushers which could make it possible for a graceful shutdown.
@@ -37,7 +33,6 @@
     |-> Could also add a field for specifying an hgpusher instance (pid or hgpusher.* or... i don't know)
 * Some method of clearing out patch files that we know aren't being used -- could be done at the end of pushing a job.
 * Get rid of quotation marks around commit message.
-* Make sure logs are rotating correctly.
 * Handling failed whiteboard modifications.
 
 * FIXED: Add tests to test_dbhandler for querying patchsets on other params than branch
@@ -58,6 +53,10 @@ to grab either or both try_syntax/patchIDs
 * FIXED: in hgpusher has_sufficient_permissions, should check the author email directly, as well as the BugzillaEmail field. (see inline XXX)
 * FIXED: rename patches to user_patches where applicable.
 * FIXED: get rid of log_msg usage.
+* FIXED: dont time.sleep(5) in autoland_queue.
+* FIXED: Make sure logs are rotating correctly.
+* FIXED: try() on the int(attachment['id']) in autoland_queue.py instead of just casting to int()
+* FIXED: change list iterations to tuple iterations.
 
 ## Lukas Notes
 * cleanup & metrics: Set up an archiving script for postedbug.log/cache '*.done' files on cruncher - so we have history of usage and also are cleaning up periodically
