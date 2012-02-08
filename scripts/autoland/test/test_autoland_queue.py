@@ -179,10 +179,10 @@ class TestAutolandQueue(unittest.TestCase):
                 return bugs
             bz_gmb.side_effect = gmb
             # populate some test cases
-            for id in [10411]:
-                for tag in ['[autoland]','[autoland-try]','[autoland-branch]',
+            for id in (10411):
+                for tag in ('[autoland]','[autoland-try]','[autoland-branch]',
                         '[autoland:2113,2114]','[autoland-try:2114]',
-                        '[bad-autoland-tag]','[autoland\in:valid]']:
+                        '[bad-autoland-tag]','[autoland\in:valid]'):
                     bugs.append((id, tag))
             with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
                 def pc(comment, bug):

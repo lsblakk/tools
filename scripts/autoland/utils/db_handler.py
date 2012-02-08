@@ -483,7 +483,7 @@ class PatchSet(object):
         if self.patches != False: d['patches'] = re.sub('\[|\]', '', str(self.patches))
         if self.revision != False: d['revision'] = self.revision
         if self.branch != False: d['branch'] = self.branch
-        if self.try_run in [1,0]: d['try_run'] = self.try_run
+        if self.try_run in (1,0): d['try_run'] = self.try_run
         if self.try_syntax != False: d['try_syntax'] = self.try_syntax
         if self.creation_time != False: d['creation_time'] = self.creation_time
         if self.push_time != False: d['push_time'] = self.push_time

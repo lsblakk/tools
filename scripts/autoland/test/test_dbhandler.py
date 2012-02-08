@@ -177,7 +177,7 @@ class TestAutolandDbHandler(unittest.TestCase):
         ps3.id = self.db.PatchSetInsert(ps3)
         revs = self.db.PatchSetGetRevs()
         print revs
-        for r in ['ps1', 'ps2', 'ps3']:
+        for r in ('ps1', 'ps2', 'ps3'):
             self.assertTrue(r in revs)
         self.db.PatchSetDelete(ps1)
         self.db.PatchSetDelete(ps2)

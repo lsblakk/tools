@@ -40,7 +40,7 @@ class TestBzUtils(unittest.TestCase):
 
     def testGetUserInfoPass(self):
         info = bz.get_user_info('lsblakk@mozilla.com')
-        for i in ['name', 'email']:
+        for i in ('name', 'email'):
             self.assertTrue(i in info)
 
     def testGetUserInfoFail(self):

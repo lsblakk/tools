@@ -87,7 +87,7 @@ def get_reviews(attachment):
     if not 'flags' in attachment:
         return reviews
     for flag in attachment['flags']:
-        for review_type in ['review', 'superreview', 'ui-review']:
+        for review_type in ('review', 'superreview', 'ui-review'):
             if flag.get('name') == review_type:
                 reviews.append({'type':review_type,
                                 'reviewer':flag['setter']['name'],
