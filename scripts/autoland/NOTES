@@ -1,4 +1,34 @@
 ## BUGS!
+===Notes from code review====
+* append branch or repo to cache file names to avoid clash with matching cset
+* dry.run - "Would have written to cache" in SchedulerDBPoller, pollByRevision
+* Add documentation notes about security bugs
+* Check status of bug - do we poll _all_ bugs or only a subset of FIXED,NEW,etc? Just check scalability here as # of bugs to poll grows over time
+* Change all prints to logging and log_msg to logging
+* try() on the int(attachment['id']) in autoland_queue.py instead of just casting to int()
+* make line 99 autoland_queue review_type in a tuple instead of a list (bear says faster)
+* 161-164 of autoland_queue can be removed
+* add more tests to check if we need to non-greedy the replacement matches for inserting [autoland-in-queue] like: '[autoland]blahblahblah]'
+* haven't finished multiple branch handling - with the patchset being pulled from DB
+* let's make sure we are prioritizing high retry patchsets when pulling out patchset from DB
+* clean interrupt of the modules
+* do we time.sleep(5)? - while messages incoming continue reading them not sleeping or we'll get a pile up
+* break up the handling of the returned messages a bit more?
+* handling timed_out - as exemplified yesterday it is possible for schedulerdbpoller to never manage to post to the bug and send out the message to autoland of status = 'timed_out' so we need to tie this into the comments system somehow...another flag in the message that bug message was never made?
+* bear said something about strings and not having to replace them all over the code - remember this? ** helper class and schema revision - version number of API and payload to save grief if there are other message structures in the future
+* HgPusher line 66 add verbose flags to the regex - compile the regex ahead of time too?
+* could put a stopping condition as well (line 66 - HgPusher)
+* apparently you can have scm_level{1,2,3} and not be able to push to a _particular_ repo with that same level of perms -- we will need IT here (according to Hal's experience, is this a normal use case?)
+** process as implemented is not the same as described in the wiki
+* can someone change their bugzilla email to one with more permissions and get away with pushing as the higher level person?
+* if hgpusher lags in finishing its job, the message might be picked up by another?  need to ack on message receipt - we should let rabbit mq's delivery method do its thing, and handle the 'hgpusher didn't do it's job' somewhere else - a queue within hgpusher of work being done?
+* never do anything long running in your callback handler
+* handling clone errors - Nagios alert whether it can recover on its own or not - sometimes we will have manual intervention - try gets reset, we'd hit this case for a little while - keep retrying (forever) and if we made it to this point we know the repo did exist once before
+* if a worker is having hg errors, maybe that's a notice back to the system (heartbeat)
+* 
+
+
+=============================
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again. (Pending on Catlee's tree status application?)
 * Incoming try syntax should be stripped of "bug XXXX" or "--post-to-bug" or "-n", since we add those anyways.
 * I would like to see a handling of a "shutdown" message being sent to hgpushers which could make it possible for a graceful shutdown.
@@ -29,14 +59,13 @@ to grab either or both try_syntax/patchIDs
 * FIXED: get rid of log_msg usage.
 
 ## Lukas Notes
-* possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
-** HgPusher could send a message to schedulerdbpoller to create the empty cache file so that it's tracked from push time
-
 * cleanup & metrics: Set up an archiving script for postedbug.log/cache '*.done' files on cruncher - so we have history of usage and also are cleaning up periodically
 ** Nagios check top entry in cache files and warn about possibly hung builds
 ** Cronjob to clean up .done files every 24 hours that are more than 24 hours old
 
 * informing: Documentation, blogs, tweets, Yammers, Lightning Talk, Brownbag - get the word out
+
+* status dashboard - expose the bugs that have been run through autoland
 
 * project management: tracking bug for bugs filed to this component - perhaps a bugzilla RelEng component?
 
@@ -48,7 +77,7 @@ to grab either or both try_syntax/patchIDs
 
 
 ## Marc Notes
-0. Set up autoland-staging02 as the staging box (autoland-staging01 becomes production)
+0. Set up autoland-staging02 as the staging box (autoland-staging01 becomes production) with Puppet
 1. The use case of "Flag bug for landing --> Wait for review --> land":
     -  Will not currently work, due to an early design mistake. The fix is
        fairly straight forward, but will require some time. I can redesign
