@@ -40,15 +40,6 @@ def run_hg(hg_args):
     rc = proc.returncode
     return (out, err, rc)
 
-def log_msg(message, log_to=log.error):
-    """
-    Log a message to stderr and to the given logging level.
-    Pass None to log_to if the message should not be sent to log.
-    """
-    print >>sys.stderr, message
-    if callable(log_to):
-        log_to(message)
-
 def has_valid_header(filename):
     """
     Check to see if the file has a valid header. The header must
@@ -178,41 +169,41 @@ def process_patchset(data):
         # only wipe the repositories every second cleanup
         if cleanup_wrapper.full_clean:
             clear_branch(data['branch'])
-            log_msg('Wiped repositories for: %s' % data['branch'])
+            log.debug('Wiped repositories for: %s' % data['branch'])
         else:
             active_repo = os.path.join('active', data['branch'])
             update(active_repo)
-            log_msg('Update -C on active repo for: %s' % data['branch'])
+            log.debug('Update -C on active repo for: %s' % data['branch'])
         cleanup_wrapper.full_clean = not cleanup_wrapper.full_clean
 
         clone_revision = clone_branch(data['branch'], data['branch_url'])
         if clone_revision == None:
             # TODO: Handle clone error -- Code Review question
-            log_msg('[HgPusher] Clone error...')
+            log.error('[HgPusher] Clone error...')
         return
 
     def apply_patchset(dir, attempt):
         if not clone_branch(data['branch'], data['branch_url']):
             msg = 'Branch %s could not be cloned.'
-            log_msg('[Branch %s] Could not clone from %s.' \
+            log.error('[Branch %s] Could not clone from %s.' \
                     % (data['branch'], data['branch_url']))
             comment.append(msg)
             raise RETRY
 
         for patch in data['patches']:
-            log_msg("Getting patch %s" % (patch['id']), None)
+            log.debug("Getting patch %s" % (patch['id']), None)
             # store patches in 'patches/' below work_dir
             patch_file = bz.get_patch(patch['id'],
                     os.path.join('patches'),create_path=True)
             if not patch_file:
                 msg = 'Patch %s could not be fetched.' % (patch['id'])
-                log_msg(msg)
+                log.error(msg)
                 if msg not in comment:
                     comment.append(msg)
                 raise RETRY
             valid_header = has_valid_header(patch_file)
             if not try_run and not valid_header:
-                log_msg('[Patch %s] Invalid header.' % (patch['id']))
+                log.error('[Patch %s] Invalid header.' % (patch['id']))
                 # append comment to comment
                 msg = 'Patch %s does not have a properly formatted header.' \
                         % (patch['id'])
@@ -231,7 +222,7 @@ def process_patchset(data):
                     try_run, bug_id=data.get('bug_id', None),
                     user=user, try_syntax=data.get('try_syntax', None))
             if patch_success != 0:
-                log_msg('[Patch %s] %s' % (patch['id'], err))
+                log.error('[Patch %s] %s' % (patch['id'], err))
                 msg = 'Error applying patch %s to %s.\n%s' \
                         % (patch['id'], data['branch'], err)
                 if msg not in comment:
@@ -243,9 +234,9 @@ def process_patchset(data):
             data['branch'] if not try_run else 'try'):
         msg = 'Insufficient permissions to push to %s' \
                 % ((data['branch'] if not try_run else 'try'))
-        log_msg(msg)
+        log.error(msg)
         comment.append(msg)
-        log_msg('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+        log.debug('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']))
         return (False, '\n'.join(comment))
 
     try:
@@ -259,10 +250,9 @@ def process_patchset(data):
         shutil.rmtree(active_repo)
     except (HgUtilError, RETRY) as error:
         msg = 'Could not apply and push patchset:\n%s' % (error)
-        log_msg('[PatchSet] %s' % (msg))
+        log.error('[PatchSet] %s' % (msg))
         comment.append(msg)
-        log_msg('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
-        # TODO need to remove whiteboard tag here or in autoland_queue?
+        log.debug('Comment "%s" to bug %s' % ('\n'.join(comment), data['bug_id']))
         return (False, '\n'.join(comment))
 
     # Successful push. Clear any errors that might be in the comments
@@ -287,7 +277,7 @@ def process_patchset(data):
                     % (os.path.join(config['tbpl_url'],
                        '?tree=Mozilla-Inbound&rev=%s' % (revision))))
 
-    log_msg('Comment %s to bug %s' % ('\n'.join(comment), data['bug_id']), log.DEBUG)
+    log.debug('Comment %s to bug %s' % ('\n'.join(comment), data['bug_id']))
     return (revision, '\n'.join(comment))
 
 def clone_branch(branch, branch_url):
@@ -300,12 +290,11 @@ def clone_branch(branch, branch_url):
     clean = os.path.join('clean')
     clean_repo = os.path.join(clean, branch)
     if not os.access(clean, os.F_OK):
-        log_msg(os.getcwd())
         os.mkdir(clean)
     try:
         mercurial(remote, clean_repo)
     except subprocess.CalledProcessError as e:
-        log_msg('[Clone] error cloning \'%s\' into clean repository:\n%s'
+        log.error('[Clone] error cloning \'%s\' into clean repository:\n%s'
                 % (remote, e))
         return None
     # Clone that clean repository to active and return that revision
@@ -318,9 +307,9 @@ def clone_branch(branch, branch_url):
     try:
         print 'Cloning from %s -----> %s' % (clean_repo, active_repo)
         revision = mercurial(clean_repo, active_repo)
-        log_msg('[Clone] Cloned revision %s' %(revision), log.info)
+        log.info('[Clone] Cloned revision %s' %(revision))
     except subprocess.CalledProcessError as error:
-        log_msg('[Clone] error cloning \'%s\' into active repository:\n%s'
+        log.error('[Clone] error cloning \'%s\' into active repository:\n%s'
                 % (remote, error))
         return None
 
@@ -354,24 +343,24 @@ def valid_job_message(message):
     """
     if not valid_dictionary_structure(message,
             ['bug_id','branch','branch_url','try_run','patches']):
-        log_msg('Invalid message: %s' % (message))
+        log.error('Invalid message: %s' % (message))
         return False
     for patch in message['patches']:
         if not valid_dictionary_structure(patch,
                 ['id', 'author', 'reviews']) or \
            not valid_dictionary_structure(patch['author'],
                 ['email', 'name']):
-            log_msg('Invalid patchset in message.')
+            log.error('Invalid patchset in message.')
             return False
         if not message['try_run']:
             for review in patch['reviews']:
                 if not valid_dictionary_structure(review,
                     ['reviewer', 'type', 'result']):
-                    log_msg('Invalid review in patchset')
+                    log.error('Invalid review in patchset')
                     return False
                 if not valid_dictionary_structure(review['reviewer'],
                     ['email', 'name']):
-                    log_msg('Invalid reviewer')
+                    log.error('Invalid reviewer')
                     return False
     return True
 
@@ -382,7 +371,7 @@ def message_handler(message):
     data = message['payload']
 
     if 'job_type' not in data:
-        log_msg('[HgPusher] Erroneous message: %s' % (message))
+        log.error('[HgPusher] Erroneous message: %s' % (message))
         return
     if data['job_type'] == 'command':
         pass
@@ -406,7 +395,7 @@ def message_handler(message):
             if clone_revision:
                 break
         if clone_revision == None:
-            log_msg('[HgPusher] Clone error...')
+            log.error('[HgPusher] Clone error...')
             msg = { 'type' : 'error', 'action' : 'repo.clone',
                     'patchsetid' : data['patchsetid'],
                     'bug_id' : data['bug_id'],
@@ -416,8 +405,8 @@ def message_handler(message):
         (patch_revision, comment) = process_patchset(data)
         if patch_revision and patch_revision != clone_revision:
             # comment already posted in process_patchset
-            log_msg('[Patchset] Successfully applied patchset %s'
-                % (patch_revision), log.info)
+            log.info('[Patchset] Successfully applied patchset %s'
+                % (patch_revision))
             msg = { 'type'  : 'success',
                     'action': 'try.push' if data['try_run'] else 'branch.push',
                     'bug_id' : data['bug_id'], 'patchsetid': data['patchsetid'],
@@ -434,7 +423,7 @@ def message_handler(message):
 
 def main():
     # set up logging
-    log.basicConfig(format=LOGFORMAT, level=log.DEBUG,
+    log.basicConfig(format=LOGFORMAT, level=log.debug,
             filename=LOGFILE, handler=LOGHANDLER)
 
     mq.set_host(config['mq_host'])
@@ -481,7 +470,7 @@ def main():
                 print "Released working directory"
                 break
     except os.error, e:
-        log_msg('Error switching to working directory: %s' % e)
+        log.error('Error switching to working directory: %s' % e)
         exit(1)
 
 if __name__ == '__main__':

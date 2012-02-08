@@ -302,25 +302,23 @@ class TestHgPusher(unittest.TestCase):
             'bug_id' : 1,
             'patches' : [{ 'id' : 1 }] } })
         with mock.patch('hgpusher.clone_branch') as cb:
-            with mock.patch('hgpusher.log_msg') as log:
-                with mock.patch('hgpusher.valid_job_message') as vjm:
-                    # test invalid job messages
-                    message_handler({'payload':{}})
-                    log.assert_called_once()
+            with mock.patch('hgpusher.valid_job_message') as vjm:
+                # test invalid job messages
+                message_handler({'payload':{}})
 
-                    vjm.return_value = True
-                    cb.return_value = None
-                    message_handler(msg[0])
-                    cb.assert_called_with('mozilla-central', 'mozilla-central_url')
-                    cb.return_value = '7124a8c22d'
-                    with mock.patch('hgpusher.process_patchset') as pp:
-                        with mock.patch('hgpusher.mq.send_message') as sm:
-                            pp.return_value = (cb.return_value, 'This is a comment')
-                            # XXX: Need to check that this case is covered.
-                            pp.return_value = ('aaaaaa', 'comment')
-                            sm.return_value = True
-                            sm.assert_called_once()
-                            message_handler(msg[0])
+                vjm.return_value = True
+                cb.return_value = None
+                message_handler(msg[0])
+                cb.assert_called_with('mozilla-central', 'mozilla-central_url')
+                cb.return_value = '7124a8c22d'
+                with mock.patch('hgpusher.process_patchset') as pp:
+                    with mock.patch('hgpusher.mq.send_message') as sm:
+                        pp.return_value = (cb.return_value, 'This is a comment')
+                        # XXX: Need to check that this case is covered.
+                        pp.return_value = ('aaaaaa', 'comment')
+                        sm.return_value = True
+                        sm.assert_called_once()
+                        message_handler(msg[0])
 
     def testClearBranch(self):
         gen_repos()
