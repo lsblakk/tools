@@ -50,14 +50,17 @@ def has_valid_header(filename):
           if they want to be pushing to branch.
     """
     f = open(filename, 'r')
+    userline = re.compile('# User [\w\s]+ <[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$')
+    # XXX: Don't think we want to enforce the comment to start with bug xxxx
+    commentline = re.compile('^bug\s?(\d+|\w+)[:\s]', re.I)
     for line in f:
         if re.match('# User ', line):
             # User line must be of the form
             # # User Name <name@email.com>
-            if not re.match('# User [\w\s]+ <[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$', line):
+            if not userline.match(line):
                 print 'Bad header.'
                 return False
-        elif re.match('^bug\s?(\d+|\w+)[:\s]', line, re.I):   # comment line
+        elif commentline.match(line):
             return True
         elif re.match('^$', line):
             # done with header
