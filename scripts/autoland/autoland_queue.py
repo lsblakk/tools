@@ -256,7 +256,7 @@ def bz_search_handler():
             continue
 
         ps.author = patches[0]['author']['email']
-        ps.patches = ','.join(patches)
+        ps.patches = ','.join(map(lambda x: str(x['id']), patches))
 
         log.info("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)

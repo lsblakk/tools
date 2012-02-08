@@ -7,7 +7,6 @@
 * Check status of bug - do we poll _all_ bugs or only a subset of FIXED,NEW,etc? Just check scalability here as # of bugs to poll grows over time
 * Change all prints to logging (or remove unnecessary prints)
 * 161-164 of autoland_queue can be removed
-* add more tests to check if we need to non-greedy the replacement matches for inserting [autoland-in-queue] like: '[autoland]blahblahblah]'
 * haven't finished multiple branch handling - with the patchset being pulled from DB
 * let's make sure we are prioritizing high retry patchsets when pulling out patchset from DB
 * clean interrupt of the modules
@@ -57,6 +56,7 @@ to grab either or both try_syntax/patchIDs
 * FIXED: Make sure logs are rotating correctly.
 * FIXED: try() on the int(attachment['id']) in autoland_queue.py instead of just casting to int()
 * FIXED: change list iterations to tuple iterations.
+* FIXED: add more tests to check if we need to non-greedy the replacement matches for inserting [autoland-in-queue] like: '[autoland]blahblahblah]'
 
 ## Lukas Notes
 * cleanup & metrics: Set up an archiving script for postedbug.log/cache '*.done' files on cruncher - so we have history of usage and also are cleaning up periodically

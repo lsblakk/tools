@@ -1,4 +1,5 @@
 import unittest
+import re
 import sys
 import json
 import mock
@@ -173,13 +174,29 @@ class TestAutolandQueue(unittest.TestCase):
     def testBzSearchHandler(self):
         bugs = []
         db = []
+
+        # Let's start by testing the autoland-in-queue replacement regex.
+        reg = re.compile('\[autoland[^\[\]]*\]')
+        self.assertEquals(reg.sub('', '[autoland-try]'), '')
+        self.assertEquals(reg.sub('', '[autoland-try][tag]'), '[tag]')
+        self.assertEquals(reg.sub('', '[tag][autoland-try]'), '[tag]')
+        self.assertEquals(reg.sub('', '[tag1][autoland:12][tag2]'), '[tag1][tag2]')
+        self.assertEquals(reg.sub('', '[autoland]abcd'), 'abcd')
+        self.assertEquals(reg.sub('', 'abcd[autoland]'), 'abcd')
+        self.assertEquals(reg.sub('', 'abcd[autoland]efgh'), 'abcdefgh')
+        self.assertEquals(reg.sub('', '[autoland-fail[]]'), '[autoland-fail[]]')
+        self.assertEquals(reg.sub('', '[autoland]badtag]'), 'badtag]')
+        self.assertEquals(reg.sub('', '[badtag[autoland]'), '[badtag')
+        self.assertEquals(reg.sub('', 'btag1][autoland]btag2]'), 'btag1]btag2]')
+        self.assertEquals(reg.sub('', '[[autoland-try:123]]'), '[]')
+
         with mock.patch('utils.bz_utils.bz_util.get_matching_bugs') as bz_gmb:
             def gmb(tag, regex):
                 print bugs
                 return bugs
             bz_gmb.side_effect = gmb
             # populate some test cases
-            for id in (10411):
+            for id in (10411,):
                 for tag in ('[autoland]','[autoland-try]','[autoland-branch]',
                         '[autoland:2113,2114]','[autoland-try:2114]',
                         '[bad-autoland-tag]','[autoland\in:valid]'):
