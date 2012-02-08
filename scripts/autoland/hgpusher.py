@@ -426,8 +426,8 @@ def message_handler(message):
 
 def main():
     # set up logging
-    log.basicConfig(format=LOGFORMAT, level=log.debug,
-            filename=LOGFILE, handler=LOGHANDLER)
+    log.basicConfig(format=LOGFORMAT, level=log.debug, filename=LOGFILE)
+    log.addHandler(LOGHANDLER)
 
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])

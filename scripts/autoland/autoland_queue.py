@@ -528,8 +528,8 @@ def main():
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
 
-    log.basicConfig(format=LOGFORMAT, level=log.debug,
-            filename=LOGFILE, handler=LOGHANDLER)
+    log.basicConfig(format=LOGFORMAT, level=log.debug, filename=LOGFILE)
+    log.addHandler(LOGHANDLER)
 
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
