@@ -1,7 +1,7 @@
 import time
 import os, errno, sys
 import re
-import logging as log
+import logging
 import logging.handlers
 import datetime
 import urllib2
@@ -11,9 +11,10 @@ from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
 base_dir = common.get_base_dir(__file__)
 
+log = logging.getLogger('autoland_queue')
 LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
 LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
-LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
+LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
@@ -144,8 +145,8 @@ def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
         # patches must meet criteria: is_patch and not is_obsolete
         try:
             attachment['id'] = int(attachment['id'])
-        except ValueErrror:
-            log.ERROR("Attachment id received not an integer: %s" % (attachment['id']))
+        except:
+            log.error("Attachment id received not an integer: %s" % (attachment['id']))
             raise
         if attachment['is_patch'] and not attachment['is_obsolete'] \
                 and (not user_patches or attachment['id'] in user_patches):
@@ -180,7 +181,7 @@ def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
         # comment that all requested patches didn't get applied
         # XXX TODO - should we still push what patches _did_ get applied?
         log.debug('Autoland failure. Publishing comment...')
-        post_comment(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % patches), bug_id)
+        post_comment(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % user_patches), bug_id)
         return None
     if len(patchset) == 0:
         post_comment('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
@@ -528,7 +529,8 @@ def main():
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
 
-    log.basicConfig(format=LOGFORMAT, level=log.debug, filename=LOGFILE)
+    log.setLevel(logging.DEBUG)
+    LOGHANDLER.setFormatter(LOGFORMAT)
     log.addHandler(LOGHANDLER)
 
     if len(sys.argv) > 1:

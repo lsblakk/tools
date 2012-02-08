@@ -1,7 +1,7 @@
 import os, sys
 import re
 import subprocess
-import logging as log
+import logging
 import logging.handlers
 import shutil
 from tempfile import mkdtemp
@@ -14,14 +14,15 @@ from utils import bz_utils, mq_utils, common, ldap_utils
 
 base_dir = common.get_base_dir(__file__)
 
+log = logging.getLogger('hgpusher')
 LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
 LOGFILE = os.path.join(base_dir, 'hgpusher.log')
-LOGHANDLER = log.handlers.RotatingFileHandler(LOGFILE,
+LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
 
 config = common.get_configuration(os.path.join(base_dir, 'config.ini'))
-bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'], 
+bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         attachment_url=config['bz_attachment_url'],
         username=config['bz_username'], password=config['bz_password'])
 ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
@@ -426,7 +427,8 @@ def message_handler(message):
 
 def main():
     # set up logging
-    log.basicConfig(format=LOGFORMAT, level=log.debug, filename=LOGFILE)
+    log.setLevel(logging.DEBUG)
+    LOGHANDLER.setFormatter(LOGFORMAT)
     log.addHandler(LOGHANDLER)
 
     mq.set_host(config['mq_host'])
