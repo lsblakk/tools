@@ -142,9 +142,14 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
         return None     # bad bug id, or no attachments
     for attachment in bug_data['attachments']:
         # patches must meet criteria: is_patch and not is_obsolete
+        try:
+            attachment['id'] = int(attachment['id'])
+        except ValueErrror:
+            log.ERROR("Attachment id received not an integer: %s" % (attachment['id']))
+            raise
         if attachment['is_patch'] and not attachment['is_obsolete'] \
-                and (not patches or int(attachment['id']) in patches):
-            patch = {'id':int(attachment['id']),
+                and (not patches or attachment['id'] in patches):
+            patch = {'id':attachment['id'],
                      'author':bz.get_user_info(attachment['attacher']['name']),
                      'reviews':[]}
 
