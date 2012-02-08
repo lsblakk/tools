@@ -127,7 +127,7 @@ class bz_util():
         bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug or not 'whiteboard' in bug:
             return False
-        whiteboard = reg.sub('', bug['whiteboard'], 1)
+        whiteboard = reg.sub('', bug['whiteboard'], count=1)
 
         if whiteboard == bug['whiteboard']:
             return False
@@ -180,7 +180,7 @@ class bz_util():
             # In case regex is '^$' or similar, we still want to add it.
             bug['whiteboard'] = ''
 
-        whiteboard = reg.sub(replacement, bug['whiteboard'])
+        whiteboard = reg.sub(replacement, bug['whiteboard'], count=1)
 
         if whiteboard == bug['whiteboard']:
             return False
