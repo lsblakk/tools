@@ -254,12 +254,9 @@ def bz_search_handler():
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             log.error('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.')
             continue
-        else:
-            # XXX TODO - we will need to figure out how to have multiple authors
-            ps.author = patches[0]['author']['email']
 
-        # XXX: NEED TO ADD PATCH LIST HERE
-        # ps.patches = patches
+        ps.author = patches[0]['author']['email']
+        ps.patches = ','.join(patches)
 
         log.info("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
