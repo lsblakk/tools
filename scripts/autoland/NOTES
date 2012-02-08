@@ -1,6 +1,13 @@
 ## BUGS!
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again. (Pending on Catlee's tree status application?)
 * Incoming try syntax should be stripped of "bug XXXX" or "--post-to-bug" or "-n", since we add those anyways.
+* I would like to see a handling of a "shutdown" message being sent to hgpushers which could make it possible for a graceful shutdown.
+    |-> Could be sent using fanout and high priority to push it to the top of the queue?
+    |-> Could also add a field for specifying an hgpusher instance (pid or hgpusher.* or... i don't know)
+* Some method of clearing out patch files that we know aren't being used -- could be done at the end of pushing a job.
+* Get rid of quotation marks around commit message.
+* Make sure logs are rotating correctly.
+* Handling failed whiteboard modifications.
 
 * FIXED: Add tests to test_dbhandler for querying patchsets on other params than branch
 * FIXED: Whenever schedulerdbpoller sends out messages that autoland doesn't track, line 381 dies on NoneType error
@@ -76,3 +83,4 @@ to grab either or both try_syntax/patchIDs
 0. HgExtension (using Pbiggar's trychooser one) - could take your patches(diff) and create bugzilla 
    attachemnt with bz API, put in the right autoland comments and Bob's your uncle: you just did it
    all from the command line
+1. Metrics (runtime, etc)
