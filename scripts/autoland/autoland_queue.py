@@ -571,12 +571,10 @@ def main():
             # take care of any comments that couldn't previously be posted
             handle_comments()
 
-            # get any incoming messages
-            mq.get_message(config['mq_autoland_queue'],
-                    message_handler, routing_key='db')
-
-            time.sleep(5)
-
+            # loop while we've got incoming messages
+            while mq.get_message(config['mq_autoland_queue'],
+                    message_handler, routing_key='db'):
+                continue
 
 if __name__ == '__main__':
     main()

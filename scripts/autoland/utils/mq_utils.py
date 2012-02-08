@@ -142,10 +142,10 @@ class mq_util():
                 message = json.loads(body)
             except ValueError:
                 ch.basic_ack(delivery_tag = method.delivery_tag)
-                return
+                return False
             except TypeError:
                 # No string received, this is caused in get_message
-                return
+                return False
             # make sure that the message has the expected structure.
             if not 'payload' in message:
                 message = {'payload' : message}
@@ -154,6 +154,7 @@ class mq_util():
             message['_meta']['received_time'] = str(datetime.datetime.utcnow())
             callback(message)
             ch.basic_ack(delivery_tag = method.delivery_tag)
+            return True
         callback_wrapper.callback = callback
         return callback_wrapper
 
@@ -178,8 +179,7 @@ class mq_util():
                 # getting errors with callback parameter to basic_get,
                 # manually call the callback
                 callback_wrapper = self.__callback_gen(callback)
-                callback_wrapper(self.channel, *self.channel.basic_get(queue=queue, no_ack=False))
-                return
+                return callback_wrapper(self.channel, *self.channel.basic_get(queue=queue, no_ack=False))
             except sockerr:
                 self.channel = None
                 log.info('[RabbitMQ] Connection to %s lost. Reconnection...'
