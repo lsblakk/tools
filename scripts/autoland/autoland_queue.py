@@ -95,11 +95,11 @@ def get_reviews(attachment):
                 break
     return reviews
 
-def get_patchset(bug_id, try_run, patches=[], review_comment=True):
+def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
     """
-    If patches specified, only fetch the information on those specific
+    If user_patches specified, only fetch the information on those specific
     patches from the bug.
-    If patches not specified, fetch the information on all patches from
+    If user_patches not specified, fetch the information on all patches from
     the bug.
 
     Try runs will contain all non-obsolete patches posted on the bug, no
@@ -135,7 +135,7 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
         ]
     """
     patchset = []
-    if patches: patches = patches[:]    # take a local copy of patches.
+    if user_patches: user)patches = user_patches[:]    # take a local copy of patches.
     # grab the bug data
     bug_data = bz.request('bug/%s' % str(bug_id))
     if 'attachments' not in bug_data:
@@ -148,7 +148,7 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
             log.ERROR("Attachment id received not an integer: %s" % (attachment['id']))
             raise
         if attachment['is_patch'] and not attachment['is_obsolete'] \
-                and (not patches or attachment['id'] in patches):
+                and (not user_patches or attachment['id'] in user_patches):
             patch = {'id':attachment['id'],
                      'author':bz.get_user_info(attachment['attacher']['name']),
                      'reviews':[]}
@@ -173,10 +173,10 @@ def get_patchset(bug_id, try_run, patches=[], review_comment=True):
                     review['reviewer'] = bz.get_user_info(review['reviewer'])
                 patch['reviews'] = reviews
             patchset.append(patch)
-            if patches:
-                patches.remove(patch['id'])
+            if user_patches:
+                user_patches.remove(patch['id'])
 
-    if len(patches) != 0:
+    if len(user_patches) != 0:
         # comment that all requested patches didn't get applied
         # XXX TODO - should we still push what patches _did_ get applied?
         log.debug('Autoland failure. Publishing comment...')

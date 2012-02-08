@@ -25,6 +25,8 @@ to grab either or both try_syntax/patchIDs
 * FIXED: Do something about the split config/auth.ini usage in hgpusher (sync the production values with puppet?)
 * FIXED: NIT: autoland_queue log gets 3x the bug comment text (only one post to bug thankfully)
 * FIXED: in hgpusher has_sufficient_permissions, should check the author email directly, as well as the BugzillaEmail field. (see inline XXX)
+* FIXED: rename patches to user_patches where applicable.
+* FIXED: get rid of log_msg usage.
 
 ## Lukas Notes
 * possible bug: There's a 10 minute gap between schedulerdbpoller runs could you have an autoland push start & stop in that time with no report back?
