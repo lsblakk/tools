@@ -135,7 +135,7 @@ def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
         ]
     """
     patchset = []
-    if user_patches: user)patches = user_patches[:]    # take a local copy of patches.
+    if user_patches: user_patches = user_patches[:]    # take a local copy of patches.
     # grab the bug data
     bug_data = bz.request('bug/%s' % str(bug_id))
     if 'attachments' not in bug_data:
