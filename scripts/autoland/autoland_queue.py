@@ -543,7 +543,7 @@ def main():
     while True:
         # search bugzilla for any relevant bugs
         bz_search_handler()
-        next = time.time() + int(config['bz_poll_frequency'])
+        next_poll = time.time() + int(config['bz_poll_frequency'])
 
         if config.get('staging', False):
             # if this is a staging instance, launch schedulerDbPoller in order
@@ -558,7 +558,7 @@ def main():
                 print out
                 print err
 
-        while time.time() < next:
+        while time.time() < next_poll:
             patchset = db.PatchSetGetNext()
             if patchset != None:
                 handle_patchset(patchset)
