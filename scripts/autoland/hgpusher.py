@@ -165,11 +165,6 @@ def process_patchset(data):
         # access process_patchset globals, given the way it is used.
         if not hasattr(cleanup_wrapper, 'full_clean'):
             cleanup_wrapper.full_clean = False
-        if not hasattr(cleanup_wrapper, 'branch'):
-            cleanup_wrapper.branch = data['branch']
-        if cleanup_wrapper.branch != data['branch']:
-            cleanup_wrapper.full_clean = False
-            cleanup_wrapper.branch = data['branch']
         # only wipe the repositories every second cleanup
         if cleanup_wrapper.full_clean:
             clear_branch(data['branch'])
@@ -244,7 +239,10 @@ def process_patchset(data):
         return (False, '\n'.join(comment))
 
     try:
-        retry(apply_and_push, cleanup=cleanup_wrapper,
+        # make 3 attempts so that 1st is on active clone,
+        # 2nd attempt will be after an update -c,
+        # and 3rd attempt will be a fresh clone
+        retry(apply_and_push, attempts=3, cleanup=cleanup_wrapper,
                 retry_exceptions=(RETRY,HgUtilError),
                 args=(active_repo, push_url, apply_patchset, 1),
                 kwargs=dict(ssh_username=config['hg_username'],
