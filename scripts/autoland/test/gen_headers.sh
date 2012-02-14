@@ -29,7 +29,12 @@ echo '# User <hg.pusher@mozilla.org>' > bad_header-no_name.patch
 echo 'bug 12345: test commit' >> bad_header-no_name.patch
 echo '' >> bad_header-no_name.patch
 
-echo '# User HG Pusher <hg.pusher@mozilla.org>' > bad_header-no_bug.patch
-echo 'test commit' >> bad_header-no_bug.patch
-echo '' >> bad_header-no_bug.patch
+echo '# User HG Pusher <hg.pusher@mozilla.org>' > valid_header-no_bug.patch
+echo 'test commit' >> valid_header-no_bug.patch
+echo '' >> valid_header-no_bug.patch
 
+echo '# User <hg.pusher@mozilla.org>' > bad_header-no_commit_msg.patch
+echo '' >> bad_header-no_commit_msg.patch
+
+echo 'Commit Message' > bad_header-no_user.patch
+echo '' >> bad_header-no_user.patch

@@ -44,27 +44,33 @@ def run_hg(hg_args):
 def has_valid_header(filename):
     """
     Check to see if the file has a valid header. The header must
-    include author name and commit message. The commit message must
-    start with 'bug \d+:'
+    include author name and commit message.
 
     Note: this forces developers to use 'hg export' rather than 'hg diff'
           if they want to be pushing to branch.
     """
     f = open(filename, 'r')
-    userline = re.compile('# User [\w\s]+ <[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$')
-    # XXX: Don't think we want to enforce the comment to start with bug xxxx
-    commentline = re.compile('^bug\s?(\d+|\w+)[:\s]', re.I)
+    puser = re.compile('# User ')
+    userline = re.compile('# User [\w\s]+ ' # Match the user line, starts with "User" and then a name
+            '<[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$') # User line ends with an email in <>
+
+    commentline = re.compile('^[^#$]+')     # Comment line is always first line
+                                            # not prefixed with #
+    has_userline = False
     for line in f:
-        if re.match('# User ', line):
+        if puser.match(line):
+            has_userline = True
             # User line must be of the form
             # # User Name <name@email.com>
             if not userline.match(line):
                 print 'Bad header.'
                 return False
         elif commentline.match(line):
-            return True
+            # userline always before commit message, so if we have it along
+            # with a commit message, return True, else False
+            return has_userline
         elif re.match('^$', line):
-            # done with header
+            # done with header since header ends with an empty line
             break
     return False
 
