@@ -22,7 +22,6 @@
 * never do anything long running in your callback handler
 * handling clone errors - Nagios alert whether it can recover on its own or not - sometimes we will have manual intervention - try gets reset, we'd hit this case for a little while - keep retrying (forever) and if we made it to this point we know the repo did exist once before
 * if a worker is having hg errors, maybe that's a notice back to the system (heartbeat)
-* need a lock file on schedulerDbPoller, in case cron job runs a long time?
 =============================
 
 * We need better handling on try fail - when try is down all jobs should pause/wait for try up again. (Pending on Catlee's tree status application?)
@@ -57,6 +56,7 @@ to grab either or both try_syntax/patchIDs
 * FIXED: try() on the int(attachment['id']) in autoland_queue.py instead of just casting to int()
 * FIXED: change list iterations to tuple iterations.
 * FIXED: add more tests to check if we need to non-greedy the replacement matches for inserting [autoland-in-queue] like: '[autoland]blahblahblah]'
+* FIXED: need a lock file on schedulerDbPoller, in case cron job runs a long time
 
 ## Lukas Notes
 * cleanup & metrics: Set up an archiving script for postedbug.log/cache '*.done' files on cruncher - so we have history of usage and also are cleaning up periodically

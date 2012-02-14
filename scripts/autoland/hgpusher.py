@@ -468,10 +468,11 @@ def main():
                 # couldn't take the lock, check next workdir
                 i += 1
                 continue
-            else:
-                hgp_lock.release()
-                print "Released working directory"
-                break
+            finally:
+                if hgp_lock:
+                    hgp_lock.release()
+                    print "Released working directory"
+                    break
     except os.error, e:
         log.error('Error switching to working directory: %s' % e)
         exit(1)
