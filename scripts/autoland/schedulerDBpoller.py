@@ -10,6 +10,7 @@ import ConfigParser
 import utils.bz_utils as bz_utils
 import utils.mq_utils as mq_utils
 import logging, logging.handlers
+from mercurial import lock, error
 
 FORMAT="%(asctime)s - %(module)s - %(funcName)s - %(message)s"
 LOGFILE='schedulerDBpoller.log'
@@ -666,29 +667,43 @@ if __name__ == '__main__':
         log.debug("Config file does not exist or is not valid.")
         sys.exit(1)
 
-    if options.revision:
-        poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
-                                    user=options.user, password=options.password, dry_run=options.dry_run, 
-                                    verbose=options.verbose)
-        result = poller.PollByRevision(options.revision, options.flag_check)
-        if options.verbose:
-            log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, result['posted_to_bug']))
-    else:
-        if options.starttime > time():
-            log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, localtime()))
-            sys.exit(1)
-        elif options.endtime < options.starttime:
-            log.debug("Endtime %s must be later than the starttime %s" % (options.endtime, options.starttime))
-            sys.exit(1)
-        elif options.endtime - options.starttime > MAX_POLLING_INTERVAL:
-            log.debug("Too large of a time interval between start and end times, please try a smaller polling interval")
-            sys.exit(1)
-        else:
+    lock_file = None
+    try:
+        lock_file = lock.lock(os.path.join(os.getcwd(), '.schedulerDbPoller.lock'), timeout=1)
+        print "lock acquired"
+        print lock_file
+
+        if options.revision:
             poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
-                                    user=options.user, password=options.password, dry_run=options.dry_run, 
-                                    verbose=options.verbose, messages=options.messages)
-            incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
+                                        user=options.user, password=options.password, dry_run=options.dry_run, 
+                                        verbose=options.verbose)
+            result = poller.PollByRevision(options.revision, options.flag_check)
             if options.verbose:
-                log.debug("Time range run complete: INCOMPLETE %s" % incomplete)
+                log.debug("Single revision run complete: RESULTS: %s POSTED_TO_BUG: %s" % (result, result['posted_to_bug']))
+        else:
+            if options.starttime > time():
+                log.debug("Starttime %s must be earlier than the current time %s" % (options.starttime, localtime()))
+                sys.exit(1)
+            elif options.endtime < options.starttime:
+                log.debug("Endtime %s must be later than the starttime %s" % (options.endtime, options.starttime))
+                sys.exit(1)
+            elif options.endtime - options.starttime > MAX_POLLING_INTERVAL:
+                log.debug("Too large of a time interval between start and end times, please try a smaller polling interval")
+                sys.exit(1)
+            else:
+                poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
+                                        user=options.user, password=options.password, dry_run=options.dry_run, 
+                                        verbose=options.verbose, messages=options.messages)
+                incomplete = poller.PollByTimeRange(options.starttime, options.endtime)
+                if options.verbose:
+                    log.debug("Time range run complete: INCOMPLETE %s" % incomplete)
+    except error.LockHeld:
+        print "There is an instance of SchedulerDbPoller running already."
+        print "If you are sure that it isn't running, delete %s and try again." % (os.path.join(os.getcwd(), '.schedulerDbPoller.lock'))
+        sys.exit(1)
+    finally:
+        if lock_file:
+            lock_file.release()
 
     sys.exit(0)
+
