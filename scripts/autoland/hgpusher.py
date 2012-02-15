@@ -7,12 +7,15 @@ import shutil
 from tempfile import mkdtemp
 from mercurial import error, lock   # For lockfile on working dirs
 
+base_dir = common.get_base_dir(__file__)
+import site
+site.addsitedir('%s/../../lib/python' % (base_dir))
+
 from util.hg import mercurial, apply_and_push, cleanOutgoingRevs, out, \
                     remove_path, HgUtilError, update, get_revision
 from util.retry import retry
 from utils import bz_utils, mq_utils, common, ldap_utils
 
-base_dir = common.get_base_dir(__file__)
 
 log = logging.getLogger('hgpusher')
 LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'

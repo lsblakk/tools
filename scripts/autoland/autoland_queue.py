@@ -6,10 +6,13 @@ import logging.handlers
 import datetime
 import urllib2
 
+base_dir = common.get_base_dir(__file__)
+import site
+site.addsitedir('%s/../../lib/python' % (base_dir))
+
 from utils import mq_utils, bz_utils, common
 from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
-base_dir = common.get_base_dir(__file__)
 
 log = logging.getLogger('autoland_queue')
 LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
