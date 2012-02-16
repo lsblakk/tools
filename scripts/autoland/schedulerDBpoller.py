@@ -670,8 +670,6 @@ if __name__ == '__main__':
     lock_file = None
     try:
         lock_file = lock.lock(os.path.join(os.getcwd(), '.schedulerDbPoller.lock'), timeout=1)
-        print "lock acquired"
-        print lock_file
 
         if options.revision:
             poller = SchedulerDBPoller(branch=options.branch, cache_dir=options.cache_dir, config=options.config, 
