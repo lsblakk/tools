@@ -119,8 +119,26 @@ class TestAutolandQueue(unittest.TestCase):
                     return_values.append('test/lsblakk.json')
                 return_values.append('test/bug2.json')
                 patches = [531180, 531181, 534107]
-                patchset = get_patchset('bug2', try_run=True, patches=patches)
+                patchset = get_patchset('bug2', try_run=True, user_patches=patches)
                 self.assertEqual(len(patchset), len(patches))
+                for p, q in zip(patches, map(lambda x: x['id'], patchset)):
+                    self.assertEqual(p, q)
+                for p in patchset:
+                    self.assertTrue(p['id'] in patches)
+                    patches.remove(p['id'])
+                self.assertTrue(len(patches) == 0)
+
+                # same 3 of 6, different order
+                # Try run = True
+                for i in range(3):
+                    return_values.append('test/mjessome.json')
+                    return_values.append('test/lsblakk.json')
+                return_values.append('test/bug2.json')
+                patches = [531181, 531180, 534107]
+                patchset = get_patchset('bug2', try_run=True, user_patches=patches)
+                self.assertEqual(len(patchset), len(patches))
+                for p, q in zip(patches, map(lambda x: x['id'], patchset)):
+                    self.assertEqual(p, q)
                 for p in patchset:
                     self.assertTrue(p['id'] in patches)
                     patches.remove(p['id'])
@@ -130,7 +148,7 @@ class TestAutolandQueue(unittest.TestCase):
                 # Try run = True
                 return_values = []
                 return_values.append('test/bug2.json')
-                patchset = get_patchset('bug3', try_run=True, patches=[1,2,3])
+                patchset = get_patchset('bug3', try_run=True, user_patches=[1,2,3])
                 self.assertEqual(patchset, None)
 
                 # 2 real patches, 2 fake patch ids
@@ -141,7 +159,7 @@ class TestAutolandQueue(unittest.TestCase):
                     return_values.append('test/lsblakk.json')
                 return_values.append('test/bug2.json')
                 patches = [531180, 4, 534042, 9]
-                patchset = get_patchset('bug4', try_run=True, patches=patches)
+                patchset = get_patchset('bug4', try_run=True, user_patches=patches)
                 self.assertEqual(patchset, None)
 
                 # Full patch set
