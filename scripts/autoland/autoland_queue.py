@@ -6,11 +6,11 @@ import logging.handlers
 import datetime
 import urllib2
 
+from utils import mq_utils, bz_utils, common
 base_dir = common.get_base_dir(__file__)
 import site
 site.addsitedir('%s/../../lib/python' % (base_dir))
 
-from utils import mq_utils, bz_utils, common
 from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
 
@@ -99,7 +99,7 @@ def get_reviews(attachment):
                 break
     return reviews
 
-def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
+def get_patchset(bug_id, try_run, user_patches=None, review_comment=True):
     """
     If user_patches specified, only fetch the information on those specific
     patches from the bug.
@@ -138,56 +138,70 @@ def get_patchset(bug_id, try_run, user_patches=[], review_comment=True):
             { ... }
         ]
     """
-    patchset = []
-    if user_patches: user_patches = user_patches[:]    # take a local copy of patches.
+    patchset = []   # hold the final patchset information
+    reviews = []    # hold the review information corresponding to each patch
+
     # grab the bug data
-    bug_data = bz.request('bug/%s' % str(bug_id))
+    bug_data = bz.request('bug/%s' % (bug_id))
     if 'attachments' not in bug_data:
         return None     # bad bug id, or no attachments
-    for attachment in bug_data['attachments']:
-        # patches must meet criteria: is_patch and not is_obsolete
-        try:
-            attachment['id'] = int(attachment['id'])
-        except:
-            log.error("Attachment id received not an integer: %s" % (attachment['id']))
-            raise
-        if attachment['is_patch'] and not attachment['is_obsolete'] \
-                and (not user_patches or attachment['id'] in user_patches):
-            patch = {'id':attachment['id'],
-                     'author':bz.get_user_info(attachment['attacher']['name']),
-                     'reviews':[]}
 
-            reviews = get_reviews(attachment)
-            if try_run:
-                # review info doesn't matter for try runs,
-                # but get it anyways so we can fill the db
-                patch['reviews'] = reviews
-            else:   # push to branch
-                if not reviews: # No reviews, fail
-                    # comment that no reviews on patch x
-                    if review_comment:
-                        post_comment('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
-                    return None
-                for review in reviews:
-                    if review['result'] != '+': # Bad review, fail
-                        # comment bad review
-                        if review_comment:
-                            post_comment('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
-                        return None
-                    review['reviewer'] = bz.get_user_info(review['reviewer'])
-                patch['reviews'] = reviews
-            patchset.append(patch)
-            if user_patches:
+    if user_patches:
+        # user-specified patches, need to pull them in that set order
+        user_patches = list(user_patches)    # take a local copy, passed by ref
+        for user_patch in list(user_patches):
+            for attachment in bug_data['attachments']:
+                if attachment['id'] != user_patch or not attachment['is_patch'] \
+                        or attachment['is_obsolete']:
+                    continue
+                patch = { 'id' : user_patch,
+                          'author' : bz.get_user_info(attachment['attacher']['name']),
+                          'reviews' : [] }
+                reviews.append(get_reviews(attachment))
+                patchset.append(patch)
+                # remove the patch from user_patches to check all listed
+                # patches were pulled
                 user_patches.remove(patch['id'])
+        if len(user_patches) != 0:
+            # not all requested patches could be picked up
+            # XXX TODO - should we still push what patches _did get picked up?
+            log.debug('Autoland failure. Not all user_patches could be picked up from bug.')
+            post_comment(('Autoland Failure\nSpecified patches %s do not exist, or are not posted to this bug.' % (user_patches)), bug_id)
+            return None
+    else:
+        # no user-specified patches, grab them in the order they were posted.
+        for attachment in bug_data['attachments']:
+            if not attachment['is_patch'] or attachment['is_obsolete']:
+                # not a valid patch to be pulled
+                continue
+            patch = { 'id' : attachment['id'],
+                      'author' : bz.get_user_info(attachment['attacher']['name']),
+                      'reviews' : [] }
+            reviews.append(get_reviews(attachment))
+            patchset.append(patch)
 
-    if len(user_patches) != 0:
-        # comment that all requested patches didn't get applied
-        # XXX TODO - should we still push what patches _did_ get applied?
-        log.debug('Autoland failure. Publishing comment...')
-        post_comment(('Autoland Failure\nSpecified patches %s do not exist, or are not posted on this bug.' % user_patches), bug_id)
-        return None
+    # check the reviews, based on try, etc, etc.
+    for patch, revs in zip(patchset, reviews):
+        if try_run:
+            # on a try run, take all non-obsolete patches
+            patch['reviews'] = revs
+            continue
+
+        # this is a branch push
+        if not revs:
+            if review_comment:
+                post_comment('Autoland Failure\nPatch %s requires review+ to push to branch.' % (patch['id']), bug_id)
+                return None
+            for rev in revs:
+                if rev['result'] != '+':    # Bad review, fail
+                    if review_comment:
+                        post_comment('Autoland Failure\nPatch %s has a non-passing review. Requires review+ to push to branch.' % (patch['id']), bug_id)
+                    return None
+                rev['reviewer'] = bz.get_user_info(rev['reviewer'])
+            patch['reviews'] = revs
+
     if len(patchset) == 0:
-        post_comment('Autoland Failure\nThe bug has no patches posted, there is nothing to push.', bug_id)
+        post_comment('Autoland Failure\n There are no patches to run.',  bug_id)
     return patchset
 
 def bz_search_handler():
@@ -454,7 +468,7 @@ def handle_patchset(patchset):
     # Check permissions & patch set again, in case it has changed
     # since the job was put on the queue.
     patches = get_patchset(patchset.bug_id, patchset.try_run,
-                           patchset.patchList())
+                           user_patches=patchset.patchList())
     # get branch information so that message can contain branch_url
     branch = db.BranchQuery(Branch(name=patchset.branch))
     if not branch:
