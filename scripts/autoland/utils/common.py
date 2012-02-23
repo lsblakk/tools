@@ -1,5 +1,8 @@
 import ConfigParser
+import urllib2, httplib
 import os
+
+HTTP_EXCEPTIONS = (urllib2.HTTPError, urllib2.URLError, httplib.BadStatusLine)
 
 def get_configuration(conf_file):
     # load configuration
