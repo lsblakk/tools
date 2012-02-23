@@ -14,8 +14,9 @@ site.addsitedir('%s/../../lib/python' % (base_dir))
 from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
 
-log = logging.getLogger('autoland_queue')
-LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
+log = logging.getLogger()
+LOGFORMAT = logging.formatter(
+        '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
 LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)

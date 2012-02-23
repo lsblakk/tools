@@ -4,7 +4,6 @@ import subprocess
 import logging
 import logging.handlers
 import shutil
-from tempfile import mkdtemp
 from mercurial import error, lock   # For lockfile on working dirs
 
 base_dir = common.get_base_dir(__file__)
@@ -17,9 +16,10 @@ from util.retry import retry
 from utils import bz_utils, mq_utils, common, ldap_utils
 
 
-log = logging.getLogger('hgpusher')
-LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
-LOGFILE = os.path.join(base_dir, 'hgpusher.log')
+log = logging.getLogger()
+LOGFORMAT = logging.Formatter(
+        '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
+LOGFILE = os.path.join(BASE_DIR, 'hgpusher.log')
 LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
 mq = mq_utils.mq_util()
@@ -481,9 +481,9 @@ def main():
                 if hgp_lock:
                     hgp_lock.release()
                     print "Released working directory"
-                    break
-    except os.error, e:
-        log.error('Error switching to working directory: %s' % e)
+                    raise
+    except os.error, err:
+        log.error('Error switching to working directory: %s' % (err))
         exit(1)
 
 if __name__ == '__main__':
