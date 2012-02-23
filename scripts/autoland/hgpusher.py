@@ -260,7 +260,7 @@ class Patchset(object):
         log.debug('Importing patches into %s' % (branch_dir))
         for patch in self.patches:
             (patch_success, err) = import_patch(branch_dir,
-                    patch.patch_file, self.try_run, no_commit=False,
+                    patch.file, self.try_run, no_commit=False,
                     bug_id=self.bug_id, user=patch.user,
                     try_syntax=self.try_syntax)
             if patch_success != 0:
