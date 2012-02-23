@@ -232,7 +232,7 @@ class Patchset(object):
                 self.add_comment('Patch %s couldn\'t be fetched.' % (patch.num))
                 raise self.RETRY
             # 2. has valid headers. If try run, put user data into patch.user
-            valid_header = has_valid_header(patch.patch_file)
+            valid_header = has_valid_header(patch.file)
             if not valid_header:
                 if not self.try_run:
                     log.error('[Patch %s] Invalid header.' % (patch.num))
