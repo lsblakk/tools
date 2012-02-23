@@ -164,6 +164,7 @@ class Patchset(object):
             # 2nd attempt is after an update -C,
             # 3rd attempt is a fresh clone
             retry(apply_and_push, attempts=3,
+                    retry_exceptions=(self.Retry),
                     cleanup=RepoCleanup(self.branch, self.branch_url),
                     args=(self.active_repo, self.push_url,
                           self.apply_patches, 1),
