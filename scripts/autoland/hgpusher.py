@@ -91,6 +91,12 @@ class Patch(object):
         """
         self.user = '%s <%s>' % (self.author_name, self.author_email)
 
+    def delete(self):
+        """
+        Delete the file from the filesystem.
+        """
+        os.remove(self.file)
+
 
 class Patchset(object):
     class RETRY(Exception):
@@ -172,6 +178,8 @@ class Patchset(object):
                                 force=self.try_run))    # force only on try
             revision = get_revision(self.active_repo)
             shutil.rmtree(self.active_repo)
+            for patch in self.patches:
+                patch.delete()
         except (HgUtilError, self.RETRY), err:
             # Failed
             log.error('[PatchSet] Could not be applied and pushed.\n%s'
