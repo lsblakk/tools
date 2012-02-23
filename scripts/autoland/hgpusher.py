@@ -82,8 +82,7 @@ class Patch(object):
         or None on failure.
         """
         log.debug("Getting patch %s" % (self.num))
-        self.file = bz.get_patch(self.num,
-                os.path.join('patches', create_path=True))
+        self.file = bz.get_patch(self.num, 'patches', create_path=True)
         return self.file
 
     def fill_user(self):
