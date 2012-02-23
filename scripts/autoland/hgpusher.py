@@ -104,7 +104,7 @@ class Patchset(object):
         self.patches = [Patch(patch) for patch in patches]
         self.try_run = try_run
         self.push_url = push_url
-        self.branch = branch 
+        self.branch = branch
         self.branch_url = branch_url
         self.try_syntax = try_syntax
 
@@ -144,12 +144,14 @@ class Patchset(object):
                     % (self.branch if not self.try_run else 'try'))
             return (False, '\n'.join(self.comment))
         # 2. Clone the repository
+        cloned_rev = None
         for attempts in range(3):
             log.debug('Attempt %d to clone %s' % (attempts, self.branch_url))
-            if clone_branch(self.branch, self.branch_url):
+            cloned_rev = clone_branch(self.branch, self.branch_url)
+            if cloned_rev:
                 break
             clear_branch(self.branch)
-        if not clone_branch(self.branch, self.branch_url):
+        if not cloned_rev:
             log.error('[Branch %s] Could not clone from %s.'
                     % (self.branch, self.branch_url))
             self.add_comment('An error occurred while cloning %s.'
