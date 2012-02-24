@@ -252,7 +252,7 @@ class Patchset(object):
             # 3. patch applies using 'import --no-commit -f'
             (patch_success, err) = import_patch(self.active_repo, patch.file,
                     self.try_run, no_commit=True)
-            if patch_success != 0:
+            if not patch_success:
                 log.error('[Patch %s] could not verify import:\n%s'
                         % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
@@ -271,7 +271,7 @@ class Patchset(object):
                     patch.file, self.try_run, no_commit=False,
                     bug_id=self.bug_id, user=patch.user,
                     try_syntax=self.try_syntax)
-            if patch_success != 0:
+            if not patch_success:
                 log.error('[Patch %s] Failed to import with commit: %s'
                         % (patch['id'], err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
@@ -394,7 +394,7 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
     cmd.append(patch)
     print cmd
     (output, err, ret) = run_hg(cmd)
-    return (ret, err)
+    return (ret == 0, err)
 
 def clone_branch(branch, branch_url):
     """
