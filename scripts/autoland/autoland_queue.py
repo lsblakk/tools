@@ -15,7 +15,7 @@ from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
 
 log = logging.getLogger()
-LOGFORMAT = logging.formatter(
+LOGFORMAT = logging.Formatter(
         '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
 LOGFILE = os.path.join(base_dir, 'autoland_queue.log')
 LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
