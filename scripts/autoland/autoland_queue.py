@@ -254,6 +254,17 @@ def bz_search_handler():
         ps.patches = patch_group
         ps.bug_id = bug_id
 
+        # check patch reviews & permissions
+        patches = get_patchset(ps.bug_id, ps.try_run,
+                               ps.patchList(), review_comment=False)
+        if patches == None:
+            # do not have patches to push, kick it out of the queue
+            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
+            log.error('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.')
+            continue
+        ps.author = patches[0]['author']['email']
+        ps.patches = ','.join(map(lambda x: str(x['id']), patches))
+
         if db.PatchSetQuery(ps) != None:
             # we already have this in the db, don't add it.
             # Remove whiteboard tag, but don't add to db and don't comment.
@@ -264,18 +275,6 @@ def bz_search_handler():
         # add try_run attribute here so that PatchSetQuery will match patchsets
         # in any stage of their lifecycle
         ps.try_run = 1
-
-        # check patch reviews & permissions
-        patches = get_patchset(ps.bug_id, ps.try_run,
-                               ps.patchList(), review_comment=False)
-        if patches == None:
-            # do not have patches to push, kick it out of the queue
-            bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
-            log.error('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.')
-            continue
-
-        ps.author = patches[0]['author']['email']
-        ps.patches = ','.join(map(lambda x: str(x['id']), patches))
 
         log.info("Inserting job: %s" % (ps))
         patchset_id = db.PatchSetInsert(ps)
