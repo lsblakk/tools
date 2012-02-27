@@ -16,8 +16,9 @@ from util.hg import mercurial, apply_and_push, HgUtilError, \
 from util.retry import retry
 
 
-log = logging.getLogger('hgpusher')
-LOGFORMAT = '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s'
+log = logging.getLogger()
+LOGFORMAT = logging.Formatter(
+        '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
 LOGFILE = os.path.join(BASE_DIR, 'hgpusher.log')
 LOGHANDLER = logging.handlers.RotatingFileHandler(LOGFILE,
                     maxBytes=50000, backupCount=5)
@@ -591,7 +592,7 @@ def main():
                 if hgp_lock:
                     hgp_lock.release()
                     print "Released working directory"
-                    break
+                    raise
     except os.error, err:
         log.error('Error switching to working directory: %s' % (err))
         exit(1)
