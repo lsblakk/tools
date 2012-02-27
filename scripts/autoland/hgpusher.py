@@ -65,6 +65,7 @@ class RepoCleanup(object):
         cloned_revision = clone_branch(self.branch, self.url)
         if cloned_revision == None:
             log.error('[HgPusher] Clone error while cleaning')
+            # XXX: do something....
 
 
 class Patch(object):
@@ -95,7 +96,9 @@ class Patch(object):
         """
         Delete the file from the filesystem.
         """
-        os.remove(self.file)
+        if self.file and os.access(self.file, os.F_OK):
+            os.remove(self.file)
+        self.file = None
 
 
 class Patchset(object):
@@ -186,7 +189,7 @@ class Patchset(object):
                     % (err))
             self.add_comment('Patchset could not be applied and pushed.'
                              '\n%s' % (err))
-            return (False, '\n'.join(self.comment)) 
+            return (False, '\n'.join(self.comment))
         # Success
         self.setup_comment() # Clear the comment
         if self.try_run:
@@ -233,6 +236,8 @@ class Patchset(object):
             3. patch applies using 'import --no-commit -f'
         """
         log.debug('Verifying patchset')
+        if not self.patches:
+            raise self.RETRY
         for patch in self.patches:
             # 1. The patch exists and can be downloaded
             if not patch.get_file():
@@ -247,6 +252,7 @@ class Patchset(object):
                     self.add_comment('Patch %s doesn\'t have '
                             'a properly formatted header.'
                             % (patch.num))
+                    # XXX: is this a RETRY case, or a fail case
                     raise self.RETRY
                 patch.fill_user()
             # 3. patch applies using 'import --no-commit -f'
@@ -273,7 +279,7 @@ class Patchset(object):
                     try_syntax=self.try_syntax)
             if not patch_success:
                 log.error('[Patch %s] Failed to import with commit: %s'
-                        % (patch['id'], err))
+                        % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
                         % (patch.num, self.branch, err))
                 raise self.RETRY
