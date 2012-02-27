@@ -1,4 +1,21 @@
 ## BUGS!
+
+Branches table
+- push to closed tree, default false
+- approval required, default ? -> check at patch level for specific approval on a patch
+
+Patch_sets tabl
+- add a start_time field.
+    |-> creation_time: time it was picked up and put in queue
+    |-> start_time: time the job was sent out to hgpusher
+    |-> push_time: time of hg push
+    |-> remove completion_time
+
+Completed table
+- stores all completed patchsets
+- same as patch_sets table
+    |-> completion_time: Set for the time of job completion.
+
 ===Notes from code review====
 * Take another look at timeout time, maybe consider time & number of jobs still running, or change postback to an update rather a "timeout" message.
 * append branch or repo to cache file names to avoid clash with matching cset
