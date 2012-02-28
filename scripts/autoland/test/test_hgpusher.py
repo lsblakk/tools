@@ -11,7 +11,8 @@ import mock
 sys.path.append('..')
 import hgpusher
 from hgpusher import clone_branch, has_sufficient_permissions, \
-        process_patchset, message_handler, clear_branch, import_patch
+        message_handler, clear_branch, import_patch, Patchset, Patch, \
+        RepoCleanup
 from utils import mq_utils
 
 top_dir = os.getcwd()
@@ -20,13 +21,13 @@ if os.access(test_dir, os.F_OK):
     shutil.rmtree(test_dir)
 
 def gen_repos():
-    subprocess.Popen(['sh', '../test/gen_hgrepo.sh'])
-    sleep(1)        # For some reason, need a pause here
+    proc = subprocess.Popen(['sh', '../test/gen_hgrepo.sh'])
+    proc.wait()
     os.chdir('work_dir')
 
 def gen_headers():
-    subprocess.Popen(['sh', '../test/gen_headers.sh'])
-    sleep(1)
+    proc = subprocess.Popen(['sh', '../test/gen_headers.sh'])
+    proc.wait()
 
 class TestHgPusher(unittest.TestCase):
     def setUp(self):
@@ -42,7 +43,7 @@ class TestHgPusher(unittest.TestCase):
 
     def tearDown(self):
         os.chdir(top_dir)
-        shutil.rmtree(test_dir)
+        #shutil.rmtree(test_dir)
 
     def testValidDictionaryStructure(self):
         lower = {}
@@ -101,118 +102,162 @@ class TestHgPusher(unittest.TestCase):
         self.assertEquals(rev, None)
         os.chdir(test_dir)
 
-    def testProcessPatchset_CleanupWrapper(self):
-        gen_repos()
-        branch_url = os.path.join(test_dir, 'repo/')
-        push_url = os.path.join(test_dir, 'try/')
+    def testRepoCleanup(self):
+        rc = RepoCleanup('try', 'https://try')
+        with mock.patch('hgpusher.update') as upd:
+            upd.return_value = None
+            rc()
+            # soft_clean call
+            upd.assert_called_once_with('active/try')
 
-        should_pass = \
-               [{ 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,  # Push to try, Author & review only have scm_level_1
-                  'branch_url' : branch_url, 'push_url' : push_url,
-                  'patchsetid' : 5,
-                'patches' :
-                [{ 'id' : 'hello_patch.patch',
-                    'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
-                    'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'mjessome@mozilla.com' } } ]
-                    }]
-               }]
+        with mock.patch('hgpusher.clear_branch') as clrb:
+            clrb.return_value = None
+            with mock.patch('hgpusher.clone_branch') as clnb:
+                clnb.return_value = 'abcd123'
+                rc()
+                # hard_clean call
+                clrb.assert_called_once_with('try')
+                clnb.assert_called_once_with('try', 'https://try')
 
-    """
-        with mock.patch('hgpusher.clear_branch') as cb:
-            with mock.patch('hgpusher.update') as up:
-                with mock.patch('hgpusher.clone_branch') as clone:
-                    with mock.patch('hgpusher.has_sufficient_permissions') as hsp:
-                        hsp.return_value = True
-                        self.assertEquals(process_patchset(None), False)
-                        for p in should_pass:
-                            self.assertEquals(process_patchset(p) != False,
-                                    True)
-    def testProcessPatchset(self):
-        #hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo'))
-        #os.chdir(test_dir)
-        branch_url = os.path.join(test_dir, 'repo/')
-        push_url = os.path.join(test_dir, 'try/')
-        should_pass = \
-               [{ 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,  # Push to try, Author & review only have scm_level_1
-                  'branch_url' : branch_url, 'push_url' : push_url,
-                  'patchsetid' : 5,
-                'patches' :
-                [{ 'id' : 'hello_patch.patch',
-                    'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
-                    'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'mjessome@mozilla.com' } } ]
-                    }]
-               }]
+    def testPatch(self):
+        """
+        Test the Patch class.
+        """
+        p = Patch({'id':1,'author':{'name':'name', 'email':'email'}})
+        with mock.patch('hgpusher.bz.get_patch') as gp:
+            def gpf(num, dir, create_path=False):
+                file = open('%s.patch' % (num), 'w')
+                file.write('patch')
+                file.close()
+                if os.access('%s.patch' % (num), os.F_OK):
+                    return '%s.patch' % (num)
+                return None
+            gp.side_effect = gpf
+            self.assertEquals(p.get_file(), '1.patch')
+            self.assertEquals(p.file, '1.patch')
+            p.delete()
+            self.assertFalse(os.access('1.patch', os.F_OK))
+            self.assertEquals(p.file, None)
+        p.fill_user()
+        self.assertEquals(p.user, 'name <email>')
 
-        should_fail = \
-               [{ 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 0,  # Push to branch, Author/Review have no access
-                   'branch_url' : branch_url,
-                  'patchsetid' : 5,
-                'patches' :
-                [{ 'id' : 'hello_patch.patch',
-                    'author' : { 'name' : 'Hg Pusher', 'email' : 'hgp@mozilla.com' },
-                    'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgpr@mozilla.com' } } ]
-                    }]
-               },
-                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,
-                  'branch_url' : branch_url,
-                  'push_url' : push_url,
-                  'patchsetid' : 5,
-                  'patches' :
-                  [{ 'id' : 'dne.patch',    # dne.patch doesn't exist
-                     'author' : { 'name' : 'Hg Pusher', 'email' : 'hgp@none.com' },
-                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'mjessome@mozilla.com' }} ]
-                  }]
-                },
-                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 0,
-                  'patchsetid' : 5,
-                  'patches' :
-                  [{ 'id' : 'hello_patch.diff', # invalid header
-                     'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
-                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgp@moz.com' }}]
-                     }]
-                },
-                { 'branch' : 'repo', 'bug_id' : 10411, 'try_run' : 1,
-                  'branch_url' : branch_url,
-                  'patchsetid' : 5,
-                  'patches' :
-                  [{ 'id' : 'hello_patch.patch',
-                     'author' : { 'name' : 'Hg Pusher', 'email' : 'mjessome@mozilla.com' },
-                     'reviews' : [ { 'reviewer' : { 'name' : 'HGP Reviewer', 'email' : 'hgp@moz.com' }}]
-                     }]
+    def testPatchSetComment(self):
+        ps = Patchset(1, 1, [], True, '', '', '', None)
+        ps.setup_comment()
+        comment = ['Autoland Patchset:\n\tPatches: %s\n\tBranch: %s%s'
+                    % ('', '', ' => try')]
+        self.assertEquals(ps.comment, comment)
+        comment.append('Failed.')
+        ps.add_comment('Failed.')
+        self.assertEquals(ps.comment, comment)
+        ps.setup_comment()
+        self.assertEquals(ps.comment, [comment[0]])
 
-                }]
-        os.chdir('work_dir')
-        with mock.patch('hgpusher.bz.get_patch') as get_patch:
-            perms = ['scm_level_1', 'scm_level_1', 'scm_level_1', 'scm_level_3', 'scm_level_1']
-            def send_message(x, y, routing_keys=[]):
-                return
-            def get_branch_permissions(branch):
-                return perms.pop()
-            def email_is_member(email, group):
-                return True
-            hgpusher.mq.send_message = send_message
-            hgpusher.ldap.get_branch_permissions = get_branch_permissions
-            # Push a single patch
-            for data in should_pass:
-                get_patch.return_value = \
-                    os.path.join(test_dir, 'work_dir/clean/repo/%s' % (data['patches'][0]['id']))
-                active_revision = hgpusher.process_patchset(data)
-                self.assertNotEqual(active_revision, False)
-            for data in should_fail:
-                get_patch.return_value = \
-                    os.path.join(test_dir, 'work_dir/clean/repo/%s' % (data['patches'][0]['id']))
-                active_revision = hgpusher.process_patchset(data)
-                self.assertEqual(active_revision, False)
-            os.chdir(test_dir)
+    def testPatchSetVerify(self):
+        self.assertRaises(Patchset.RETRY,
+            Patchset(1, 1, [], True, '', '', '', None).verify)
+        with mock.patch('hgpusher.Patch.get_file') as pgf:
+            pgf.return_value = None
+            self.assertRaises(Patchset.RETRY,
+                Patchset(1, 1, [{'id':1, 'author':
+                    {'name':'name', 'email':'email'}}],
+                    True, '', '', '', None).verify)
+            with mock.patch('hgpusher.has_valid_header') as hvh:
+                pgf.return_value = True
+                hvh.return_value = False
+                # test invalid header on branch landing
+                ps = Patchset(1,1, [{'id':1, 'author':
+                        {'name':'name', 'email':'email'}}],
+                        False, '', '', '', None)
+                self.assertRaises(Patchset.RETRY, ps.verify)
+                self.assertTrue('Patch 1 doesn\'t have '
+                        'a properly formatted header.' in ps.comment)
+                hvh.assert_called_once_with(None)
 
-        # make sure that the push is going to the base_url only,
-        # and not to the clean repository.
-        hgpusher.update('repo') # update to reflect pushed
-        self.assertNotEqual(active_revision,
-                hgpusher.get_revision(os.path.join(test_dir,
-                    'work_dir/clean/repo')))
-        subprocess.Popen(['sh', '../test/gen_hgrepo.sh', '--clean'])
-    """
+                ps.setup_comment()
+                with mock.patch('hgpusher.import_patch') as ip:
+                    ip.return_value = (False, 'error msg')
+                    # test invalid header on Try landing, failed patch
+                    ps.try_run = True
+                    self.assertRaises(Patchset.RETRY, ps.verify)
+                    ip.assert_called_once()
+                    self.assertTrue('Patch 1 could not be applied to .\n'
+                            'error msg' in ps.comment)
+
+    def testPatchSetFullImport(self):
+        ps = Patchset(1, 1, [{'id':1, 'author':
+            {'name':'name', 'email':'email'}},
+            {'id':2, 'author':
+                {'name':'name', 'email':'email'}}],
+            True, '', '', '', None)
+
+        rc = [(True, None), (True, None)]
+        def ipf(bd, pf, tr, no_commit=False, bug_id=None,
+                user=None, try_syntax=None):
+            return rc.pop()
+
+        with mock.patch('hgpusher.import_patch') as ip:
+            ip.side_effect = ipf
+            ps.full_import('dir')
+            self.assertTrue(len(ps.comment) == 1)
+            ip.assert_called_once()
+
+        rc = [(False, 'err'), (True, None)]
+        ps.setup_comment()
+        with mock.patch('hgpusher.import_patch') as ip:
+            ip.side_effect = ipf
+            self.assertRaises(Patchset.RETRY, ps.full_import, 'dir')
+            print ps.comment
+            self.assertTrue(len(ps.comment) == 2)
+            self.assertTrue('Patch 2 could not be applied to .\nerr'
+                    in ps.comment)
+
+    def testPatchSetProcess(self):
+        ps = Patchset(1, 1, [{'id':1, 'author':
+            {'name':'name', 'email':'email'}},
+            {'id':2, 'author':
+                {'name':'name', 'email':'email'}}],
+            True, '', '', '', None)
+        with mock.patch('hgpusher.has_sufficient_permissions') as hsp:
+            hsp.return_value = False
+            # insufficient permissions
+            self.assertFalse(ps.process()[0])
+
+            with mock.patch('hgpusher.clone_branch') as cb:
+                hsp.return_value = True
+                cb.return_value = False
+                # 3 failed clones
+                self.assertFalse(ps.process()[0])
+                self.assertEqual(cb.call_count, 3)
+
+                with mock.patch('hgpusher.retry') as hgr:
+                    hsp.return_value = True
+                    cb.return_value = True
+                    hgr.side_effect = Patchset.RETRY
+                    # failed apply_and_push
+                    self.assertFalse(ps.process()[0])
+                    self.assertEqual(cb.call_count, 4)
+                    self.assertEqual(hgr.call_count, 1)
+
+                    with mock.patch('hgpusher.get_revision') as gr:
+                        with mock.patch('shutil.rmtree') as rmt:
+                            with mock.patch('hgpusher.Patch.delete') as pd:
+                                hsp.return_value = True
+                                cb.return_value = True
+                                hgr.side_effect = None
+                                hgr.return_value = True
+                                gr.return_value = '12345'
+                                rmt.return_value = True
+                                pd.return_value = True
+                                # successful try push
+                                self.assertEquals(ps.process()[0], '12345')
+                                gr.assert_called_once()
+                                rmt.assert_called_once()
+                                # successful branch push
+                                ps.try_run = False
+                                self.assertEquals(ps.process()[0], '12345')
+                                self.assertEquals(gr.call_count, 2)
+                                self.assertEquals(rmt.call_count, 2)
 
     def testHasSufficientPermissions(self):
         with mock.patch('hgpusher.ldap.get_member') as ld_gm:
@@ -226,19 +271,23 @@ class TestHgPusher(unittest.TestCase):
                     ld_gm.return_value = [ [None, {'mail':['email_addr']} ] ]
                     ld_imog.return_value = True
                     ret = has_sufficient_permissions(
-                            [{'author':{'email':'email_addr'}}], 'branch')
+                            [Patch({'id':1,'author':
+                                {'name':'name','email':'email_addr'}})],
+                        'branch')
                     self.assertTrue(ret)
 
                     ld_imog.return_value = False
                     ret = has_sufficient_permissions(
-                            [{'author':{'email':'email_addr'},
-                              'reviews':[]}], 'branch')
+                            [Patch({'id':2,'author':
+                                {'email':'email_addr','name':'name'},
+                              'reviews':[]})], 'branch')
                     self.assertFalse(ret)
 
                     ld_gm.return_value = []
                     ret = has_sufficient_permissions(
-                            [{'author':{'email':'email_addr'},
-                              'reviews':[]}], 'branch')
+                            [Patch({'id':3,'author':
+                                {'name':'name','email':'email_addr'},
+                              'reviews':[]})], 'branch')
                     self.assertFalse(ret)
 
     def testRunHg(self):
@@ -279,6 +328,7 @@ class TestHgPusher(unittest.TestCase):
         # the same revision number
         gen_repos()
         rev = []
+        #sleep(5)
         for i in range(2):
             rev.append(hgpusher.clone_branch('repo', os.path.join(test_dir, 'repo')))
             try:
@@ -286,10 +336,14 @@ class TestHgPusher(unittest.TestCase):
             except AssertionError:
                 shutil.rmtree('active/repo')
                 raise
+            print "Got rev: %s" % (rev[i])
             sleep(2)
             if i == 0:
                 shutil.rmtree('active/repo')
+        print "rev0: %s" % (rev[0])
+        print "rev1: %s" % (rev[1])
         self.assertTrue(rev[0] == rev[1])
+        sleep(30)
 
     def testMessageHandler(self):
         msg = []
@@ -300,25 +354,21 @@ class TestHgPusher(unittest.TestCase):
             'patchsetid' : 1,
             'try_run' : 1,
             'bug_id' : 1,
-            'patches' : [{ 'id' : 1 }] } })
-        with mock.patch('hgpusher.clone_branch') as cb:
-            with mock.patch('hgpusher.valid_job_message') as vjm:
-                # test invalid job messages
-                message_handler({'payload':{}})
-
-                vjm.return_value = True
-                cb.return_value = None
-                message_handler(msg[0])
-                cb.assert_called_with('mozilla-central', 'mozilla-central_url')
-                cb.return_value = '7124a8c22d'
-                with mock.patch('hgpusher.process_patchset') as pp:
-                    with mock.patch('hgpusher.mq.send_message') as sm:
-                        pp.return_value = (cb.return_value, 'This is a comment')
-                        # XXX: Need to check that this case is covered.
-                        pp.return_value = ('aaaaaa', 'comment')
-                        sm.return_value = True
-                        sm.assert_called_once()
-                        message_handler(msg[0])
+            'patches' : [{ 'id' : 1, 'author':
+                {'name':'name', 'email':'email'} }] } })
+        with mock.patch('hgpusher.valid_job_message') as vjm:
+            # test invalid job messages
+            message_handler({'payload':{}})
+            vjm.return_value = True
+            #XXX:message_handler(msg[0])
+            with mock.patch('hgpusher.Patchset.process') as pp:
+                with mock.patch('hgpusher.mq.send_message') as sm:
+                    #pp.return_value = (cb.return_value, 'This is a comment')
+                    # XXX: Need to check that this case is covered.
+                    pp.return_value = ('aaaaaa', 'comment')
+                    sm.return_value = True
+                    message_handler(msg[0])
+                    sm.assert_called_once()
 
     def testClearBranch(self):
         gen_repos()
@@ -329,9 +379,9 @@ class TestHgPusher(unittest.TestCase):
     def testImportPatch(self):
         with mock.patch('hgpusher.run_hg') as rhg:
             rhg.return_value = (None, None, 1)
-            self.assertEquals(import_patch('repo', 'patch.file', 0), (1, None))
+            self.assertEquals(import_patch('repo', 'patch.file', 0), (False, None))
             rhg.return_value = (None, None, 0)
-            self.assertEquals(import_patch('repo', 'patch.file', 1), (0, None))
+            self.assertEquals(import_patch('repo', 'patch.file', 1), (True, None))
 
 
 if __name__ == "__main__":
