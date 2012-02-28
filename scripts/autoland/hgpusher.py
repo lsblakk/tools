@@ -115,7 +115,10 @@ class Patchset(object):
         self.push_url = push_url
         self.branch = branch
         self.branch_url = branch_url
-        self.try_syntax = try_syntax
+        if try_syntax != None:
+            self.try_syntax = try_syntax
+        else:
+            self.try_syntax = "-b do -p all -u none -t none"
 
         self.active_repo = os.path.join('active/%s' % (branch))
         self.comment = ''
@@ -372,7 +375,7 @@ def has_sufficient_permissions(patches, branch):
     return True
 
 def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
-        try_syntax="-p win32 -b o -u none"):
+        try_syntax="-b do -p all -u none -t none"):
     """
     Import patch file patch into repo.
     If it is a try run, replace commit message with "try:"
