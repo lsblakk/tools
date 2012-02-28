@@ -68,8 +68,15 @@ if [[ $KILL_HGP || $KILL_QUEUE ]]; then
     exit
 fi
 
-echo "Activate autoland-env"
-source $ACTIVATE
+echo -n "Activate autoland-env..."
+ERR=`source $ACTIVATE 2>&1`
+if [ $? -ne 0 ]; then
+    echo -e "\t\t[FAIL]"
+    echo -e "\t${ERR}"
+    exit 1
+else
+    echo -e "\t\t[DONE]"
+fi
 
 echo "cd $ROOT"
 cd $ROOT
