@@ -416,6 +416,7 @@ http://ftp.mozilla.org/pub/mozilla.org/firefox/try-builds/%(author)s-%(revision)
         if revision != None:
             if self.revisionTimedOut(revision):
                 status['status_string'] = 'timed out'
+                is_complete = True
 
         return (status,is_complete)
     
