@@ -1,8 +1,12 @@
 import ldap
-import json
 import urllib2
+import logging
+
+log = logging.getLogger(__name__)
 
 class ldap_util():
+    class SearchError(Exception):
+        pass
     def __init__(self, host, port, bind_dn='', password=''):
         self.host = host
         self.port = port
@@ -17,24 +21,30 @@ class ldap_util():
         self.connection.simple_bind(self.bind_dn, self.password)
         self.connection.result(timeout=10) # get rid of bind result
 
-    def search(self, bind, filterstr, attrlist=None, scope=ldap.SCOPE_SUBTREE, retries=5):
+    def search(self, bind, filterstr, attrlist=None,
+            scope=ldap.SCOPE_SUBTREE, retries=5):
         """
         A wrapper for ldap.search() to allow for retry on lost connection.
         Handles all connecting and binding prior to search and retries.
         Returns True on successful search and false otherwise.
         Results need to be grabbed using connection.result()
+        
+        Note that failures will be common, since connection closes at a certain
+        point of inactivity, and needs to be re-established. Expect 2 attempts.
         """
         for i in range(retries):
             try:
                 self.__bind__()
                 self.connection.search(bind, scope,
                         filterstr=filterstr, attrlist=attrlist)
-                return self.connection.result(timeout=10)
-            except ldap.SERVER_DOWN, e:
+                result = self.connection.result(timeout=10)
+                log.info('Success')
+                return result
+            except ldap.SERVER_DOWN, err:
                 self.connection = self.__connect__()
-                print 'Error: %s' % (e)
+                log.error('Error: %s' % (err))
                 if i != retries:
-                    print 'Retrying'
+                    log.info('Retrying LDAP search')
         return False
 
     def get_group_members(self, group):
@@ -42,9 +52,10 @@ class ldap_util():
         Return a list of all members of the groups searched for.
         """
         members = []
-        result = self.search('ou=groups,dc=mozilla', filterstr='cn=%s' % (group))
+        result = self.search('ou=groups,dc=mozilla',
+                filterstr='cn=%s' % (group))
         if result == False:
-            raise Exception('SearchError')
+            raise self.SearchError
         elif result == []:
             return []
         for group in result[1]:
@@ -63,7 +74,7 @@ class ldap_util():
             return True
         return False
 
-    def get_member(self, filter, attrlist=None):
+    def get_member(self, filter_, attrlist=None):
         """
         Search for member in o=com,dc=mozilla, using the given filter.
         The filter can be a properly formed LDAP query.
@@ -82,9 +93,9 @@ class ldap_util():
             uid
             sshPublicKey
         """
-        result = self.search('o=com,dc=mozilla', filter, attrlist)
+        result = self.search('o=com,dc=mozilla', filter_, attrlist)
         if result == False:
-            raise Exception('SearchError')
+            raise self.SearchError
         elif result == []:
             return []
         return result[1]
@@ -103,10 +114,10 @@ class ldap_util():
         if data.find('is not an hg repository') > 0 or \
                 data.find('Need a repository') > 0 or \
                 data.find('A problem occurred') > 0:
-            print 'An error has occurred with branch permissions api:'
-            print 'url: %s\nresponse: %s' % (url, data)
+            log.error('An error has occurred with branch permissions api:\n'
+                      '\turl: %s\n\tresponse: %s' % (url, data))
             return None
-        print 'Required permissions for %s: %s' % (branch, data)
+        log.info('Required permissions for %s: %s' % (branch, data))
         return data
 
     def get_bz_email(self, email):
@@ -114,7 +125,7 @@ class ldap_util():
                 % (email), ['mail'])
         try:
             email = email[0][1]['mail'][0]
-        except IndexError,KeyError:
+        except (IndexError, KeyError):
             email = None
         return email
 

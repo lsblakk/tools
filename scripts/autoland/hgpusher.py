@@ -296,6 +296,7 @@ def run_hg(hg_args):
     """
     cmd = ['hg']
     cmd.extend(hg_args)
+    log.info('Running cmd: %s' % (cmd))
     proc = subprocess.Popen(cmd,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     (output, err) = proc.communicate()
@@ -402,7 +403,6 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
                 cmd.extend(['-m "try: %s -n --post-to-bugzilla bug %s"' \
                         % (try_syntax, bug_id)])
     cmd.append(patch)
-    print cmd
     (output, err, ret) = run_hg(cmd)
     return (ret == 0, err)
 
@@ -506,7 +506,7 @@ def message_handler(message):
         if not valid_job_message(data):
             # comment?
             # XXX: This is a bit more important than this...
-            print "Not valid job message %s" % data
+            log.error('Not valid job message %s' % (data))
             return
 
         if data['branch'] == 'try':
@@ -576,9 +576,9 @@ def main():
             if not os.access(work_dir, os.F_OK):
                 os.makedirs(work_dir)
             try:
-                print "Trying dir: %s" % (work_dir)
+                log.debug('Trying dir: %s' % (work_dir))
                 hgp_lock = lock.lock(os.path.join(work_dir, '.lock'), timeout=1)
-                print "Working directory: %s" % (work_dir)
+                log.debug('Working directory: %s' % (work_dir))
                 os.chdir(work_dir)
                 # get rid of active dir
                 if os.access('active/', os.F_OK):
@@ -594,7 +594,7 @@ def main():
             finally:
                 if hgp_lock:
                     hgp_lock.release()
-                    print "Released working directory"
+                    log.debug('Released working directory')
                     raise
     except os.error, err:
         log.error('Error switching to working directory: %s' % (err))

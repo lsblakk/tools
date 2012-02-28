@@ -40,7 +40,7 @@ class bz_util():
         req = urllib2.Request(url, data, {'Accept': 'application/json',
                 'Content-Type': 'application/json'})
         if method:
-            req.get_method = lambda: method
+            req.get_method = lambda: method,
         try:
             result = urllib2.urlopen(req)
             data = result.read()
@@ -54,14 +54,13 @@ class bz_util():
         Perform a PUT request, raise 'PutError' if can't complete.
         """
         result = 0
-        # print path, data
         for i in range(retries):
-            print "Put attempt %s of %s" % (i + 1, retries)
+            log.debug('Put attempt %s of %s' % (i + 1, retries))
             # PUT the changes
             try:
                 result = self.request(path=path, data=data, method='PUT')
                 if 'ok' in result and result['ok'] == 1:
-                    print "Put success"
+                    log.debug('Put success')
                     return result
                 time.sleep(interval)
             except HTTP_EXCEPTIONS, err:
@@ -92,7 +91,7 @@ class bz_util():
         try:
             data = urllib2.urlopen(url).read()
         except HTTP_EXCEPTIONS, err:
-            print "Error reading patch %s: %s" % (err, url)
+            log.error('Error reading patch %s: %s' % (err, url))
             return None
         if re.search('The attachment id %s is invalid' % str(patch_id), data):
             return None
@@ -119,13 +118,14 @@ class bz_util():
         """
         Remove the first whiteboard tag matching regex from the specified bug.
         By default retries 5 times at a 30s interval.
-        Returns True if the regex was there to replace, and returns False if the
-        regex wasn't present.
+        Returns True if the regex was there to replace, and returns False if
+        there were no matches.
         """
         # have to compile the re in order to allow case-insensitivity in 2.6
         reg = re.compile(regex, flags=re.I)
         # get the current whiteboard tag
-        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields='
+                'whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug or not 'whiteboard' in bug:
             return False
         whiteboard = reg.sub('', bug['whiteboard'], count=1)
@@ -140,7 +140,7 @@ class bz_util():
                     data=data, retries=retries, interval=interval)
             return True
         except (Exception + HTTP_EXCEPTIONS), err:
-            log.error("Did not remove whiteboard tag to bug %s : %s"
+            log.error('Did not remove whiteboard tag to bug %s : %s'
                     % (bugid, err))
             return False
 
@@ -149,9 +149,10 @@ class bz_util():
         Add tag to the specified bug.
         By default retries 5 times at a 30s interval.
         """
-        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields='
+                'whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug:
-            log.debug("Not an editable bugid")
+            log.debug('Not an editable bugid')
             return False
         if not 'whiteboard' in bug:
             bug['whiteboard'] = tag
@@ -165,7 +166,8 @@ class bz_util():
                     data=data, retries=retries, interval=interval)
             return True
         except (Exception + HTTP_EXCEPTIONS), err:
-            log.debug("Did not add whiteboard tag to bug %s : %s" % (bugid, err))
+            log.debug('Did not add whiteboard tag to bug %s : %s'
+                    % (bugid, err))
             return False
 
     def replace_whiteboard_tag(self, regex, replacement, bugid,
@@ -177,7 +179,8 @@ class bz_util():
         # have to compile the re in order to allow case-insensitivity in 2.6
         reg = re.compile(regex, flags=re.I)
         # get the current whiteboard tag
-        bug = self.request(path='bug/%s?include_fields=whiteboard,last_change_time,update_token' % (bugid))
+        bug = self.request(path='bug/%s?include_fields='
+                'whiteboard,last_change_time,update_token' % (bugid))
         if not 'update_token' in bug:
             return False
         if not 'whiteboard' in bug:
@@ -192,14 +195,18 @@ class bz_util():
         data = {'token':bug['update_token'], 'whiteboard':whiteboard,
                 'last_change_time' : bug['last_change_time']}
         try:
-            self.put_request(path='bug/%s' % (bugid), data=data, retries=retries, interval=interval)
+            self.put_request(path='bug/%s' % (bugid),
+                    data=data, retries=retries, interval=interval)
             return True
         except (Exception + HTTP_EXCEPTIONS), err:
-            log.debug("Did not replace whiteboard tag to bug %s : %s" % (bugid, err))
+            log.debug('Did not replace whiteboard tag to bug %s : %s'
+                    % (bugid, err))
             return False
 
     def bugs_from_comments(self, comments):
-        """Finds things that look like bugs in comments and returns as a list of bug numbers.
+        """
+        Finds things that look like bugs in comments and
+        returns as a list of bug numbers.
 
         Supported formats:
             Bug XXXXX
@@ -209,37 +216,38 @@ class bz_util():
         retval = []
         # TODO - add word boundary in front and behind the bug number
         # Add test cases for this (remove the 9000)
-        matches = re.search(r"\bb(?:ug(?:s)?)?\s*((?:\d+[, ]*)+)", comments, re.I)
+        matches = re.search(r'\bb(?:ug(?:s)?)?\s*((?:\d+[, ]*)+)', comments,
+                re.I)
         if matches:
-            for match in re.findall("\d+", matches.group(1)):
-                # diminish the odds of getting a false bug number from an hg cset
+            for match in re.findall('\d+', matches.group(1)):
+                # lower the odds of getting a false bug number from an hg cset
                 if int(match) > 9000:
                     retval.append(int(match))
         return retval
 
     def notify_bug(self, message, bug_num, retries=5):
-        print message
         result = 0
         for i in range(retries):
-            log.debug("Getting bug %s", bug_num)
+            log.debug('Getting bug %s', bug_num)
             try:
                 # Make sure we can reach this bug
-                bug = self.request("bug/%s" % bug_num)
-                log.debug("BUG URL EXISTS: %s" % bug)
+                bug = self.request('bug/%s' % (bug_num))
+                log.debug('BUG URL EXISTS: %s' % (bug))
                 # Add the comment
-                self.request(path="bug/%s/comment" % bug_num,
-                        data={"text": message, "is_private": False}, method="POST")
-                log.debug("Added comment to bug %s", bug_num)
+                self.request(path='bug/%s/comment' % (bug_num),
+                        data={'text': message, 'is_private': False},
+                        method='POST')
+                log.debug('Added comment to bug %s' % (bug_num))
                 result = 1
             except (Exception, urllib2.URLError, urllib2.HTTPError), err:
-                log.debug("Couldn't get bug, retry %d of %d" % (i +1, retries))
+                log.debug('Couldn\t get bug, retry %d of %d' % (i +1, retries))
                 result = 0
                 if i < retries:
                     continue
                 else:
                     raise
             break
-        log.debug("BUG NOTIFY RESULTS: %s" % result)
+        log.debug('BUG NOTIFY RESULTS: %s' % result)
         return result
 
     def has_comment(self, text, bugid):
@@ -256,7 +264,7 @@ class bz_util():
                 if comment['text'] == text:
                     result = 1
         except HTTP_EXCEPTIONS, err:
-            log.debug("HTTPError, Can't check comments on bug: %s" % (err))
+            log.debug('HTTPError, Can\'t check comments on bug: %s' % (err))
 
         return result
 
@@ -266,10 +274,11 @@ class bz_util():
         number of hours specified.
         """
         try:
-            page = self.request('bug/%s/comment?include_fields=creation_time,text'
-                % (bugid))
+            page = self.request(
+                    'bug/%s/comment?include_fields=creation_time,text'
+                    % (bugid))
         except HTTP_EXCEPTIONS, err:
-            log.debug("Couldn't get page: %s" % err)
+            log.debug('Couldn\'t get page: %s' % (err))
             return False
         if not page or not 'comments' in page:
             # error, we shouldn't be here
@@ -277,7 +286,8 @@ class bz_util():
         current_time = datetime.datetime.utcnow()
         for comment in page['comments']:
             # May need to account for timezone
-            creation_time = datetime.datetime.strptime(comment['creation_time'], '%Y-%m-%dT%H:%M:%SZ')
+            creation_time = datetime.datetime.strptime(
+                    comment['creation_time'], '%Y-%m-%dT%H:%M:%SZ')
             if (current_time - creation_time) < datetime.timedelta(hours=hours):
                 if re.search(regex, comment['text'], re.I):
                     return True

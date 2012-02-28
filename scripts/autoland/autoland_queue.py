@@ -69,7 +69,6 @@ def get_patches_from_tag(tag):
         s = r.search(part.strip())
         if s != None:
             values = part.strip().split(',')
-            print values
             for v in values:
                 try:
                     int(v)
@@ -220,7 +219,7 @@ def bz_search_handler():
 
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
-        print bug_id, tag
+        log.DEBUG('Bug %s with tag %s', % (bug_id, tag))
 
         if tag == None or re.search('in-queue', tag) != None:
             # Strange that it showed up if None
@@ -228,7 +227,7 @@ def bz_search_handler():
 
         # get the branches
         branches = get_branch_from_tag(tag)
-        print "Getting branches: %s" % branches
+        log.DEBUG('Flagged for landing on branches: %s' % (branches))
         for branch in branches:
             # clean out any invalid branch names
             # job will still land to any correct branches
@@ -276,9 +275,9 @@ def bz_search_handler():
         # in any stage of their lifecycle
         ps.try_run = 1
 
-        log.info("Inserting job: %s" % (ps))
+        log.info('Inserting job: %s' % (ps))
         patchset_id = db.PatchSetInsert(ps)
-        print "PatchsetID: %s" % patchset_id
+        log.info 'Insert Patchset ID: %s' % (patchset_id))
 
         bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
                 '[autoland-in-queue]', bug_id)
@@ -340,7 +339,7 @@ def message_handler(message):
                       patches=msg.get('patches')
                      )
         patchset_id = db.PatchSetInsert(ps)
-        print "PatchSetID: %s" % patchset_id
+        log.info('Insert PatchSet ID: %s' % (patchset_id))
 
     comment = msg.get('comment', None)
     if comment:
@@ -359,8 +358,7 @@ def message_handler(message):
                 log.error('No corresponding patch set found for %s' % msg['patchsetid'])
                 return
             ps = ps[0]
-            print "Got patchset back from DB: %s" % ps
-            print "Msg = %s" % msg
+            log.debug('Got patchset back from DB: %s' % (ps))
             ps.revision = msg['revision']
             db.PatchSetUpdate(ps)
             log.debug('Added revision %s to patchset %s' % (ps.revision, ps.id))
@@ -571,9 +569,6 @@ def main():
                 cmd.append(revision)
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
                 (out, err) = proc.communicate()
-                print proc.returncode
-                print out
-                print err
 
         while time.time() < next_poll:
             patchset = db.PatchSetGetNext()
