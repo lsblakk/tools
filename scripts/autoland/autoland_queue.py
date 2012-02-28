@@ -202,7 +202,7 @@ def get_patchset(bug_id, try_run, user_patches=None, review_comment=True):
             patch['reviews'] = revs
 
     if len(patchset) == 0:
-        post_comment('Autoland Failure\n There are no patches to run.',  bug_id)
+        post_comment('Autoland Failure\n There are no patches to run.', bug_id)
     return patchset
 
 def bz_search_handler():
@@ -257,7 +257,7 @@ def bz_search_handler():
         # check patch reviews & permissions
         patches = get_patchset(ps.bug_id, ps.try_run,
                                ps.patchList(), review_comment=False)
-        if patches == None:
+        if not patches:
             # do not have patches to push, kick it out of the queue
             bz.remove_whiteboard_tag(tag.replace('[', '\[').replace(']', '\]'), bug_id)
             log.error('No valid patches attached, nothing for Autoland to do here, removing this bug from the queue.')
