@@ -22,7 +22,6 @@ Completed table
 * dry.run - "Would have written to cache" in SchedulerDBPoller, pollByRevision
 * Add documentation notes about security bugs
 * Check status of bug - do we poll _all_ bugs or only a subset of FIXED,NEW,etc? Just check scalability here as # of bugs to poll grows over time
-* Change all prints to logging (or remove unnecessary prints)
 * 161-164 of autoland_queue can be removed
 * haven't finished multiple branch handling - with the patchset being pulled from DB
 * let's make sure we are prioritizing high retry patchsets when pulling out patchset from DB
@@ -31,7 +30,6 @@ Completed table
 * handling timed_out - as exemplified yesterday it is possible for schedulerdbpoller to never manage to post to the bug and send out the message to autoland of status = 'timed_out' so we need to tie this into the comments system somehow...another flag in the message that bug message was never made?
 * bear said something about strings and not having to replace them all over the code - remember this? ** helper class and schema revision - version number of API and payload to save grief if there are other message structures in the future
 * HgPusher line 66 add verbose flags to the regex - compile the regex ahead of time too?
-* could put a stopping condition as well (line 66 - HgPusher)
 * apparently you can have scm_level{1,2,3} and not be able to push to a _particular_ repo with that same level of perms -- we will need IT here (according to Hal's experience, is this a normal use case?)
 ** process as implemented is not the same as described in the wiki
 * can someone change their bugzilla email to one with more permissions and get away with pushing as the higher level person?
@@ -49,6 +47,7 @@ Completed table
 * Some method of clearing out patch files that we know aren't being used -- could be done at the end of pushing a job.
 * Get rid of quotation marks around commit message.
 * Handling failed whiteboard modifications.
+* Once (proper) webservice is set up, make .rej files available to users. They can be cleared after a timeperiod.
 
 * FIXED: Add tests to test_dbhandler for querying patchsets on other params than branch
 * FIXED: Whenever schedulerdbpoller sends out messages that autoland doesn't track, line 381 dies on NoneType error
