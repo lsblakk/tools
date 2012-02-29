@@ -232,7 +232,6 @@ class bz_util():
             try:
                 # Make sure we can reach this bug
                 bug = self.request('bug/%s' % (bug_num))
-                log.debug('BUG URL EXISTS: %s' % (bug))
                 # Add the comment
                 self.request(path='bug/%s/comment' % (bug_num),
                         data={'text': message, 'is_private': False},
