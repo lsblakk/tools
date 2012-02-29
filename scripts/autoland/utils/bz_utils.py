@@ -40,7 +40,7 @@ class bz_util():
         req = urllib2.Request(url, data, {'Accept': 'application/json',
                 'Content-Type': 'application/json'})
         if method:
-            req.get_method = lambda: method,
+            req.get_method = lambda: method
         try:
             result = urllib2.urlopen(req)
             data = result.read()
@@ -140,7 +140,7 @@ class bz_util():
                     data=data, retries=retries, interval=interval)
             return True
         except ((Exception,) + HTTP_EXCEPTIONS), err:
-            log.error('Did not remove whiteboard tag to bug %s : %s'
+            log.error('Did not remove whiteboard tag from bug %s : %s'
                     % (bugid, err))
             return False
 
