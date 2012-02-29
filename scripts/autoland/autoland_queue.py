@@ -229,6 +229,11 @@ def bz_search_handler():
         # get the branches
         branches = get_branch_from_tag(tag)
         log.debug('Flagged for landing on branches: %s' % (branches))
+        if not branches:
+            # this was probably flagged [autoland], since it was picked up
+            # and doesn't have a branch attached.
+            log.debug('No branches from tag %s' % (tag))
+            continue
         for branch in branches:
             # clean out any invalid branch names
             # job will still land to any correct branches
