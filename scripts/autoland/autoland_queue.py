@@ -44,13 +44,14 @@ def get_first_autoland_tag(whiteboard):
 def get_branch_from_tag(tag):
     """
     Returns a list of branch names from the given autoland tag.
-    Given a tag that does not include '-branch',
-    ['try'] will be returned.
+    All tags must include "-branch" including try.
+    eg. [autoland-try], [autoland-mozilla-central],
+        [autoland-mozilla-aurora,mozilla-beta]
     """
     r = re.compile('\[autoland-([^:\]]+)', re.I)
     s = r.search(tag)
     if s == None:
-        return ['try']
+        return None
     return re.split(',',s.groups()[0].lower())
 
 def get_try_syntax_from_tag(tag):
