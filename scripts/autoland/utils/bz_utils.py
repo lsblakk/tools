@@ -139,7 +139,7 @@ class bz_util():
             self.put_request(path='bug/%s' % (bugid),
                     data=data, retries=retries, interval=interval)
             return True
-        except (Exception + HTTP_EXCEPTIONS), err:
+        except ((Exception,) + HTTP_EXCEPTIONS), err:
             log.error('Did not remove whiteboard tag to bug %s : %s'
                     % (bugid, err))
             return False
@@ -165,7 +165,7 @@ class bz_util():
             self.put_request(path='bug/%s' % (bugid),
                     data=data, retries=retries, interval=interval)
             return True
-        except (Exception + HTTP_EXCEPTIONS), err:
+        except ((Exception,) + HTTP_EXCEPTIONS), err:
             log.debug('Did not add whiteboard tag to bug %s : %s'
                     % (bugid, err))
             return False
@@ -198,7 +198,7 @@ class bz_util():
             self.put_request(path='bug/%s' % (bugid),
                     data=data, retries=retries, interval=interval)
             return True
-        except (Exception + HTTP_EXCEPTIONS), err:
+        except ((Exception,) + HTTP_EXCEPTIONS), err:
             log.debug('Did not replace whiteboard tag to bug %s : %s'
                     % (bugid, err))
             return False
@@ -239,7 +239,7 @@ class bz_util():
                         method='POST')
                 log.debug('Added comment to bug %s' % (bug_num))
                 result = 1
-            except (Exception, urllib2.URLError, urllib2.HTTPError), err:
+            except ((Exception,) + HTTP_EXCEPTIONS), err:
                 log.debug('Couldn\t get bug, retry %d of %d' % (i +1, retries))
                 result = 0
                 if i < retries:

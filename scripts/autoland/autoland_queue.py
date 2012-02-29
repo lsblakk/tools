@@ -220,7 +220,7 @@ def bz_search_handler():
 
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
-        log.DEBUG('Bug %s with tag %s', % (bug_id, tag))
+        log.debug('Bug %s with tag %s' % (bug_id, tag))
 
         if tag == None or re.search('in-queue', tag) != None:
             # Strange that it showed up if None
@@ -228,7 +228,7 @@ def bz_search_handler():
 
         # get the branches
         branches = get_branch_from_tag(tag)
-        log.DEBUG('Flagged for landing on branches: %s' % (branches))
+        log.debug('Flagged for landing on branches: %s' % (branches))
         for branch in branches:
             # clean out any invalid branch names
             # job will still land to any correct branches
@@ -278,7 +278,7 @@ def bz_search_handler():
 
         log.info('Inserting job: %s' % (ps))
         patchset_id = db.PatchSetInsert(ps)
-        log.info 'Insert Patchset ID: %s' % (patchset_id))
+        log.info('Insert Patchset ID: %s' % (patchset_id))
 
         bz.replace_whiteboard_tag('\[autoland[^\[\]]*\]',
                 '[autoland-in-queue]', bug_id)
