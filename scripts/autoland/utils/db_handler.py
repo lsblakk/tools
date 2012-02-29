@@ -386,12 +386,12 @@ class DBHandler(object):
         connection.execute(q)
         return True
 
-    def CommentDelete(self, cmnt):
+    def CommentDelete(self, cmnt_id):
         """
         Delete the corresponding comment.
         """
         r = self.scheduler_db_meta.tables['comments']
-        q = r.delete(r.c.id == cmnt.id)
+        q = r.delete(r.c.id == cmnt_id)
         connection = self.engine.connect()
         connection.execute(q)
 
