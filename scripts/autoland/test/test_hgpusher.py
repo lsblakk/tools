@@ -154,11 +154,11 @@ class TestHgPusher(unittest.TestCase):
         self.assertEquals(ps.comment, [comment[0]])
 
     def testPatchSetVerify(self):
-        self.assertRaises(Patchset.RETRY,
+        self.assertRaises(Patchset.RetryException,
             Patchset(1, 1, [], True, '', '', '', None).verify)
         with mock.patch('hgpusher.Patch.get_file') as pgf:
             pgf.return_value = None
-            self.assertRaises(Patchset.RETRY,
+            self.assertRaises(Patchset.RetryException,
                 Patchset(1, 1, [{'id':1, 'author':
                     {'name':'name', 'email':'email'}}],
                     True, '', '', '', None).verify)
@@ -169,7 +169,7 @@ class TestHgPusher(unittest.TestCase):
                 ps = Patchset(1,1, [{'id':1, 'author':
                         {'name':'name', 'email':'email'}}],
                         False, '', '', '', None)
-                self.assertRaises(Patchset.RETRY, ps.verify)
+                self.assertRaises(Patchset.RetryException, ps.verify)
                 self.assertTrue('Patch 1 doesn\'t have '
                         'a properly formatted header.' in ps.comment)
                 hvh.assert_called_once_with(None)
@@ -179,7 +179,7 @@ class TestHgPusher(unittest.TestCase):
                     ip.return_value = (False, 'error msg')
                     # test invalid header on Try landing, failed patch
                     ps.try_run = True
-                    self.assertRaises(Patchset.RETRY, ps.verify)
+                    self.assertRaises(Patchset.RetryException, ps.verify)
                     ip.assert_called_once()
                     self.assertTrue('Patch 1 could not be applied to .\n'
                             'error msg' in ps.comment)
@@ -206,7 +206,7 @@ class TestHgPusher(unittest.TestCase):
         ps.setup_comment()
         with mock.patch('hgpusher.import_patch') as ip:
             ip.side_effect = ipf
-            self.assertRaises(Patchset.RETRY, ps.full_import, 'dir')
+            self.assertRaises(Patchset.RetryException, ps.full_import, 'dir')
             print ps.comment
             self.assertTrue(len(ps.comment) == 2)
             self.assertTrue('Patch 2 could not be applied to .\nerr'
@@ -233,7 +233,7 @@ class TestHgPusher(unittest.TestCase):
                 with mock.patch('hgpusher.retry') as hgr:
                     hsp.return_value = True
                     cb.return_value = True
-                    hgr.side_effect = Patchset.RETRY
+                    hgr.side_effect = Patchset.RetryException
                     # failed apply_and_push
                     self.assertFalse(ps.process()[0])
                     self.assertEqual(cb.call_count, 4)
