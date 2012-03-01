@@ -97,13 +97,16 @@ class Patch(object):
         """
         Delete the file from the filesystem.
         """
-        if self.file and os.access(self.file, os.F_OK):
-            os.remove(self.file)
+        try:
+            if self.file:
+                os.remove(self.file)
+        except OSError, err:
+            log.error('File %s could not be deleted.' % (self.file))
         self.file = None
 
 
 class Patchset(object):
-    class RETRY(Exception):
+    class RetryException(Exception):
         pass
 
     def __init__(self, ps_id, bug_id, patches, try_run, push_url,
@@ -176,7 +179,7 @@ class Patchset(object):
             # 2nd attempt is after an update -C,
             # 3rd attempt is a fresh clone
             retry(apply_and_push, attempts=3,
-                    retry_exceptions=(self.RETRY),
+                    retry_exceptions=(self.RetryException),
                     cleanup=RepoCleanup(self.branch, self.branch_url),
                     args=(self.active_repo, self.push_url,
                           self.apply_patches, 1),
@@ -187,7 +190,7 @@ class Patchset(object):
             shutil.rmtree(self.active_repo)
             for patch in self.patches:
                 patch.delete()
-        except (HgUtilError, self.RETRY), err:
+        except (HgUtilError, self.RetryException), err:
             # Failed
             log.error('[PatchSet] Could not be applied and pushed.\n%s'
                     % (err))
@@ -226,7 +229,7 @@ class Patchset(object):
         """
         apply_patches() is meant to be passed to apply_and_push.
         First verify the patchset, and then import & commit each patch.
-        If anything fails, RETRY will be raised.
+        If anything fails, RetryException will be raised.
         """
         self.verify()                   # verify patches can apply cleanly
         update(self.active_repo)        # 'update -C' to get rid of changes
@@ -241,13 +244,14 @@ class Patchset(object):
         """
         log.debug('Verifying patchset')
         if not self.patches:
-            raise self.RETRY
+            raise self.RetryException
         for patch in self.patches:
             # 1. The patch exists and can be downloaded
             if not patch.get_file():
                 log.error('[Patch %s] Couldn\'t be fetched.' % (patch.num))
-                self.add_comment('Patch %s couldn\'t be fetched.' % (patch.num))
-                raise self.RETRY
+                self.add_comment('Patch %s couldn\'t be fetched.'
+                        % (patch.num))
+                raise self.RetryException
             # 2. has valid headers. If try run, put user data into patch.user
             valid_header = has_valid_header(patch.file)
             if not valid_header:
@@ -256,8 +260,8 @@ class Patchset(object):
                     self.add_comment('Patch %s doesn\'t have '
                             'a properly formatted header.'
                             % (patch.num))
-                    # XXX: is this a RETRY case, or a fail case
-                    raise self.RETRY
+                    # XXX: is this a RetryException case, or a fail case
+                    raise self.RetryException
                 patch.fill_user()
             # 3. patch applies using 'import --no-commit -f'
             (patch_success, err) = import_patch(self.active_repo, patch.file,
@@ -267,7 +271,7 @@ class Patchset(object):
                         % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
                         % (patch.num, self.branch, err))
-                raise self.RETRY
+                raise self.RetryException
         log.debug('Patchset is valid')
 
     def full_import(self, branch_dir):
@@ -286,7 +290,7 @@ class Patchset(object):
                         % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
                         % (patch.num, self.branch, err))
-                raise self.RETRY
+                raise self.RetryException
 
 
 def run_hg(hg_args):
@@ -311,33 +315,33 @@ def has_valid_header(filename):
     Note: this forces developers to use 'hg export' rather than 'hg diff'
           if they want to be pushing to branch.
     """
-    f_in = open(filename, 'r')
-    puser = re.compile('# User ')
+    with open(filename, 'r') as f_in:
+        puser = re.compile(r'# User ')
 
-    # Match the user line, starts with "User" and then a name
-    # ends with an email address in <>
-    userline = re.compile('# User [\w\s]+ '
-            '<[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$')
+        # Match the user line, starts with "User" and then a name
+        # ends with an email address in <>
+        userline = re.compile(r'# User [\w\s]+ '
+                '<[\w\d._%+-]+@[\w\d.-]+\.\w{2,6}>$')
 
-    # Commit message is always fist line not prefixed with #
-    commitline = re.compile('^[^#$]+')
+        # Commit message is always fist line not prefixed with #
+        commitline = re.compile(r'^[^#$]+')
 
-    has_userline = False
-    for line in f_in:
-        if puser.match(line):
-            has_userline = True
-            # User line must be of the form
-            # # User Name <name@email.com>
-            if not userline.match(line):
-                print 'Bad header.'
-                return False
-        elif commitline.match(line):
-            # userline always before commit message, so if we have it along
-            # with a commit message, return True, else False
-            return has_userline
-        elif re.match('^$', line):
-            # done with header since header ends with an empty line
-            break
+        has_userline = False
+        for line in f_in:
+            if puser.match(line):
+                has_userline = True
+                # User line must be of the form
+                # # User Name <name@email.com>
+                if not userline.match(line):
+                    log.info('Bad header.')
+                    return False
+            elif commitline.match(line):
+                # userline always before commit message, so if we have it along
+                # with a commit message, return True, else False
+                return has_userline
+            elif line == '':
+                # done with header since header ends with an empty line
+                break
     return False
 
 def in_ldap_group(email, group):
@@ -346,7 +350,8 @@ def in_ldap_group(email, group):
     """
     bz_email = ldap.get_bz_email(email)
     return ldap.is_member_of_group(email, group) \
-            or (bz_email and ldap.is_member_of_group(bz_email, group))
+            or (bz_emaile.match('^$', line) \
+            and ldap.is_member_of_group(bz_email, group))
 
 def has_sufficient_permissions(patches, branch):
     """
@@ -415,7 +420,7 @@ def clone_branch(branch, branch_url):
     # otherwise, it will be updated.
     clean = os.path.join('clean')
     clean_repo = os.path.join(clean, branch)
-    if not os.access(clean, os.F_OK):
+    if not os.path.isdir(clean):
         os.mkdir(clean)
     try:
         mercurial(remote, clean_repo)
@@ -426,12 +431,12 @@ def clone_branch(branch, branch_url):
     # Clone that clean repository to active and return that revision
     active = os.path.join('active')
     active_repo = os.path.join(active, branch)
-    if not os.access(active, os.F_OK):
+    if not os.path.isdir(active):
         os.mkdir(active)
-    elif os.access(active_repo, os.F_OK):
+    elif os.path.isdir(active_repo):
         shutil.rmtree(active_repo)
     try:
-        print 'Cloning from %s -----> %s' % (clean_repo, active_repo)
+        log.info('Cloning from %s -----> %s' % (clean_repo, active_repo))
         revision = mercurial(clean_repo, active_repo)
         log.info('[Clone] Cloned revision %s' %(revision))
     except subprocess.CalledProcessError, err:
@@ -446,12 +451,13 @@ def clear_branch(branch):
     Clear the directories for the given branch,
     effictively removing any changes as well as clearing out the clean repo.
     """
-    clean_repo = os.path.join('clean/', branch)
-    active_repo = os.path.join('active/', branch)
-    if os.access(clean_repo, os.F_OK):
+    clean_repo = os.path.join('clean', branch)
+    active_repo = os.path.join('active', branch)
+    try:
         shutil.rmtree(clean_repo)
-    if os.access(active_repo, os.F_OK):
         shutil.rmtree(active_repo)
+    except:
+        pass
 
 def valid_dictionary_structure(dict_, elements):
     """
@@ -522,7 +528,7 @@ def message_handler(message):
         patchset = Patchset(data['patchsetid'],
                         data['bug_id'],
                         data['patches'],
-                        data['try_run'] == True,
+                        bool(data['try_run']),
                         data['push_url'],
                         data['branch'], data['branch_url'],
                         data.get('try_syntax', None))
@@ -564,7 +570,7 @@ def main():
                 exit(0)
 
     try:
-        if not os.access(config['work_dir'], os.F_OK):
+        if not os.path.isdir(config['work_dir']):
             os.makedirs(config['work_dir'])
         os.chdir(config['work_dir'])
 
@@ -573,17 +579,20 @@ def main():
         while True:
             hgp_lock = None
             work_dir = 'hgpusher.%d' % (i)
-            if not os.access(work_dir, os.F_OK):
+            if not os.path.isdir(work_dir):
                 os.makedirs(work_dir)
             try:
                 log.debug('Trying dir: %s' % (work_dir))
-                hgp_lock = lock.lock(os.path.join(work_dir, '.lock'), timeout=1)
+                hgp_lock = lock.lock(os.path.join(work_dir, '.lock'),
+                        timeout=1)
                 log.debug('Working directory: %s' % (work_dir))
                 os.chdir(work_dir)
                 # get rid of active dir
-                if os.access('active/', os.F_OK):
-                    shutil.rmtree('active/')
-                os.makedirs('active/')
+                try:
+                    shutil.rmtree('active')
+                except OSError:
+                    pass
+                os.makedirs('active')
 
                 mq.listen(queue=config['mq_hgp_queue'],
                         callback=message_handler, routing_key='hgpusher')
@@ -596,8 +605,8 @@ def main():
                     hgp_lock.release()
                     log.debug('Released working directory')
                     raise
-    except os.error, err:
-        log.error('Error switching to working directory: %s' % (err))
+    except Exception, err:
+        log.error('An error occurred: %s' % (err))
         exit(1)
 
 if __name__ == '__main__':
