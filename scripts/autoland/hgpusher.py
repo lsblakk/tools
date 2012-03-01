@@ -395,16 +395,16 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
         cmd.append('-f')
     else:
         if user:
-            cmd.append('-u %s' % (user))
+            cmd.extemd(['-u',user])
         if try_syntax == None:
             try_syntax = ''
         if try_run:
             # if there is no try_syntax,
             # try defaults will be triggered by 'try:'
             if config.get('staging', False):
-                cmd.extend(['-m "try: %s -n bug %s"' % (try_syntax, bug_id)])
+                cmd.extend(['-m', 'try: %s -n bug %s' % (try_syntax, bug_id)])
             else:
-                cmd.extend(['-m "try: %s -n --post-to-bugzilla bug %s"' \
+                cmd.extend(['-m', 'try: %s -n --post-to-bugzilla bug %s' \
                         % (try_syntax, bug_id)])
     cmd.append(patch)
     (output, err, ret) = run_hg(cmd)
