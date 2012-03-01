@@ -95,9 +95,8 @@ class bz_util():
             return None
         if re.search('The attachment id %s is invalid' % str(patch_id), data):
             return None
-        file_ = open(patch_file, 'w')
-        file_.write(data)
-        file_.close()
+        with open(patch_file, 'w') as f_out:
+            f_out.write(data)
         return os.path.abspath(patch_file)
 
     def get_user_info(self, email):
