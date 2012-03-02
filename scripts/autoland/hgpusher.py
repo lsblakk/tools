@@ -395,7 +395,7 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
         cmd.append('-f')
     else:
         if user:
-            cmd.extemd(['-u',user])
+            cmd.extend(['-u',user])
         if try_syntax == None:
             try_syntax = ''
         if try_run:
