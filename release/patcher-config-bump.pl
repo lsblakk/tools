@@ -34,7 +34,8 @@ sub ProcessArgs {
         "app-version|a=s", "build-number|b=s", "patcher-config|c=s",
         "staging-server|t=s", "ftp-server|f=s", "bouncer-server|d=s",
         "use-beta-channel|u", "shipped-locales|l=s", "releasenotes-url|n=s",
-        "platform=s@", "marname=s", "oldmarname=s", "help|h", "run-tests"
+        "platform=s@", "marname=s", "oldmarname=s", "schema|s=s",
+        "help|h", "run-tests"
     );
 
     if ($config{'help'}) {
@@ -53,7 +54,7 @@ Options:
   -c The path and filename of the config file to be bumped.
   -f The FTP server to serve beta builds from. Typically is ftp.mozilla.org
   -t The staging server to serve test builds from. Typically is
-     stage.mozilla.org or stage-old.mozilla.org
+     stage.mozilla.org.
   -d The hostname of the Bouncer server to serve release builds from.
      Typically is download.mozilla.org.
   -u When not passed, the Beta channel will be considered the channel for final
@@ -71,6 +72,8 @@ Options:
     release. Default value is set to the product name.
   --oldmarname Optional MAR prefix (firefox, mozilladeveloperpreview) for the
     previous release. Default value is set to --marname.
+  -s The schema version to write to the release block for version, which controls
+     the style of snippets used (bug 459972), defaults to 2.
   -h This usage message.
   --run-tests will run the (very basic) unit tests included with this script.
 __USAGE__
@@ -123,6 +126,9 @@ __USAGE__
     if (! defined $config{'oldmarname'}) {
         $config{'oldmarname'} = $config{'marname'};
     }
+    if (! defined $config{'schema'}) {
+        $config{'schema'} = 2;
+    }
 }    
 
 sub BumpPatcherConfig {
@@ -140,6 +146,7 @@ sub BumpPatcherConfig {
     my $configBumpDir = '.';
     my $releaseNotesUrl = $config{'releasenotes-url'};
     my $platforms = $config{'platform'};
+    my $schema = $config{'schema'};
 
     my $prettyVersion = GetPrettyVersion(version => $version,
                                          product => $product);
@@ -260,6 +267,7 @@ sub BumpPatcherConfig {
      'http://' . $stagingServer. '/pub/mozilla.org/' . $product . 
      '/nightly/' .  $version . '-candidates/' . $buildStr . '/' .
      $pBetatestPath;
+    $partialUpdate->{'esrtest-url'} = $partialUpdate->{'betatest-url'};
 
     if ($useBetaChannel) {
       my $pBetaPath;
@@ -319,6 +327,7 @@ sub BumpPatcherConfig {
      'http://' . $stagingServer . '/pub/mozilla.org/' . $product . 
      '/nightly/' .  $version . '-candidates/' . $buildStr . '/' .
      $cBetatestPath;
+    $completeUpdate->{'esrtest-url'} = $completeUpdate->{'betatest-url'};
 
     if ($useBetaChannel) {
        my $cBetaPath;
@@ -358,7 +367,8 @@ sub BumpPatcherConfig {
         buildstr => $buildStr,
         stagingServer => $stagingServer,
         localeInfo => $localeInfo,
-        platforms => $platforms
+        platforms => $platforms,
+        schema => $schema,
     );
 
     $patcherConfigObj->save_file($patcherConfig);

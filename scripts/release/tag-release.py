@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 from util.commands import run_cmd, get_output
 from util.hg import mercurial, apply_and_push, update, get_revision, \
-  make_hg_url, out, BRANCH, REVISION, get_branches, cleanOutgoingRevs
+  make_hg_url, out, BRANCH, get_branches, cleanOutgoingRevs
 from util.retry import retry
 from build.versions import bumpFile
 from release.info import readReleaseConfig, getTags, generateRelbranchName
@@ -29,11 +29,11 @@ REQUIRED_SOURCE_REPO_KEYS = ('path', 'revision')
 
 def getBumpCommitMessage(productName, version):
     return 'Automated checkin: version bump for ' + productName + ' ' + \
-           version + ' release. CLOSED TREE a=release'
+           version + ' release. DONTBUILD CLOSED TREE a=release'
 
-def getTagCommitMessage(revision, tag):
-    return "Added tag " +  tag + " for changeset " + revision + \
-           ". CLOSED TREE a=release"
+def getTagCommitMessage(revision, tags):
+    return "Added " +  " ".join(tags) + " tag(s) for changeset " + revision + \
+           ". DONTBUILD CLOSED TREE a=release"
 
 def bump(repo, bumpFiles, versionKey):
     for f, info in bumpFiles.iteritems():
@@ -46,10 +46,10 @@ def bump(repo, bumpFiles, versionKey):
             fh.close()
 
 def tag(repo, revision, tags, username):
-    for tag in tags:
-        cmd = ['hg', 'tag', '-u', username, '-r', revision,
-               '-m', getTagCommitMessage(revision, tag), '-f', tag]
-        run_cmd(cmd, cwd=repo)
+    cmd = ['hg', 'tag', '-u', username, '-r', revision,
+           '-m', getTagCommitMessage(revision, tags), '-f']
+    cmd.extend(tags)
+    run_cmd(cmd, cwd=repo)
 
 def tagRepo(config, repo, reponame, revision, tags, bumpFiles, relbranch,
             pushAttempts, defaultBranch='default'):
@@ -58,7 +58,8 @@ def tagRepo(config, repo, reponame, revision, tags, bumpFiles, relbranch,
 
     def bump_and_tag(repo, attempt, config, relbranch, revision, tags,
                      defaultBranch):
-        relbranchChangesets = len(tags)
+        # set relbranchChangesets=1 because tag() generates exactly 1 commit
+        relbranchChangesets = 1
         defaultBranchChangesets = 0
 
         if relbranch in get_branches(reponame):
@@ -132,7 +133,8 @@ def tagOtherRepo(config, repo, reponame, revision, pushAttempts):
     retry(mercurial, args=(remote, reponame))
 
     def tagRepo(repo, attempt, config, revision, tags):
-        totalChangesets = len(tags)
+        # set totalChangesets=1 because tag() generates exactly 1 commit
+        totalChangesets = 1
         tag(repo, revision, tags, config['hgUsername'])
         outgoingRevs = retry(out, kwargs=dict(src=reponame, remote=remote,
                                               ssh_username=config['hgUsername'],

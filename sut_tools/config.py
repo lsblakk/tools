@@ -4,7 +4,7 @@ import os, sys
 import time
 import random
 import socket
-import devicemanager
+import devicemanagerSUT as devicemanager
 
 
 def setFlag(flagfile, contents=None):
@@ -87,11 +87,11 @@ proxyFile = os.path.join(cwd, '..', 'proxy.flg')
 errorFile = os.path.join(cwd, '..', 'error.flg')
 proxyIP   = getOurIP()
 proxyPort = calculatePort()
-refWidth  = 1680 # x
-refHeight = 1050 # y
+refWidth  = 1600 # x
+refHeight = 1200 # y
 
 print "connecting to: %s" % sys.argv[1]
-dm = devicemanager.DeviceManager(sys.argv[1])
+dm = devicemanager.DeviceManagerSUT(sys.argv[1])
 # Moar data!
 dm.debug = 3
 devRoot  = dm.getDeviceRoot()

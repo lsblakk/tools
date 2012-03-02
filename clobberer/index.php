@@ -19,8 +19,10 @@ $SPECIAL_PEOPLE = array(
   'bhearsum@mozilla.com',
   'catlee@mozilla.com',
   'coop@mozilla.com',
+  'hwine@mozilla.com',
   'jford@mozilla.com',
   'joduinn@mozilla.com',
+  'jarmstrong@mozilla.com',
   'lsblakk@mozilla.com',
   'mtaylor@mozilla.com',
   'nthomas@mozilla.com',
@@ -157,19 +159,31 @@ function getClobberTime($master, $branch, $builddir, $slave)
   }
 }
 
+function array_get($array, $key, $default='')
+{
+  if (array_key_exists($key, $array))
+  {
+    return $array[$key];
+  }
+  else
+  {
+    return $default;
+  }
+}
+
 //
 // Handle form submission
 //
-if ($_POST['form_submitted']) {
+if (array_get($_POST, 'form_submitted')) {
   $clobbers = array();
   $slaves = array();
-  $user = $_SERVER['REMOTE_USER'];
+  $user = array_get($_SERVER, 'REMOTE_USER');
   $e_user = e($user);
   $now = time();
   foreach ($_POST as $k => $v) {
     if ($k == "master") {
       if (isSpecial($user)) {
-        $branch = $_POST['branch'];
+        $branch = array_get($_POST, 'branch');
         if ($branch != '') {
           $branch = e($branch);
         } else {
@@ -182,7 +196,7 @@ if ($_POST['form_submitted']) {
           $master = 'NULL';
         }
 
-        $builddir = $_POST['builddir'];
+        $builddir = array_get($_POST, 'builddir');
         if ($builddir != '') {
             $builders = array($builddir);
             // check for prefixed version of this builddir
@@ -243,11 +257,11 @@ if ($_POST['form_submitted']) {
   exit(0);
 }
 
-$buildername = urldecode($_GET['buildername']);
-$builddir = urldecode($_GET['builddir']);
-$slave = urldecode($_GET['slave']);
-$branch = urldecode($_GET['branch']);
-$master = urldecode($_GET['master']);
+$buildername = urldecode(array_get($_GET, 'buildername'));
+$builddir = urldecode(array_get($_GET, 'builddir'));
+$slave = urldecode(array_get($_GET, 'slave'));
+$branch = urldecode(array_get($_GET, 'branch'));
+$master = urldecode(array_get($_GET, 'master'));
 // Show the administration page if no clobber time is being queried
 if (!$buildername) {
 ?>
@@ -345,6 +359,18 @@ Clobber all release builders on <select name="master">
 
 <?php } ?>
 
+<?php
+if (!array_key_exists('branch', $_GET)) {
+  $allbranches = $dbh->query("SELECT DISTINCT branch FROM builds WHERE builddir NOT LIKE '${RELEASE_PREFIX}%' ORDER BY branch ASC");
+  print "<h2>Please select a branch</h2>\n";
+  while ($r = $allbranches->fetch(PDO::FETCH_ASSOC)) {
+    $b = $r['branch'];
+    print "<a href=\"?branch=$b\">$b</a><br/>\n";
+  }
+  print "</body></html>";
+  exit(0);
+}
+?>
 <form method="POST">
 <table border="1" cellspacing="0" cellpadding="1">
  <thead>
@@ -352,7 +378,11 @@ Clobber all release builders on <select name="master">
  </thead>
  <tbody>
 <?php
-  $allbuilders = $dbh->query("SELECT DISTINCT id, branch, builddir, buildername, slave FROM builds WHERE builddir NOT LIKE '${RELEASE_PREFIX}%' ORDER BY branch ASC, buildername ASC");
+  $branch_clause = "";
+  if (array_key_exists('branch', $_GET)) {
+    $branch_clause = "AND branch=".e($_GET['branch']);
+  }
+  $allbuilders = $dbh->query("SELECT DISTINCT id, branch, builddir, buildername, slave FROM builds WHERE builddir NOT LIKE '${RELEASE_PREFIX}%' $branch_clause ORDER BY branch ASC, buildername ASC");
   if ($allbuilders) {
     $last_branch = null;
     $last_builder = null;
@@ -362,7 +392,7 @@ Clobber all release builders on <select name="master">
     $rows_per_builder = array();
     $rows = array();
     while ($r = $allbuilders->fetch(PDO::FETCH_ASSOC)) {
-      if (!canSee($r['builddir'], $_SERVER['REMOTE_USER'])) {
+      if (!canSee($r['builddir'], array_get($_SERVER, 'REMOTE_USER'))) {
         continue;
       }
       $rows[] = $r;

@@ -14,8 +14,11 @@ import logging
 log = logging.getLogger(__name__)
 
 def getShippedLocales(product, appName, version, buildNumber, sourceRepo,
-                      hg='http://hg.mozilla.org'):
-    tag = '%s_%s_BUILD%s' % (product.upper(), version.replace('.', '_'),
+                      hg='http://hg.mozilla.org', revision=None):
+    if revision is not None:
+        tag = revision
+    else:
+        tag = '%s_%s_BUILD%s' % (product.upper(), version.replace('.', '_'),
                              str(buildNumber))
     file = '%s/raw-file/%s/%s/locales/shipped-locales' % \
       (sourceRepo, tag, appName)
@@ -67,11 +70,11 @@ def getL10nRepositories(fileName, l10nRepoPath, relbranch=None):
 
 
 def makeReleaseRepackUrls(productName, brandName, version, platform,
-                          locale='en-US'):
+                          locale='en-US', signed=False):
     longVersion = version
     builds = {}
+    platformDir = buildbot2ftp(platform)
     if productName not in ('fennec',):
-        platformDir = buildbot2ftp(platform)
         if platform.startswith('linux'):
             filename = '%s.tar.bz2' % productName
             builds[filename] = '/'.join([p.strip('/') for p in [
@@ -83,16 +86,32 @@ def makeReleaseRepackUrls(productName, brandName, version, platform,
         elif platform.startswith('win'):
             filename = '%s.zip' % productName
             instname = '%s.exe' % productName
-            builds[filename] = '/'.join([p.strip('/') for p in [
-                'unsigned', platformDir, locale,
-                '%s-%s.zip' % (productName, version)]])
-            builds[instname] = '/'.join([p.strip('/') for p in [
-                'unsigned', platformDir, locale,
-                '%s Setup %s.exe' % (brandName, longVersion)]])
+            prefix = []
+            if not signed:
+                prefix.append('unsigned')
+            prefix.extend([platformDir, locale])
+            builds[filename] = '/'.join(
+                [p.strip('/') for p in 
+                 prefix + ['%s-%s.zip' % (productName, version)]]
+            )
+            builds[instname] = '/'.join(
+                [p.strip('/') for p in 
+                 prefix + ['%s Setup %s.exe' % (brandName, longVersion)]]
+            )
         else:
             raise "Unsupported platform"
     else:
-        if platform == 'linux':
+        if platform.startswith('android'):
+            filename = '%s-%s.%s.android-arm.apk' % (productName, version, locale)
+            prefix = []
+            if not signed:
+                prefix.append('unsigned')
+            prefix.extend([platformDir, locale])
+            builds[filename] = '/'.join(
+                [p.strip('/') for p in
+                 prefix + [filename]]
+            )
+        elif platform == 'linux':
             filename = '%s.tar.bz2' % productName
             builds[filename] = '/'.join([p.strip('/') for p in [
                 platform, locale, '%s-%s.%s.linux-i686.tar.bz2' % (productName, version, locale)]])

@@ -15,6 +15,10 @@ repoSetupConfig['reposToClone'] = {
                 'mozilla/preproduction_release_overrides.py',
                 'mozilla/preproduction_release_overrides-beta.py',
              ],
+            'mozilla/release-firefox-mozilla-release.py': [
+                'mozilla/preproduction_release_overrides.py',
+                'mozilla/preproduction_release_overrides-release.py',
+             ],
         },
         'nobump_overrides': {
             'mozilla/preproduction_config.py': [
@@ -30,4 +34,5 @@ repoSetupConfig['reposToClone'] = {
     'build/buildbot': {},
     'build/compare-locales': {},
     'build/partner-repacks': {},
+    'build/mozharness': {},
 }
