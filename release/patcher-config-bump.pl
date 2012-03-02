@@ -54,7 +54,7 @@ Options:
   -c The path and filename of the config file to be bumped.
   -f The FTP server to serve beta builds from. Typically is ftp.mozilla.org
   -t The staging server to serve test builds from. Typically is
-     stage.mozilla.org or stage-old.mozilla.org
+     stage.mozilla.org.
   -d The hostname of the Bouncer server to serve release builds from.
      Typically is download.mozilla.org.
   -u When not passed, the Beta channel will be considered the channel for final
@@ -267,6 +267,7 @@ sub BumpPatcherConfig {
      'http://' . $stagingServer. '/pub/mozilla.org/' . $product . 
      '/nightly/' .  $version . '-candidates/' . $buildStr . '/' .
      $pBetatestPath;
+    $partialUpdate->{'esrtest-url'} = $partialUpdate->{'betatest-url'};
 
     if ($useBetaChannel) {
       my $pBetaPath;
@@ -326,6 +327,7 @@ sub BumpPatcherConfig {
      'http://' . $stagingServer . '/pub/mozilla.org/' . $product . 
      '/nightly/' .  $version . '-candidates/' . $buildStr . '/' .
      $cBetatestPath;
+    $completeUpdate->{'esrtest-url'} = $completeUpdate->{'betatest-url'};
 
     if ($useBetaChannel) {
        my $cBetaPath;

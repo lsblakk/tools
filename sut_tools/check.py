@@ -15,7 +15,7 @@ import datetime
 # from multiprocessing import get_logger, log_to_stderr
 from sut_lib import checkSlaveAlive, checkSlaveActive, getIPAddress, dumpException, loadOptions, \
                     checkCPAlive, checkCPActive, getLastLine, stopProcess, runCommand, pingTegra, \
-                    reboot_tegra, getMaster
+                    reboot_tegra, stopTegra, getMaster
 
 
 log            = logging.getLogger()
@@ -58,6 +58,7 @@ def checkTegra(master, tegra):
     proxyFlag  = os.path.isfile(proxyFile)
     sTegra     = 'OFFLINE'
     sutFound   = False
+    logTD      = None
 
     status = { 'tegra':  tegra,
                'active': False,
@@ -112,22 +113,28 @@ def checkTegra(master, tegra):
 
     if checkCPAlive(tegraPath):
         logTD = checkCPActive(tegraPath)
-        if logTD is not None and logTD.days > 0 or (logTD.days == 0 and logTD.seconds > 300):
-            status['cp']   = 'INACTIVE'
-            status['msg'] += 'CP %dd %ds;' % (logTD.days, logTD.seconds)
+        if logTD is not None:
+            if (logTD.days > 0) or (logTD.days == 0 and logTD.seconds > 300):
+                status['cp']   = 'INACTIVE'
+                status['msg'] += 'CP %dd %ds;' % (logTD.days, logTD.seconds)
+            else:
+                status['cp'] = 'active'
         else:
-            status['cp'] = 'active'
+            status['cp'] = 'INACTIVE'
     else:
         if os.path.isfile(os.path.join(tegraPath, 'clientproxy.pid')):
             status['msg'] += 'clientproxy.pid found;'
 
     if checkSlaveAlive(tegraPath):
         logTD = checkSlaveActive(tegraPath)
-        if logTD is not None and logTD.days > 0 or (logTD.days == 0 and logTD.seconds > 3600):
-            status['bs']   = 'INACTIVE'
-            status['msg'] += 'BS %dd %ds;' % (logTD.days, logTD.seconds)
+        if logTD is not None:
+            if (logTD.days > 0) or (logTD.days == 0 and logTD.seconds > 3600):
+                status['bs']   = 'INACTIVE'
+                status['msg'] += 'BS %dd %ds;' % (logTD.days, logTD.seconds)
+            else:
+                status['bs'] = 'active'
         else:
-            status['bs'] = 'active'
+            status['bs'] = 'INACTIVE'
     else:
         # scan thru tegra-### dir and see if any buildbot.tac.bug#### files exist
         # but ignore buildbot.tac file itself (except to note that it is missing)
@@ -173,6 +180,10 @@ def checkTegra(master, tegra):
             log.info('clearing proxy.flg')
             os.remove(proxyFile)
 
+        # here we try to catch the state where sutagent and cp are inactive
+        # that is determined by : sTegra == 'INACTIVE' and status['cp'] == 'INACTIVE'
+        # status['cp'] will be set to INACTIVE only if logTD.seconds (last time clientproxy
+        # updated it's log file) is > 3600
     if options.reboot:
         if not sutFound and status['bs'] != 'active':
             log.info('power cycling tegra')
@@ -181,6 +192,14 @@ def checkTegra(master, tegra):
             if sTegra == 'OFFLINE' and status['bs'] != 'active':
                 log.info('power cycling tegra')
                 reboot_tegra(tegra)
+
+    if options.reset and sTegra == 'INACTIVE' and status['cp'] == 'INACTIVE':
+        log.info('stopping hung clientproxy')
+        stopTegra(tegra)
+        time.sleep(5)
+        log.info('starting clientproxy for %s' % tegra)
+        os.chdir(tegraPath)
+        runCommand(['python', 'clientproxy.py', '-b', '--tegra=%s' % tegra])
 
 def findMaster(tegra):
     result  = None

@@ -4,7 +4,7 @@ import os, sys
 import time
 import devicemanagerSUT as devicemanager
 
-from sut_lib import clearFlag, setFlag, checkDeviceRoot, stopProcess, waitForDevice
+from sut_lib import clearFlag, setFlag, checkDeviceRoot, stopProcess, checkStalled, waitForDevice
 
 if (len(sys.argv) <> 2):
     print "usage: cleanup.py <ip address>"
@@ -20,6 +20,7 @@ processNames = [ 'org.mozilla.fennec',
                  'org.mozilla.fennec_unofficial',
                  'org.mozilla.firefox',
                  'org.mozilla.firefox_beta',
+                 'org.mozilla.roboexample.test', 
                ]
 
 if os.path.exists(flagFile):
@@ -43,30 +44,30 @@ if dm.dirExists(devRoot):
        setFlag(errorFile, "Remote Device Error: call to removeDir() returned [%s]" % status)
        sys.exit(1)
 
-if dm.fileExists('/system/etc/hosts'):
-    print "removing /system/etc/hosts file"
+if not dm.fileExists('/system/etc/hosts'):
+    print "restoring /system/etc/hosts file"
     try:
         dm.sendCMD(['exec mount -o remount,rw -t yaffs2 /dev/block/mtdblock3 /system'])
-        dm.sendCMD(['exec rm /system/etc/hosts'])
+        data = "127.0.0.1 localhost"
+        dm.verifySendCMD(['push /mnt/sdcard/hosts ' + str(len(data)) + '\r\n', data], newline=False)
+        dm.verifySendCMD(['exec dd if=/mnt/sdcard/hosts of=/system/etc/hosts'])
     except devicemanager.DMError, e:
-        print "Exception hit while trying to remove /system/etc/hosts: %s" % str(e)
-        setFlag(errorFile, "failed to remove /system/etc/hosts")
-        sys.exit(1)
-    if dm.fileExists('/system/etc/hosts'):
-        setFlag(errorFile, "failed to remove /system/etc/hosts")
+        print "Exception hit while trying to restore /system/etc/hosts: %s" % str(e)
+        setFlag(errorFile, "failed to restore /system/etc/hosts")
+        sys.exit(1)  
+    if not dm.fileExists('/system/etc/hosts'):
+        setFlag(errorFile, "failed to restore /system/etc/hosts")
         sys.exit(1)
     else:
-        print "successfully removed hosts file, we can test!!!"
+        print "successfully restored hosts file, we can test!!!"
 
-for f in ('runtestsremote', 'remotereftest', 'remotereftest.pid.xpcshell'):
-    pidFile = os.path.join(pidDir, '%s.pid' % f)
-    print "checking for previous test processes ... %s" % pidFile
-    if os.path.exists(pidFile):
-        print "pidfile from prior test run found, trying to kill"
-        stopProcess(pidFile, f)
-        if os.path.exists(pidFile):
-            setFlag(errorFile, "Remote Device Error: process from previous test run present [%s]" % f)
-            sys.exit(2)
+errcode = checkStalled(os.environ['SUT_NAME'])
+if errcode > 1:
+    if errcode == 2:
+        print "processes from previous run were detected and cleaned up"
+    elif errocode == 3:
+        setFlag(errorFile, "Remote Device Error: process from previous test run present")
+        sys.exit(2)
 
 for p in processNames:
     if dm.dirExists('/data/data/%s' % p):

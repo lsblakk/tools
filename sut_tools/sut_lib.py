@@ -20,10 +20,23 @@ import json
 
 log = logging.getLogger()
 
-try:
-    tegras  = json.load(open('/builds/tools/buildfarm/mobile/tegras.json', 'r'))
-except:
-    tegras  = {}
+
+def loadTegrasData(filepath):
+    result = {}
+    tFile  = os.path.join(filepath, 'tegras.json')
+    if os.path.isfile(tFile):
+        try:
+            result = json.load(open(tFile, 'r'))
+        except:
+            result = {}
+    return result
+
+# look for tegras.json where foopies have it
+# if not loaded, then try relative to sut_lib.py's path
+# as that is where it would be if run from tools repo
+tegras = loadTegrasData('/builds/tools/buildfarm/mobile')
+if len(tegras) == 0:
+    tegras = loadTegrasData(os.path.join(os.path.dirname(__file__), '../buildfarm/mobile'))
 
 try:
     masters = json.load(open('/builds/tools/buildfarm/maintenance/production-masters.json', 'r'))
@@ -242,6 +255,45 @@ def stopProcess(pidFile, label):
         except ValueError:
             log.error('%s: unable to read %s' % (label, pidFile))
 
+def checkStalled(tegra):
+    """Returns the following based on if any stalled pids were found:
+            1 = clean, nothing was stalled
+            2 = dirty, but pids were killed
+            3 = dirty, but pids remain
+    """
+    pids      = []
+    tegraIP   = getIPAddress(tegra)
+    tegraPath = os.path.join('/builds', tegra)
+    p, lines  = runCommand(['ps', '-U', 'cltbld'])
+
+    for line in lines:
+        if ('bcontroller' in line and tegraIP in line) or \
+           ('server.js' in line and tegra in line):
+            item = line.split()
+            if len(item) > 1:
+                try:
+                    pids.append(int(item[0]))
+                except ValueError:
+                    pass
+
+    if len(pids) == 0:
+        result = 1
+    else:
+        result = 2
+
+    for pid in pids:
+        if not killPID(pid, sig=signal.SIGKILL, includeChildren=True):
+            result = 3
+
+    for f in ('runtestsremote', 'remotereftest', 'remotereftest.pid.xpcshell'):
+        pidFile = os.path.join(tegraPath, '%s.pid' % f)
+        if os.path.exists(pidFile):
+            stopProcess(pidFile, f)
+            if os.path.exists(pidFile):
+                result = 3
+
+    return result
+
 def stopSlave(pidFile):
     """Try to terminate the buildslave
     """
@@ -430,6 +482,64 @@ def reboot_tegra(tegra, debug=False):
                 result = False
 
     return result
+
+def stopStalled(tegra):
+    tegraIP   = getIPAddress(tegra)
+    tegraPath = os.path.join('/builds', tegra)
+    pids      = []
+
+    # look for any process that is associated with the tegra
+    # PID TTY           TIME CMD
+    # 212 ??         0:17.99 /opt/local/Library/Frameworks/Python.framework/Versions/2.6/Resources/Python.app/Contents/MacOS/Python clientproxy.py -b --tegra=tegra-032
+    p, lines  = runCommand(['ps', '-U', 'cltbld'])
+    for line in lines:
+        if ('bcontroller' in line and tegraIP in line) or \
+           ('server.js' in line and tegra in line):
+            item = line.split()
+            if len(item) > 1:
+                try:
+                    pids.append(int(item[0]))
+                except ValueError:
+                    pass
+    for pid in pids:
+        killPID(pid, sig=signal.SIGKILL, includeChildren=True)
+
+    result = False
+    for f in ('runtestsremote', 'remotereftest', 'remotereftest.pid.xpcshell'):
+        pidFile = os.path.join(tegraPath, '%s.pid' % f)
+        print "checking for previous test processes ... %s" % pidFile
+        if os.path.exists(pidFile):
+            print "pidfile from prior test run found, trying to kill"
+            stopProcess(pidFile, f)
+            if os.path.exists(pidFile):
+                result = True
+
+    return result
+
+def stopTegra(tegra):
+    tegraIP   = getIPAddress(tegra)
+    tegraPath = os.path.join('/builds', tegra)
+    errorFile = os.path.join(tegraPath, 'error.flg')
+    proxyFile = os.path.join(tegraPath, 'proxy.flg')
+
+    log.info('%s: %s - stopping all processes' % (tegra, tegraIP))
+
+    stopStalled(tegra)
+    stopProcess(os.path.join(tegraPath, 'clientproxy.pid'), 'clientproxy')
+    stopProcess(os.path.join(tegraPath, 'twistd.pid'), 'buildslave')
+
+    log.debug('  clearing flag files')
+
+    if os.path.isfile(errorFile):
+        log.info('  error.flg cleared')
+        os.remove(errorFile)
+
+    if os.path.isfile(proxyFile):
+        log.info('  proxy.flg cleared')
+        os.remove(proxyFile)
+
+    reboot_tegra(tegra, debug=True)
+
 
 def loadOptions(defaults=None):
     """Parse command line parameters and populate the options object.

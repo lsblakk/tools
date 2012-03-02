@@ -29,7 +29,7 @@ sub ProcessArgs {
         "verify-config|c=s", "old-candidates-dir|d=s", "linux-extension|e=s",
         "shipped-locales|l=s", "pretty-candidates-dir", "major|m",
         "binary-name=s", "old-binary-name=s", "--test-older-partials",
-        "old-shipped-locales=s", "help", "run-tests"
+        "old-shipped-locales=s", "channel=s", "help", "run-tests"
     );
 
     if ($config{'help'}) {
@@ -77,6 +77,7 @@ Options requiring arguments:
                           for this release.
   --old-shipped-locales   The path and filename to the old-shipped-locales file
                           for this release.
+  --channel               The channel to test on. Defaults to betatest.
 Options without arguments:
   --pretty-candidates-dir When passed, the "to" field in the verify config will
                           be formatted the "pretty" way by using the long
@@ -171,6 +172,9 @@ __USAGE__
         if (! defined $config{'test-older-partials'}) {
             $config{'test-older-partials'} = 0;
         }
+        if (! defined $config{'channel'}) {
+            $config{'channel'} = 'betatest';
+        }
     }
 }
 
@@ -199,9 +203,7 @@ sub BumpVerifyConfig {
     my $prettyCandidatesDir = $config{'pretty-candidates-dir'};
     my $majorMode = $config{'major'};
     my $testOlderPartials = $config{'test-older-partials'};
-
-    # NOTE - channel is hardcoded to betatest
-    my $channel = 'betatest';
+    my $channel = $config{'channel'};
 
     my $buildID = GetBuildIDFromFTP(os => $osname,
                                     releaseDir => $candidatesDir,
@@ -241,7 +243,7 @@ sub BumpVerifyConfig {
         # bug 630085 - we're only updating people running i386 from Fx3.5 and
         # Fx3.6 to Fx4. TODO: Needs to play nice with other apps. Will get
         # redone to fix bug 633124
-        if ($majorMode and $product eq 'firefox' and $appVersion ge '4.0') {
+        if ($majorMode and $product eq 'firefox' and $appVersion > '4.0') {
             $buildTarget = 'Darwin_x86-gcc3-u-ppc-i386';
         } else {
             $buildTarget = 'Darwin_Universal-gcc3';
@@ -287,13 +289,18 @@ sub BumpVerifyConfig {
     close(FILE) or die ("Could not close file $configFile: $!");
 
     my @strippedFile = ();
-    if ($origFile[0] =~ $oldVersion) {
+    # If the file is already bumped for this version, undo it, so we can do it
+    # again.
+    if ($origFile[0] =~ /$oldVersion\s/) {
             print "verifyConfig $configFile already bumped\n";
             print "removing previous config..\n";
             # remove top two lines; the comment and the version config
             splice(@origFile, 0, 2);
             @strippedFile = @origFile;
-    } else {
+    # If the file isn't bumped for this version, we split out the current
+    # "full" check into a small "full" and other "quick" checks. We check
+    # for emptiness because this will be empty for new update verify configs.
+    } elsif ($origFile[1] !~ /^\s*$/) {
         # convert existing full check to a full check for top N locales,
         # and quick check for everything else
         my $versionComment = $origFile[0];
