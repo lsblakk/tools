@@ -544,7 +544,11 @@ def handle_comments():
         elif comment.attempts == 5:
             # 5 attempts have been made, drop this comment as it is
             # probably not going anywhere.
-            # XXX: Perhaps this should be written to a file.
+            try:
+                with open('failed_comments.log', 'a') as fc_log:
+                    fc_log.write('%s\t%a\ns' % (comment.bug, comment.comment))
+            except IOError, err:
+                log.error('Unable to append to failed comments file.')
             log.error("Could not post comment to bug %s. Dropping comment: %s"
                     % (comment.bug, comment.comment))
             db.CommentDelete(comment.id)
