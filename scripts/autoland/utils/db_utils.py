@@ -111,7 +111,7 @@ SOURCESTAMPS_BRANCH = {
     'birch': [re.compile('^birch.+'), re.compile('^projects/birch.*')],
     'cedar': [re.compile('^cedar.+'), re.compile('^projects/cedar.*')],
     'electrolysis': [
-        re.compile('^electrolysis.*'), 
+        re.compile('^electrolysis.*'),
         re.compile('^projects/electrolysis.*')],
     'jaegermonkey': [re.compile('^projects/jaegermonkey.*')],
     'maple': [re.compile('^maple.*'), re.compile('^projects/maple.*')],
@@ -152,7 +152,7 @@ SLAVE_SILOS = {
     'win32': [re.compile('^win32-slave.+')],
 }
 
-BUILDERS_DETAIL_LEVELS = ['branch', 'platform', 'build_type', 'job_type', 
+BUILDERS_DETAIL_LEVELS = ['branch', 'platform', 'build_type', 'job_type',
     'builder']
 
 BUILDSET_REASON = {
@@ -214,7 +214,7 @@ _RESULTS_TO_STR = {
 def status_to_str(status):
     """Return the status as string.
 
-    Input:  status - status int value, one of: PENDING, RUNNING, COMPLETE, 
+    Input:  status - status int value, one of: PENDING, RUNNING, COMPLETE,
                 CANCELLED, INTERRUPTED, MISC
     Output: status string representation
     """
@@ -237,7 +237,7 @@ def get_branch_name(text):
     """Returns the branch name.
 
     Input:  text - field value from schedulerdb table
-    Output: branch (one in SOURCESTAMPS_BRANCH keys: mozilla-central, 
+    Output: branch (one in SOURCESTAMPS_BRANCH keys: mozilla-central,
             mozilla-1.9.1, or text if not found
     """
     if text == None:
@@ -254,7 +254,7 @@ def get_branch_name(text):
 def get_platform(buildername):
     """Returns the platform name for a buildername.
 
-    Input:  buildername - buildername field value from buildrequests 
+    Input:  buildername - buildername field value from buildrequests
                 schedulerdb table
     Output: platform (one in PLATFORMS_BUILDERNAME keys: linux, linux64, ...)
     """
@@ -273,11 +273,11 @@ def get_build_type(buildername):
 
     Build requests are matched to a build type, as following:
     * opt, if buildername contains 'opt', 'build' not preceded by 'leak test',
-         'talos' (all talos tests are for opt), 'nightly', 'xulrunner' or 
+         'talos' (all talos tests are for opt), 'nightly', 'xulrunner' or
          'shark' (last 3 are all nightlies)
     * debug, if buildername contains 'debug' or 'leak test build' (debug build)
 
-    Input:  buildername - buildername field value from buildrequests 
+    Input:  buildername - buildername field value from buildrequests
                 schedulerdb table
     Output: build type (one in BUILD_TYPE_BUILDERNAME keys: opt or debug)
     """
@@ -295,15 +295,16 @@ def get_job_type(buildername):
     """Returns the job type based on the buildername.
 
     Build requests are matched to a job type, as following:
-    * build, if buildername contains 'build', 'nightly', 'xulrunner' or 
+    * build, if buildername contains 'build', 'nightly', 'xulrunner' or
         'shark' (last 3 are all nightlies)
-    * unittest, if buildername contains 'test', but not preceded by 'leak' 
+    * unittest, if buildername contains 'test', but not preceded by 'leak'
         (it would make it a build)
     * talos, if buildername contains 'talos'
 
-    Input:  buildername - buildername field value from buildrequests 
+    Input:  buildername - buildername field value from buildrequests
                 schedulerdb table
-    Output: job type (one in JOB_TYPE_BUILDERNAME keys: build, unittest or talos)
+    Output: job type (one in JOB_TYPE_BUILDERNAME keys: build,
+            unittest or talos)
     """
     if buildername == None:
         return None
@@ -316,7 +317,7 @@ def get_job_type(buildername):
     return None
 
 def get_revision(revision):
-    """Returns at most the first 12 characters of the revision number, the 
+    """Returns at most the first 12 characters of the revision number, the
     rest are not signifiant, or None, if revision is None.
     """
     return revision[:12] if revision else revision
@@ -334,9 +335,9 @@ def get_silos(slave_name):
     return None
 
 def get_time_interval(starttime, endtime):
-    """Returns (sarttime2, endtime2) tuple, where the starttime2 is the exact 
+    """Returns (sarttime2, endtime2) tuple, where the starttime2 is the exact
     value of input parameter starttime if specified, or endtime minus 24 hours
-    if not. endtime2 is the exact value of input parameter endtime if 
+    if not. endtime2 is the exact value of input parameter endtime if
     specified, or starttime plus 24 hours or current time (if starttime is not 
     specified either).
 

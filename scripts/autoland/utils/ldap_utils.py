@@ -28,7 +28,7 @@ class ldap_util():
         Handles all connecting and binding prior to search and retries.
         Returns True on successful search and false otherwise.
         Results need to be grabbed using connection.result()
-        
+
         Note that failures will be common, since connection closes at a certain
         point of inactivity, and needs to be re-established. Expect 2 attempts.
         """
@@ -84,7 +84,8 @@ class ldap_util():
             'mail=example@mozilla.com'
             'sn=Surname'
             'cn=Common Name'
-        attrlist can be specified as a list of attributes that should be returned.
+        attrlist can be specified as a list of attributes that should
+        be returned.
         Some useful attributes are:
             bugzillaEmail
             mail

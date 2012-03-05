@@ -537,7 +537,8 @@ def message_handler(message):
             log.info('[Patchset] Successfully applied patchset %s'
                 % (patch_revision))
             msg = { 'type'  : 'success',
-                    'action': 'try.push' if patchset.try_run else 'branch.push',
+                    'action': 'try.push' if patchset.try_run \
+                                         else 'branch.push',
                     'bug_id' : patchset.bug_id,
                     'patchsetid': patchset.num,
                     'revision' : patch_revision,

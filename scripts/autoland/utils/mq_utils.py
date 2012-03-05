@@ -96,11 +96,13 @@ class mq_util():
             print "Could not purge queue %s, does not exist" % (queue)
             return
         if prompt:
-            print "Warning: Queue %s contains %s messages, and there may be unacknowledged messages."\
+            print "Warning: Queue %s contains %s messages, "\
+                  "and there may be unacknowledged messages."\
                     % (queue, status.method.message_count)
             ans = None
             while ans != 'y' and ans != 'n':
-                ans = raw_input("Are you sure you'd like to purge the queue?[y/n] ")
+                ans = raw_input("Are you sure you'd like "
+                                "to purge the queue?[y/n] ")
                 ans = ans.lower()
             if ans.lower() == 'n':
                 return
@@ -127,8 +129,10 @@ class mq_util():
                 return None
             self.connect()
         print >>sys.stderr, "Sending message %s" % (full_message)
-        self.channel.basic_publish(exchange=self.exchange, routing_key=routing_key,
-                    body=json.dumps(full_message), properties=pika.BasicProperties(
+        self.channel.basic_publish(exchange=self.exchange,
+                    routing_key=routing_key,
+                    body=json.dumps(full_message),
+                    properties=pika.BasicProperties(
                         delivery_mode=2,
                         content_type='application/json',
                 ))
@@ -158,7 +162,8 @@ class mq_util():
         callback_wrapper.callback = callback
         return callback_wrapper
 
-    def get_message(self, queue, callback, routing_key, durable=True, block=True):
+    def get_message(self, queue, callback,
+            routing_key, durable=True, block=True):
         """
         Gets a single message from the specified queue.
         Passes received messages to function callback, taking one argument.
@@ -179,7 +184,8 @@ class mq_util():
                 # getting errors with callback parameter to basic_get,
                 # manually call the callback
                 callback_wrapper = self.__callback_gen(callback)
-                return callback_wrapper(self.channel, *self.channel.basic_get(queue=queue, no_ack=False))
+                return callback_wrapper(self.channel,
+                        *self.channel.basic_get(queue=queue, no_ack=False))
             except sockerr:
                 self.channel = None
                 log.info('[RabbitMQ] Connection to %s lost. Reconnection...'
@@ -204,7 +210,8 @@ class mq_util():
                     self.connect()
                 log.info('[RabbitMQ] Listening on %s.' % (routing_key))
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(self.__callback_gen(callback), queue=queue, no_ack=False)
+                self.channel.basic_consume(self.__callback_gen(callback),
+                        queue=queue, no_ack=False)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None
