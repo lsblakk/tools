@@ -689,7 +689,7 @@ if __name__ == '__main__':
     """
 
     # XXX: This should be set to logging.DEBUG if verbose flag passed
-    log.setLevel(logging.DEBUG)
+    log.setLevel(logging.INFO)
     handler = logging.handlers.RotatingFileHandler(LOGFILE,
             maxBytes=50000, backupCount=5)
     log.addHandler(handler)
@@ -770,6 +770,7 @@ if __name__ == '__main__':
             result = poller.poll_by_revision(
                     options.revision, options.flag_check)
             if options.verbose:
+                log.setLevel(logging.DEBUG)
                 log.debug("Single revision run complete: "
                         "RESULTS: %s POSTED_TO_BUG: %s"
                         % (result, result['posted_to_bug']))
