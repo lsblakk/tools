@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 """%prog [-d|--dryrun] [-u|--username `username`] [-b|--bypass-check]
+        [-l| --bypass-l10n-check] [-m|--bypass-mozconfig-check]
         [-V| --version `version`] [-B --branch `branchname`]
         [-N|--build-number `buildnumber`]
         [-c| --release-config `releaseConfigFile`]
         [-w| --whitelist `mozconfig_whitelist`]
+        [--l10n-dashboad-version version]
         -p|--products firefox,fennec master:port
 
-    Wrapper script to sanity-check a release. Default behaviour is to check 
-    the branch and revision specific in the release_configs, check if the 
+    Wrapper script to sanity-check a release. Default behaviour is to check
+    the branch and revision specific in the release_configs, check if the
     milestone and version# in the source repo match the
     expected values in the release_configs, check the l10n repos & dashboard,
     compare the nightly and release mozconfigs for a release branch against
-    a whitelist of known differences between the two. If all tests pass then 
+    a whitelist of known differences between the two. If all tests pass then
     the master is reconfiged and then a senchange is generated to kick off
     the release automation.
 """
@@ -24,7 +26,7 @@ except ImportError:
 from optparse import OptionParser
 from util.commands import run_cmd
 from util.file import compare
-from util.hg import make_hg_url
+from util.hg import make_hg_url, get_repo_name
 from release.info import readReleaseConfig, getRepoMatchingBranch, readConfig
 from release.versions import getL10nDashboardVersion
 from release.l10n import getShippedLocales
@@ -98,6 +100,7 @@ def verify_repo(branch, revision, hghost):
 
 def verify_mozconfigs(branch, revision, hghost, product, mozconfigs, appName, whitelist=None):
     """Compare nightly mozconfigs for branch to release mozconfigs and compare to whitelist of known differences"""
+    branch_name = get_repo_name(branch)
     if whitelist:
         mozconfigWhitelist = readConfig(whitelist, ['whitelist'])
     else:
@@ -108,6 +111,7 @@ def verify_mozconfigs(branch, revision, hghost, product, mozconfigs, appName, wh
     for platform,mozconfig in mozconfigs.items():
         urls = []
         mozconfigs = []
+        mozconfig_paths = [mozconfig, mozconfig.rstrip('release') + 'nightly']
         # Create links to the two mozconfigs.
         releaseConfig = make_hg_url(hghost, branch, 'http', revision, mozconfig)
         urls.append(releaseConfig)
@@ -128,17 +132,25 @@ def verify_mozconfigs(branch, revision, hghost, product, mozconfigs, appName, wh
                     if clean_line.startswith('#'):
                         continue
                     # compare to whitelist
-                    if line[0] == '-' and mozconfigWhitelist.get(branch, {}).has_key(platform) \
-                        and clean_line in mozconfigWhitelist[branch][platform]:
-                            continue
-                    if line[0] == '+' and mozconfigWhitelist.get('nightly', {}).has_key(platform) \
-                        and clean_line in mozconfigWhitelist['nightly'][platform]:
-                            continue
+                    message = ""
                     if line[0] == '-':
-                        opposite = 'release'
+                        if mozconfigWhitelist.get(branch_name, {}).has_key(platform):
+                            if clean_line in mozconfigWhitelist[branch_name][platform]:
+                                continue
+                    elif line[0] == '+':
+                        if mozconfigWhitelist.get('nightly', {}).has_key(platform):
+                            if clean_line in mozconfigWhitelist['nightly'][platform]:
+                                continue
+                            else:
+                                log.warning("%s not in %s %s!" % (clean_line, platform, mozconfigWhitelist['nightly'][platform]))
                     else:
-                        opposite = 'nightly'
-                    log.error("not in %s mozconfig's whitelist (%s/%s/%s) : %s" % (opposite, branch, platform, types[line[0]], clean_line))
+                        log.error("Skipping line %s!" % line)
+                        continue
+                    message = "found in %s but not in %s: %s"
+                    if line[0] == '-':
+                        log.error(message % (mozconfig_paths[0], mozconfig_paths[1], clean_line))
+                    else:
+                        log.error(message % (mozconfig_paths[1], mozconfig_paths[0], clean_line))
                     success = False
                     error_tally.add('verify_mozconfig')
         else:
@@ -219,7 +231,7 @@ def verify_l10n_changesets(hgHost, l10n_changesets):
             'revision': revision,
         }
         locale_url = make_hg_url(hgHost, localePath, protocol='https')
-        log.info("Checking for existence l10n changeset %s %s in repo %s ..." 
+        log.info("Checking for existence l10n changeset %s %s in repo %s ..."
             % (locale, revision, locale_url))
         try:
             urllib2.urlopen(locale_url)
@@ -229,15 +241,19 @@ def verify_l10n_changesets(hgHost, l10n_changesets):
             error_tally.add('verify_l10n')
     return success
 
-def verify_l10n_dashboard(l10n_changesets):
+def verify_l10n_dashboard(l10n_changesets, l10n_dashboard_version=None):
     """Checks the l10n-changesets against the l10n dashboard"""
     success = True
     locales = query_locale_revisions(l10n_changesets)
-    dash_url = 'https://l10n-stage-sj.mozilla.org/shipping/l10n-changesets?ms=%(version)s' % {
-        'version': getL10nDashboardVersion(releaseConfig['version'],
-                                           releaseConfig['productName']),
-    }
-    log.info("Comparing l10n changesets on dashboard %s to on-disk %s ..." 
+    if l10n_dashboard_version:
+        l10n_dashboard_version = getL10nDashboardVersion(
+            l10n_dashboard_version, releaseConfig['productName'],
+            parse_version=False)
+    else:
+        l10n_dashboard_version = getL10nDashboardVersion(
+            releaseConfig['version'], releaseConfig['productName'])
+    dash_url = 'https://l10n-stage-sj.mozilla.org/shipping/l10n-changesets?ms=%s' % l10n_dashboard_version
+    log.info("Comparing l10n changesets on dashboard %s to on-disk %s ..."
         % (dash_url, l10n_changesets))
     try:
         dash_changesets = {}
@@ -252,7 +268,7 @@ def verify_l10n_dashboard(l10n_changesets):
                 success = False
                 error_tally.add('verify_l10n_dashboard')
             elif revision != dash_revision:
-                log.error("\tlocale %s revisions not matching: %s (config) vs. %s (dashboard)" 
+                log.error("\tlocale %s revisions not matching: %s (config) vs. %s (dashboard)"
                     % (locale, revision, dash_revision))
                 success = False
                 error_tally.add('verify_l10n_dashboard')
@@ -270,7 +286,7 @@ def verify_l10n_shipped_locales(l10n_changesets, shipped_locales):
     """Ensure that our l10n-changesets on the master match the repo's shipped locales list"""
     success = True
     locales = query_locale_revisions(l10n_changesets)
-    log.info("Comparing l10n changesets to shipped locales ...") 
+    log.info("Comparing l10n changesets to shipped locales ...")
     diff_list = locale_diff(locales, shipped_locales)
     if len(diff_list) > 0:
         log.error("l10n_changesets and shipped_locales differ on locales: %s" % diff_list)
@@ -300,6 +316,8 @@ if __name__ == '__main__':
     parser = OptionParser(__doc__)
     parser.set_defaults(
             check=True,
+            checkL10n=True,
+            checkMozconfigs=True,
             dryrun=False,
             username="cltbld",
             loglevel=logging.INFO,
@@ -311,6 +329,10 @@ if __name__ == '__main__':
             )
     parser.add_option("-b", "--bypass-check", dest="check", action="store_false",
             help="don't bother verifying release repo's on this master")
+    parser.add_option("-l", "--bypass-l10n-check", dest="checkL10n", action="store_false",
+            help="don't bother verifying l10n milestones")
+    parser.add_option("-m", "--bypass-mozconfig-check", dest="checkMozconfigs", action="store_false",
+            help="don't bother verifying mozconfigs")
     parser.add_option("-d", "--dryrun", dest="dryrun", action="store_true",
             help="just do the reconfig/checks, without starting anything")
     parser.add_option("-u", "--username", dest="username",
@@ -328,6 +350,8 @@ if __name__ == '__main__':
             help="coma separated list of products")
     parser.add_option("-w", "--whitelist", dest="whitelist",
             help="whitelist for known mozconfig differences")
+    parser.add_option("--l10n-dashboad-version", dest="l10n_dashboard_version",
+            help="Override L10N dashboard version")
 
     options, args = parser.parse_args()
     if not options.products:
@@ -370,17 +394,18 @@ if __name__ == '__main__':
                     revision = releaseConfig['sourceRepositories']['mobile']['revision']
                 except:
                     log.error("Can't determine sourceRepo for mozconfigs")
-            if not verify_mozconfigs(
-                    path,
-                    revision,
-                    branchConfig['hghost'],
-                    releaseConfig['productName'],
-                    releaseConfig['mozconfigs'],
-                    releaseConfig['appName'],
-                    options.whitelist
-                ):
-                test_success = False
-                log.error("Error verifying mozconfigs")
+            if options.checkMozconfigs:
+                if not verify_mozconfigs(
+                        path,
+                        revision,
+                        branchConfig['hghost'],
+                        releaseConfig['productName'],
+                        releaseConfig['mozconfigs'],
+                        releaseConfig['appName'],
+                        options.whitelist
+                    ):
+                    test_success = False
+                    log.error("Error verifying mozconfigs")
 
             #verify that the release_configs on-disk match the tagged revisions in hg
             if not verify_configs(
@@ -393,40 +418,42 @@ if __name__ == '__main__':
                 test_success = False
                 log.error("Error verifying configs")
 
-            #verify that l10n changesets exist
-            if not verify_l10n_changesets(
-                    branchConfig['hghost'],
-                    releaseConfig['l10nRevisionFile']):
-                test_success = False
-                log.error("Error verifying l10n changesets")
+            if options.checkL10n:
+                #verify that l10n changesets exist
+                if not verify_l10n_changesets(
+                        branchConfig['hghost'],
+                        releaseConfig['l10nRevisionFile']):
+                    test_success = False
+                    log.error("Error verifying l10n changesets")
 
-            #verify that l10n changesets match the dashboard
-            if not verify_l10n_dashboard(releaseConfig['l10nRevisionFile']):
-                test_success = False
-                log.error("Error verifying l10n dashboard changesets")
+                #verify that l10n changesets match the dashboard
+                if not verify_l10n_dashboard(releaseConfig['l10nRevisionFile'],
+                                            options.l10n_dashboard_version):
+                    test_success = False
+                    log.error("Error verifying l10n dashboard changesets")
 
-            #verify that l10n changesets match the shipped locales in firefox product
-            if releaseConfig.get('shippedLocalesPath'):
-                for sr in releaseConfig['sourceRepositories'].values():
-                    sourceRepoPath = sr.get('clonePath', sr['path'])
-                    shippedLocales = getLocaleListFromShippedLocales(
-                                        getShippedLocales(
-                                            releaseConfig['productName'],
-                                            releaseConfig['appName'],
-                                            releaseConfig['version'],
-                                            releaseConfig['buildNumber'],
-                                            sourceRepoPath,
-                                            'http://hg.mozilla.org',
-                                            sr['revision'],
-                                    ))
-                    # l10n_changesets do not have an entry for en-US
-                    if 'en-US' in shippedLocales:
-                        shippedLocales.remove('en-US')
-                    if not verify_l10n_shipped_locales(
-                            releaseConfig['l10nRevisionFile'],
-                            shippedLocales):
-                        test_success = False
-                        log.error("Error verifying l10n_changesets matches shipped_locales")
+                #verify that l10n changesets match the shipped locales in firefox product
+                if releaseConfig.get('shippedLocalesPath'):
+                    for sr in releaseConfig['sourceRepositories'].values():
+                        sourceRepoPath = sr.get('clonePath', sr['path'])
+                        shippedLocales = getLocaleListFromShippedLocales(
+                                            getShippedLocales(
+                                                releaseConfig['productName'],
+                                                releaseConfig['appName'],
+                                                releaseConfig['version'],
+                                                releaseConfig['buildNumber'],
+                                                sourceRepoPath,
+                                                'http://hg.mozilla.org',
+                                                sr['revision'],
+                                        ))
+                        # l10n_changesets do not have an entry for en-US
+                        if 'en-US' in shippedLocales:
+                            shippedLocales.remove('en-US')
+                        if not verify_l10n_shipped_locales(
+                                releaseConfig['l10nRevisionFile'],
+                                shippedLocales):
+                            test_success = False
+                            log.error("Error verifying l10n_changesets matches shipped_locales")
 
             #verify that the relBranch + revision in the release_configs exists in hg
             for sr in releaseConfig['sourceRepositories'].values():
