@@ -13,7 +13,7 @@ site.addsitedir('%s/../../lib/python' % (BASE_DIR))
 
 from util.hg import mercurial, apply_and_push, HgUtilError, \
                     update, get_revision
-from util.retry import retry
+from util.retry import retry, retriable
 
 
 log = logging.getLogger()
@@ -30,6 +30,9 @@ bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         username=config['bz_username'], password=config['bz_password'])
 ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
         config['ldap_bind_dn'], config['ldap_password'])
+
+class RetryException(Exception):
+    pass
 
 class RepoCleanup(object):
     """
@@ -106,9 +109,6 @@ class Patch(object):
 
 
 class Patchset(object):
-    class RetryException(Exception):
-        pass
-
     def __init__(self, ps_id, bug_id, patches, try_run, push_url,
             branch, branch_url, try_syntax=None):
         self.num = ps_id
@@ -160,12 +160,8 @@ class Patchset(object):
             return (False, '\n'.join(self.comment))
         # 2. Clone the repository
         cloned_rev = None
-        for attempts in range(3):
-            log.debug('Attempt %d to clone %s' % (attempts, self.branch_url))
-            cloned_rev = clone_branch(self.branch, self.branch_url)
-            if cloned_rev:
-                break
-            clear_branch(self.branch)
+        log.debug('Attempt %d to clone %s' % (attempts, self.branch_url))
+        cloned_rev = clone_branch(self.branch, self.branch_url)
         if not cloned_rev:
             log.error('[Branch %s] Could not clone from %s.'
                     % (self.branch, self.branch_url))
@@ -179,7 +175,7 @@ class Patchset(object):
             # 2nd attempt is after an update -C,
             # 3rd attempt is a fresh clone
             retry(apply_and_push, attempts=3,
-                    retry_exceptions=(self.RetryException),
+                    retry_exceptions=(RetryException),
                     cleanup=RepoCleanup(self.branch, self.branch_url),
                     args=(self.active_repo, self.push_url,
                           self.apply_patches, 1),
@@ -190,7 +186,7 @@ class Patchset(object):
             shutil.rmtree(self.active_repo)
             for patch in self.patches:
                 patch.delete()
-        except (HgUtilError, self.RetryException), err:
+        except (HgUtilError, RetryException), err:
             # Failed
             log.error('[PatchSet] Could not be applied and pushed.\n%s'
                     % (err))
@@ -244,14 +240,14 @@ class Patchset(object):
         """
         log.debug('Verifying patchset')
         if not self.patches:
-            raise self.RetryException
+            raise RetryException
         for patch in self.patches:
             # 1. The patch exists and can be downloaded
             if not patch.get_file():
                 log.error('[Patch %s] Couldn\'t be fetched.' % (patch.num))
                 self.add_comment('Patch %s couldn\'t be fetched.'
                         % (patch.num))
-                raise self.RetryException
+                raise RetryException
             # 2. has valid headers. If try run, put user data into patch.user
             valid_header = has_valid_header(patch.file)
             if not valid_header:
@@ -261,7 +257,7 @@ class Patchset(object):
                             'a properly formatted header.'
                             % (patch.num))
                     # XXX: is this a RetryException case, or a fail case
-                    raise self.RetryException
+                    raise RetryException
                 patch.fill_user()
             # 3. patch applies using 'import --no-commit -f'
             (patch_success, err) = import_patch(self.active_repo, patch.file,
@@ -271,7 +267,7 @@ class Patchset(object):
                         % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
                         % (patch.num, self.branch, err))
-                raise self.RetryException
+                raise RetryException
         log.debug('Patchset is valid')
 
     def full_import(self, branch_dir):
@@ -290,7 +286,7 @@ class Patchset(object):
                         % (patch.num, err))
                 self.add_comment('Patch %s could not be applied to %s.\n%s'
                         % (patch.num, self.branch, err))
-                raise self.RetryException
+                raise RetryException
 
 
 def run_hg(hg_args):
@@ -410,6 +406,7 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
     (output, err, ret) = run_hg(cmd)
     return (ret == 0, err)
 
+@retriable(attempts=3, sleeptime=5)
 def clone_branch(branch, branch_url):
     """
     Clone tip of the specified branch.
@@ -426,6 +423,7 @@ def clone_branch(branch, branch_url):
     except subprocess.CalledProcessError, err:
         log.error('[Clone] error cloning \'%s\' into clean repository:\n%s'
                 % (remote, err))
+        raise Exception
         return None
     # Clone that clean repository to active and return that revision
     active = os.path.join('active')
@@ -441,6 +439,7 @@ def clone_branch(branch, branch_url):
     except subprocess.CalledProcessError, err:
         log.error('[Clone] error cloning \'%s\' into active repository:\n%s'
                 % (remote, err))
+        raise Exception
         return None
 
     return revision
