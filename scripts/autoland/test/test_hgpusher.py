@@ -12,7 +12,7 @@ sys.path.append('..')
 import hgpusher
 from hgpusher import clone_branch, has_sufficient_permissions, \
         message_handler, clear_branch, import_patch, Patchset, Patch, \
-        RepoCleanup
+        RepoCleanup, RetryException
 from utils import mq_utils
 
 top_dir = os.getcwd()
@@ -52,8 +52,10 @@ class TestHgPusher(unittest.TestCase):
             lower[c] = c
         for c in string.ascii_uppercase:
             upper[c] = c
-        self.assertTrue(hgpusher.valid_dictionary_structure(lower, lower.keys()))
-        self.assertFalse(hgpusher.valid_dictionary_structure(lower, upper.keys()))
+        self.assertTrue(
+                hgpusher.valid_dictionary_structure(lower, lower.keys()))
+        self.assertFalse(
+                hgpusher.valid_dictionary_structure(lower, upper.keys()))
 
     def hasSufficientPermissions(self):
         self.assertTrue(has_sufficient_permissions(
@@ -92,14 +94,16 @@ class TestHgPusher(unittest.TestCase):
         # mercurial() fail when cloning clean
         with mock.patch('hgpusher.mercurial') as merc:
             merc.side_effect = subprocess.CalledProcessError(1, 'merc')
-            ret = clone_branch('branch', 'remote')
-            self.assertEquals(ret, None)
-            merc.assert_called_once_with('remote', os.path.join('clean', 'branch'))
+            self.assertRaises(RetryException, clone_branch, 'branch', 'remote')
+
+            # is the retriable decorator working for us?
+            self.assertEquals(merc.call_count, 3)
     def testCloneBranchFail(self):
         os.chdir('work_dir')
-        rev = hgpusher.clone_branch('bad_repo', os.path.join(test_dir, 'bad_repo'))
+        self.assertRaises(RetryException,
+                hgpusher.clone_branch, 'bad_repo',
+                os.path.join(test_dir, 'bad_repo'))
         self.assertFalse(os.access('active/repo', os.F_OK))
-        self.assertEquals(rev, None)
         os.chdir(test_dir)
 
     def testRepoCleanup(self):
@@ -154,11 +158,11 @@ class TestHgPusher(unittest.TestCase):
         self.assertEquals(ps.comment, [comment[0]])
 
     def testPatchSetVerify(self):
-        self.assertRaises(Patchset.RetryException,
+        self.assertRaises(RetryException,
             Patchset(1, 1, [], True, '', '', '', None).verify)
         with mock.patch('hgpusher.Patch.get_file') as pgf:
             pgf.return_value = None
-            self.assertRaises(Patchset.RetryException,
+            self.assertRaises(RetryException,
                 Patchset(1, 1, [{'id':1, 'author':
                     {'name':'name', 'email':'email'}}],
                     True, '', '', '', None).verify)
@@ -169,7 +173,7 @@ class TestHgPusher(unittest.TestCase):
                 ps = Patchset(1,1, [{'id':1, 'author':
                         {'name':'name', 'email':'email'}}],
                         False, '', '', '', None)
-                self.assertRaises(Patchset.RetryException, ps.verify)
+                self.assertRaises(RetryException, ps.verify)
                 self.assertTrue('Patch 1 doesn\'t have '
                         'a properly formatted header.' in ps.comment)
                 hvh.assert_called_once_with(None)
@@ -179,7 +183,7 @@ class TestHgPusher(unittest.TestCase):
                     ip.return_value = (False, 'error msg')
                     # test invalid header on Try landing, failed patch
                     ps.try_run = True
-                    self.assertRaises(Patchset.RetryException, ps.verify)
+                    self.assertRaises(RetryException, ps.verify)
                     ip.assert_called_once()
                     self.assertTrue('Patch 1 could not be applied to .\n'
                             'error msg' in ps.comment)
@@ -206,7 +210,7 @@ class TestHgPusher(unittest.TestCase):
         ps.setup_comment()
         with mock.patch('hgpusher.import_patch') as ip:
             ip.side_effect = ipf
-            self.assertRaises(Patchset.RetryException, ps.full_import, 'dir')
+            self.assertRaises(RetryException, ps.full_import, 'dir')
             print ps.comment
             self.assertTrue(len(ps.comment) == 2)
             self.assertTrue('Patch 2 could not be applied to .\nerr'
@@ -224,25 +228,18 @@ class TestHgPusher(unittest.TestCase):
             self.assertFalse(ps.process()[0])
 
             with mock.patch('hgpusher.clone_branch') as cb:
-                hsp.return_value = True
-                cb.return_value = False
-                # 3 failed clones
-                self.assertFalse(ps.process()[0])
-                self.assertEqual(cb.call_count, 3)
-
                 with mock.patch('hgpusher.retry') as hgr:
                     hsp.return_value = True
-                    cb.return_value = True
-                    hgr.side_effect = Patchset.RetryException
+                    cb.side_effect = RetryException
+                    hgr.side_effect = RetryException
                     # failed apply_and_push
                     self.assertFalse(ps.process()[0])
-                    self.assertEqual(cb.call_count, 4)
-                    self.assertEqual(hgr.call_count, 1)
 
                     with mock.patch('hgpusher.get_revision') as gr:
                         with mock.patch('shutil.rmtree') as rmt:
                             with mock.patch('hgpusher.Patch.delete') as pd:
                                 hsp.return_value = True
+                                cb.side_effect = None
                                 cb.return_value = True
                                 hgr.side_effect = None
                                 hgr.return_value = True

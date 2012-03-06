@@ -66,8 +66,9 @@ class RepoCleanup(object):
         """
         clear_branch(self.branch)
         log.debug('Wiped repositories for: %s' % (self.branch))
-        cloned_revision = clone_branch(self.branch, self.url)
-        if cloned_revision == None:
+        try:
+            cloned_revision = clone_branch(self.branch, self.url)
+        except RetryException:
             log.error('[HgPusher] Clone error while cleaning')
             # XXX: do something....
 
@@ -160,9 +161,9 @@ class Patchset(object):
             return (False, '\n'.join(self.comment))
         # 2. Clone the repository
         cloned_rev = None
-        log.debug('Attempt %d to clone %s' % (attempts, self.branch_url))
-        cloned_rev = clone_branch(self.branch, self.branch_url)
-        if not cloned_rev:
+        try:
+            cloned_rev = clone_branch(self.branch, self.branch_url)
+        except RetryException:
             log.error('[Branch %s] Could not clone from %s.'
                     % (self.branch, self.branch_url))
             self.add_comment('An error occurred while cloning %s.'
@@ -192,6 +193,12 @@ class Patchset(object):
                     % (err))
             self.add_comment('Patchset could not be applied and pushed.'
                              '\n%s' % (err))
+            return (False, '\n'.join(self.comment))
+        except (OSError), err:
+            # There was an error with the active_repo location
+            log.error('An error occurred: %s' % (err))
+            self.add_comment('Patchset could not be applied and pushed.'
+                             '\nAn unexpected error occurred')
             return (False, '\n'.join(self.comment))
         # Success
         self.setup_comment() # Clear the comment
@@ -406,7 +413,7 @@ def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
     (output, err, ret) = run_hg(cmd)
     return (ret == 0, err)
 
-@retriable(attempts=3, sleeptime=5)
+@retriable(retry_exceptions=(RetryException), attempts=3, sleeptime=5)
 def clone_branch(branch, branch_url):
     """
     Clone tip of the specified branch.
@@ -423,7 +430,7 @@ def clone_branch(branch, branch_url):
     except subprocess.CalledProcessError, err:
         log.error('[Clone] error cloning \'%s\' into clean repository:\n%s'
                 % (remote, err))
-        raise Exception
+        raise RetryException
         return None
     # Clone that clean repository to active and return that revision
     active = os.path.join('active')
@@ -439,7 +446,7 @@ def clone_branch(branch, branch_url):
     except subprocess.CalledProcessError, err:
         log.error('[Clone] error cloning \'%s\' into active repository:\n%s'
                 % (remote, err))
-        raise Exception
+        raise RetryException
         return None
 
     return revision
