@@ -14,6 +14,7 @@ site.addsitedir('%s/../../lib/python' % (BASE_DIR))
 from util.hg import mercurial, apply_and_push, HgUtilError, \
                     update, get_revision
 from util.retry import retry, retriable
+from util.commands import run_cmd 
 
 
 log = logging.getLogger()
@@ -288,7 +289,7 @@ class Patchset(object):
         If this is a try run, use the patch.user field to commit.
         """
         log.debug('QFinish-ing the import.')
-        cmd = ['qfinish', '-a']
+        cmd = ['qfinish', '-a', '-R', self.active_repo]
         (output, err, ret) = run_hg(cmd)
         if ret != 0:
             log.error('Unable to qfinish the patch queue: %s\nRetrying.'
@@ -572,7 +573,7 @@ def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
-    mq.declare_and_bing(config['mq_hgp_queue'], 'hgpusher')
+    mq.declare_and_bind(config['mq_hgp_queue'], 'hgpusher')
 
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
