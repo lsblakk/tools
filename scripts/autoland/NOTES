@@ -16,6 +16,13 @@ Completed table
 - same as patch_sets table
     |-> completion_time: Set for the time of job completion.
 
+Are going to need some way of indicating who flagged patch for autoland.
+    |-> Patch will be imported with the "Author" and committer, and pushed as autoland
+        so need some way of keeping track of who flagged autoland.
+    |-> This will be easier with the bmo extension, due to 'who' flag.
+        Could tack onto the commit message: "-al=name"
+        or could do a "null commit" message, committed by the lander.
+
 PRE SECREVIEW:
     Ensure that SSL certificates are valid, and that SSL is being used.
 
