@@ -59,11 +59,12 @@ class RepoCleanup(object):
         active_repo = os.path.join('active', self.branch)
 
         # get rid of any imported and qpush-ed patches
+        log.debug('qpop -a and rm -rf .hg/patches')
         (success, err, ret) = run_hg(['qpop', '-a'])
         run_cmd(['rm', '-rf', os.path.join(active_repo, '.hg/patches')])
 
-        update(active_repo)
         log.debug('Update -C on active repo for: %s' % (self.branch))
+        update(active_repo)
 
     def hard_clean(self):
         """
@@ -286,7 +287,7 @@ class Patchset(object):
         Perform an 'hg import' on each patch in the set.
         If this is a try run, use the patch.user field to commit.
         """
-
+        log.debug('QFinish-ing the import.')
         cmd = ['qfinish', '-a']
         (output, err, ret) = run_hg(cmd)
         if ret != 0:
