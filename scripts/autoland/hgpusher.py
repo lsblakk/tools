@@ -235,7 +235,8 @@ class Patchset(object):
         If anything fails, RetryException will be raised.
         """
         self.verify()                   # verify patches can apply cleanly
-        update(self.active_repo)        # 'update -C' to get rid of changes
+        update(branch_dir)        # 'update -C' to get rid of changes
+        run_hg(['purge', '-R', branch_dir])
         self.full_import(branch_dir)    # apply the patches & commit
 
     def verify(self):
