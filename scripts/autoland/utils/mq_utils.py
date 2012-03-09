@@ -162,8 +162,7 @@ class mq_util():
             return True
         return wrapped_callback
 
-    def get_message(self, queue, callback,
-            routing_key, durable=True, block=True):
+    def get_message(self, queue, callback, block=True):
         """
         Gets a single message from the specified queue.
         Passes received messages to function callback, taking one argument.
@@ -183,16 +182,16 @@ class mq_util():
                 # getting errors with callback parameter to basic_get,
                 # manually call the callback
                 method, header, body = self.channel.basic_get(
-                        queue=queue, no_ack=True)
+                        queue=queue, no_ack=False)
                 if method.NAME == 'Basic.GetEmpty':
                     return
-                return callback(self.channel, method, header, body) 
+                return callback(self.channel, method, header, body)
             except sockerr:
                 self.channel = None
                 log.info('[RabbitMQ] Connection to %s lost. Reconnection...'
                         % (self.host))
 
-    def listen(self, queue, callback, routing_key, durable=True, block=True):
+    def listen(self, queue, callback, block=True):
         """
         Passes received messages to function callback, taking one argument.
             - ['_meta'] contains data about the received message
@@ -200,7 +199,6 @@ class mq_util():
         Specify block if it should block until a connection can be made.
         """
         assert callable(callback), 'callback must be a function'
-        self.__declare_and_bind(queue, routing_key, durable)
         while True:
             try:
                 if not self.channel:
@@ -209,10 +207,8 @@ class mq_util():
                     print >>sys.stderr, 'Connection lost. Reconnecting to %s'\
                             % (self.host)
                     self.connect()
-                log.info('[RabbitMQ] Listening on %s.' % (routing_key))
                 self.channel.basic_qos(prefetch_count=1)
-                self.channel.basic_consume(self.__callback_gen(callback),
-                        queue=queue, no_ack=False)
+                self.channel.basic_consume(callback, queue=queue, no_ack=False)
                 self.channel.start_consuming()
             except sockerr:
                 self.channel = None

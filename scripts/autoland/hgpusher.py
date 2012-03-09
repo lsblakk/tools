@@ -505,6 +505,7 @@ def valid_job_message(message):
                     return False
     return True
 
+@mq.generate_callback
 def message_handler(message):
     """
     Handles all incoming messages.
@@ -571,6 +572,7 @@ def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
+    mq.declare_and_bing(config['mq_hgp_queue'], 'hgpusher')
 
     if len(sys.argv) > 1:
         for arg in sys.argv[1:]:
@@ -605,7 +607,7 @@ def main():
                 os.makedirs('active')
 
                 mq.listen(queue=config['mq_hgp_queue'],
-                        callback=message_handler, routing_key='hgpusher')
+                        callback=message_handler)
             except error.LockHeld:
                 # couldn't take the lock, check next workdir
                 i += 1
