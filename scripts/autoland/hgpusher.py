@@ -274,7 +274,8 @@ class Patchset(object):
                 patch.fill_user()
             # 3. patch applies using 'qimport; qpush'
             (patch_success, err) = import_patch(self.active_repo,
-                    patch.file, self.try_run, try_syntax=self.try_syntax)
+                    patch.file, self.try_run, user=patch.user,
+                    try_syntax=self.try_syntax)
             if not patch_success:
                 log.error('[Patch %s] could not verify import:\n%s'
                         % (patch.num, err))
