@@ -57,6 +57,11 @@ class RepoCleanup(object):
         to get rid of any applied, not committed patches.
         """
         active_repo = os.path.join('active', self.branch)
+
+        # get rid of any imported and qpush-ed patches
+        (success, err, ret) = run_hg(['qpop', '-a'])
+        run_cmd(['rm', '-rf', os.path.join(active_repo, '.hg/patches')])
+
         update(active_repo)
         log.debug('Update -C on active repo for: %s' % (self.branch))
 
@@ -235,9 +240,7 @@ class Patchset(object):
         If anything fails, RetryException will be raised.
         """
         self.verify()                   # verify patches can apply cleanly
-        update(branch_dir)        # 'update -C' to get rid of changes
-        run_hg(['purge', '-R', branch_dir])
-        self.full_import(branch_dir)    # apply the patches & commit
+        self.finish_import()
 
     def verify(self):
         """
@@ -267,9 +270,9 @@ class Patchset(object):
                     # XXX: is this a RetryException case, or a fail case
                     raise RetryException
                 patch.fill_user()
-            # 3. patch applies using 'import --no-commit -f'
-            (patch_success, err) = import_patch(self.active_repo, patch.file,
-                    self.try_run, no_commit=True)
+            # 3. patch applies using 'qimport; qpush'
+            (patch_success, err) = import_patch(self.active_repo,
+                    patch.file, self.try_run, try_syntax=self.try_syntax)
             if not patch_success:
                 log.error('[Patch %s] could not verify import:\n%s'
                         % (patch.num, err))
@@ -278,23 +281,18 @@ class Patchset(object):
                 raise RetryException
         log.debug('Patchset is valid')
 
-    def full_import(self, branch_dir):
+    def finish_import(self):
         """
         Perform an 'hg import' on each patch in the set.
         If this is a try run, use the patch.user field to commit.
         """
-        log.debug('Importing patches into %s' % (branch_dir))
-        for patch in self.patches:
-            (patch_success, err) = import_patch(branch_dir,
-                    patch.file, self.try_run, no_commit=False,
-                    bug_id=self.bug_id, user=patch.user,
-                    try_syntax=self.try_syntax)
-            if not patch_success:
-                log.error('[Patch %s] Failed to import with commit: %s'
-                        % (patch.num, err))
-                self.add_comment('Patch %s could not be applied to %s.\n%s'
-                        % (patch.num, self.branch, err))
-                raise RetryException
+
+        cmd = ['qfinish', '-a']
+        (output, err, ret) = run_hg(cmd)
+        if ret != 0:
+            log.error('Unable to qfinish the patch queue: %s\nRetrying.'
+                    % (err))
+            raise RetryException
 
 
 def run_hg(hg_args):
@@ -383,34 +381,38 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run, no_commit=False, bug_id=None, user=None,
+def import_patch(repo, patch, try_run, bug_id=None, user=None,
         try_syntax="-b do -p all -u none -t none"):
     """
-    Import patch file patch into repo.
-    If it is a try run, replace commit message with "try:"
+    Import patch file patch into a mercurial queue.
 
     Import is used to pull required header information, and to
     automatically perform a commit for each patch
     """
-    cmd = ['import', '-R']
-    cmd.append(repo)
-    if no_commit:
-        cmd.append('--no-commit')
-        cmd.append('-f')
-    else:
-        if user:
-            cmd.extend(['-u',user])
-        if try_syntax == None:
-            try_syntax = ''
-        if try_run:
-            # if there is no try_syntax,
-            # try defaults will be triggered by 'try:'
-            if config.get('staging', False):
-                cmd.extend(['-m', 'try: %s -n bug %s' % (try_syntax, bug_id)])
-            else:
-                cmd.extend(['-m', 'try: %s -n --post-to-bugzilla bug %s' \
-                        % (try_syntax, bug_id)])
-    cmd.append(patch)
+    cmd = ['qimport', '-R', repo, patch]
+    (output, err, ret) = run_hg(cmd)
+    if ret != 0:
+        return (ret == 0, err)
+    cmd = ['qpush', '-R', repo]
+    (output, err, ret) = run_hg(cmd)
+    if ret != 0:
+        return (ret == 0, err)
+
+    cmd = ['qrefresh', '-R', repo]
+    # if a user field specified, qrefesh that name in there
+    if user:
+        cmd.extend(['-u', user])
+
+    if try_syntax == None:
+        try_syntax = ''
+    if try_run:
+        # if there is no try_syntax,
+        # try defaults will be triggered by 'try:'
+        if config.get('staging', False):
+            cmd.extend(['-m', 'try: %s -n bug %s' % (try_syntax, bug_id)])
+        else:
+            cmd.extend(['-m', 'try: %s -n --post-to-bugzilla bug %s' \
+                    % (try_syntax, bug_id)])
     (output, err, ret) = run_hg(cmd)
     return (ret == 0, err)
 
