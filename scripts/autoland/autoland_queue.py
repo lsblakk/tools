@@ -13,7 +13,6 @@ site.addsitedir('%s/../../lib/python' % (base_dir))
 
 from utils.db_handler import DBHandler, PatchSet, Branch, Comment
 
-
 log = logging.getLogger()
 LOGFORMAT = logging.Formatter(
         '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
@@ -228,6 +227,8 @@ def bz_search_handler():
     except (urllib2.HTTPError, urllib2.URLError), e:
         log.error("Error while polling bugzilla: %s" % (e))
         return
+    if not bugs:
+        return
 
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
@@ -303,12 +304,13 @@ def bz_search_handler():
                 '[autoland-in-queue]', bug_id)
 
 
+@mq.generate_callback
 def message_handler(message):
     """
     Handles json messages received. Expected structures are as follows:
     For a JOB:
         {
-            'type' : 'job',
+            'type' : 'JOB',
             'bug_id' : 12345,
             'branch' : 'mozilla-central',
             'try_run' : 1,
@@ -316,14 +318,14 @@ def message_handler(message):
         }
     For a SUCCESS/FAILURE:
         {
-            'type' : 'error',
-            'action' : 'patchset.apply',
+            'type' : 'ERROR',
+            'action' : 'PATCHSET.APPLY',
             'patchsetid' : 123,
         }
     For try run PASS/FAIL:
         {
-            'type' : 'success',
-            'action' : 'try.run',
+            'type' : 'SUCCESS',
+            'action' : 'TRY.RUN',
             'revision' : '8dc05498d708',
         }
     """
@@ -331,7 +333,7 @@ def message_handler(message):
     if not 'type' in msg:
         log.error('Got bad mq message: %s' % (msg))
         return
-    if msg['type'] == 'job':
+    if msg['type'] == 'JOB':
         if 'try_run' not in msg:
             msg['try_run'] = 1
         if 'bug_id' not in msg:
@@ -361,6 +363,7 @@ def message_handler(message):
         patchset_id = db.PatchSetInsert(ps)
         log.info('Insert PatchSet ID: %s' % (patchset_id))
 
+    # attempt comment posting immediately, no matter the message type
     comment = msg.get('comment')
     if comment:
         # Handle the posting of a comment
@@ -370,8 +373,8 @@ def message_handler(message):
         else:
             post_comment(comment, bug_id)
 
-    if msg['type'] == 'success':
-        if msg['action'] == 'try.push':
+    if msg['type'] == 'SUCCESS':
+        if msg['action'] == 'TRY.PUSH':
             # Successful push, add corresponding revision to patchset
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
             if ps == None:
@@ -385,7 +388,7 @@ def message_handler(message):
             log.debug('Added revision %s to patchset %s'
                     % (ps.revision, ps.id))
 
-        elif '.run' in msg['action']:
+        elif '.RUN' in msg['action']:
             # this is a result from schedulerDBpoller
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
             if ps == None:
@@ -395,7 +398,7 @@ def message_handler(message):
             ps = ps[0]
             # is this the try run before push to branch?
             if ps.try_run and \
-                    msg['action'] == 'try.run' and ps.branch != 'try':
+                    msg['action'] == 'TRY.RUN' and ps.branch != 'try':
                 # remove try_run, when it comes up in the queue
                 # it will trigger push to branch(es)
                 ps.try_run = 0
@@ -409,15 +412,15 @@ def message_handler(message):
                 log.debug('Deleting patchset %s' % (ps.id))
                 return
 
-        elif msg['action'] == 'branch.push':
+        elif msg['action'] == 'BRANCH.PUSH':
             # Guaranteed patchset EOL
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))[0]
             bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
             db.PatchSetDelete(ps)
             log.debug('Successful push to branch of patchset %s.' % (ps.id))
-    elif msg['type'] == 'timed out':
+    elif msg['type'] == 'TIMED_OUT':
         ps = None
-        if msg['action'] == 'try.run':
+        if msg['action'] == 'TRY.RUN':
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
             if ps == None:
                 log.error('No corresponding patchset found for '
@@ -431,16 +434,16 @@ def message_handler(message):
             db.PatchSetDelete(ps)
             log.debug('Received time out on %s, deleting patchset %s'
                     % (msg['action'], ps.id))
-    elif msg['type'] == 'error' or msg['type'] == 'failure':
+    elif msg['type'] == 'ERROR' or msg['type'] == 'FAILURE':
         ps = None
-        if msg['action'] == 'try.run' or msg['action'] == 'branch.run':
+        if msg['action'] == 'TRY.RUN' or msg['action'] == 'BRANCH.RUN':
             ps = db.PatchSetQuery(PatchSet(revision=msg['revision']))
             if ps == None:
                 log.error('No corresponding patchset found for revision %s'
                         % (msg['revision']))
                 return
             ps = ps[0]
-        elif msg['action'] == 'patchset.apply':
+        elif msg['action'] == 'PATCHSET.APPLY':
             ps = db.PatchSetQuery(PatchSet(id=msg['patchsetid']))
             if ps == None:
                 log.error('No corresponding patchset found for revision %s'
@@ -546,7 +549,8 @@ def handle_comments():
             # probably not going anywhere.
             try:
                 with open('failed_comments.log', 'a') as fc_log:
-                    fc_log.write('%s\t%a\ns' % (comment.bug, comment.comment))
+                    fc_log.write('%s\n\t%s'
+                            % (comment.bug, comment.comment))
             except IOError, err:
                 log.error('Unable to append to failed comments file.')
             log.error("Could not post comment to bug %s. Dropping comment: %s"
@@ -574,6 +578,7 @@ def main():
     mq.set_host(config['mq_host'])
     mq.set_exchange(config['mq_exchange'])
     mq.connect()
+    mq.declare_and_bind(config['mq_autoland_queue'], 'db')
 
     log.setLevel(logging.DEBUG)
     LOGHANDLER.setFormatter(LOGFORMAT)
@@ -586,6 +591,7 @@ def main():
                 mq.purge_queue(config['mq_autoland_queue'], prompt=True)
                 exit(0)
 
+    endtime = time.time() + (10*60)
     while True:
         # search bugzilla for any relevant bugs
         bz_search_handler()

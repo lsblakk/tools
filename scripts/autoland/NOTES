@@ -16,6 +16,9 @@ Completed table
 - same as patch_sets table
     |-> completion_time: Set for the time of job completion.
 
+PRE SECREVIEW:
+    Ensure that SSL certificates are valid, and that SSL is being used.
+
 ===Notes from code review====
 * Take another look at timeout time, maybe consider time & number of jobs still running, or change postback to an update rather a "timeout" message.
 * append branch or repo to cache file names to avoid clash with matching cset

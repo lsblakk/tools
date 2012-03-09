@@ -45,28 +45,48 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEqual('', get_patches_from_tag('autoland-try'))
         self.assertEqual('',get_patches_from_tag ('[autoland-try]'))
         self.assertEqual('12345', get_patches_from_tag('[autoland-try:12345]'))
-        self.assertEqual('123,456,678', get_patches_from_tag('[autoland-try:123,456,678]'))
-        self.assertEqual('123,456,789', get_patches_from_tag('[autoland:123,456,789,]'))
-        self.assertEqual('123,789', get_patches_from_tag('[autoland:123,456wesd,789:-p linux -u none]'))
-        self.assertEqual('123789', get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
+        self.assertEqual('123,456,678',
+                get_patches_from_tag('[autoland-try:123,456,678]'))
+        self.assertEqual('123,456,789',
+                get_patches_from_tag('[autoland:123,456,789,]'))
+        self.assertEqual('123,789',
+                get_patches_from_tag(
+                    '[autoland:123,456wesd,789:-p linux -u none]'))
+        self.assertEqual('123789',
+                get_patches_from_tag('[autoland: 123789:-p linux -u none]'))
         self.assertEqual('', get_patches_from_tag('[autoland:-t all]'))
         self.assertEqual('123', get_patches_from_tag('[autoland:-t all: 123]'))
 
     def testGetBranchFromTag(self):
-        self.assertEqual(['try'], get_branch_from_tag('[autoland]'))
+        self.assertEqual(None, get_branch_from_tag('[autoland]'))
         self.assertEqual(['try'], get_branch_from_tag('[autoland-try]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland:12345]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland-try:1,2,3]'))
-        self.assertEqual(['moz-cen'], get_branch_from_tag('[autoland-moz-cen]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland:1,2:-p linux -u none]'))
-        self.assertEqual(['try'], get_branch_from_tag('[autoland:-p linux -u none]'))
-        self.assertEqual(['m-c','m-i','try'], get_branch_from_tag('[autoland-m-c,m-i,try]'))
+        self.assertEqual(None, get_branch_from_tag('[autoland:12345]'))
+        self.assertEqual(['try'], get_branch_from_tag('[autoland-try:12345]'))
+        self.assertEqual(['try'],
+                get_branch_from_tag('[autoland-try:1,2,3]'))
+        self.assertEqual(['moz-cen'],
+                get_branch_from_tag('[autoland-moz-cen]'))
+        self.assertEqual(None,
+                get_branch_from_tag('[autoland:1,2:-p linux -u none]'))
+        self.assertEqual(['try'],
+                get_branch_from_tag('[autoland-try:1,2:-p linux -u none]'))
+        self.assertEqual(None,
+                get_branch_from_tag('[autoland:-p linux -u none]'))
+        self.assertEqual(['try'],
+                get_branch_from_tag('[autoland-try:-p linux -u none]'))
+        self.assertEqual(['m-c','m-i','try'],
+                get_branch_from_tag('[autoland-m-c,m-i,try]'))
 
     def testGetTrySyntaxFromTag(self):
-        self.assertEqual('-p linux -u none', get_try_syntax_from_tag('[autoland:-p linux -u none]'))
-        self.assertEqual('-p all -t all', get_try_syntax_from_tag('[autoland-try:-p all -t all]'))
-        self.assertEqual(None, get_try_syntax_from_tag('[autoland:12345]'))
-        self.assertEqual('-p win32 -u mochitest-1,mochitest-2', get_try_syntax_from_tag('[autoland-try:1,2,3:-p win32 -u mochitest-1,mochitest-2]'))
+        self.assertEqual('-p linux -u none',
+                get_try_syntax_from_tag('[autoland:-p linux -u none]'))
+        self.assertEqual('-p all -t all',
+                get_try_syntax_from_tag('[autoland-try:-p all -t all]'))
+        self.assertEqual(None,
+                get_try_syntax_from_tag('[autoland:12345]'))
+        self.assertEqual('-p win32 -u mochitest-1,mochitest-2',
+                get_try_syntax_from_tag(
+                   '[autoland-try:1,2,3:-p win32 -u mochitest-1,mochitest-2]'))
 
     def testGetReviews(self):
         bug = open('test/bug1.json', 'r').read()
@@ -119,7 +139,8 @@ class TestAutolandQueue(unittest.TestCase):
                     return_values.append('test/lsblakk.json')
                 return_values.append('test/bug2.json')
                 patches = [531180, 531181, 534107]
-                patchset = get_patchset('bug2', try_run=True, user_patches=patches)
+                patchset = get_patchset('bug2',
+                        try_run=True, user_patches=patches)
                 self.assertEqual(len(patchset), len(patches))
                 for p, q in zip(patches, map(lambda x: x['id'], patchset)):
                     self.assertEqual(p, q)
@@ -135,7 +156,8 @@ class TestAutolandQueue(unittest.TestCase):
                     return_values.append('test/lsblakk.json')
                 return_values.append('test/bug2.json')
                 patches = [531181, 531180, 534107]
-                patchset = get_patchset('bug2', try_run=True, user_patches=patches)
+                patchset = get_patchset('bug2',
+                        try_run=True, user_patches=patches)
                 self.assertEqual(len(patchset), len(patches))
                 for p, q in zip(patches, map(lambda x: x['id'], patchset)):
                     self.assertEqual(p, q)
@@ -148,7 +170,8 @@ class TestAutolandQueue(unittest.TestCase):
                 # Try run = True
                 return_values = []
                 return_values.append('test/bug2.json')
-                patchset = get_patchset('bug3', try_run=True, user_patches=[1,2,3])
+                patchset = get_patchset('bug3',
+                        try_run=True, user_patches=[1,2,3])
                 self.assertEqual(patchset, None)
 
                 # 2 real patches, 2 fake patch ids
@@ -159,7 +182,8 @@ class TestAutolandQueue(unittest.TestCase):
                     return_values.append('test/lsblakk.json')
                 return_values.append('test/bug2.json')
                 patches = [531180, 4, 534042, 9]
-                patchset = get_patchset('bug4', try_run=True, user_patches=patches)
+                patchset = get_patchset('bug4',
+                        try_run=True, user_patches=patches)
                 self.assertEqual(patchset, None)
 
                 # Full patch set
@@ -198,14 +222,17 @@ class TestAutolandQueue(unittest.TestCase):
         self.assertEquals(reg.sub('', '[autoland-try]'), '')
         self.assertEquals(reg.sub('', '[autoland-try][tag]'), '[tag]')
         self.assertEquals(reg.sub('', '[tag][autoland-try]'), '[tag]')
-        self.assertEquals(reg.sub('', '[tag1][autoland:12][tag2]'), '[tag1][tag2]')
+        self.assertEquals(reg.sub('',
+            '[tag1][autoland:12][tag2]'), '[tag1][tag2]')
         self.assertEquals(reg.sub('', '[autoland]abcd'), 'abcd')
         self.assertEquals(reg.sub('', 'abcd[autoland]'), 'abcd')
         self.assertEquals(reg.sub('', 'abcd[autoland]efgh'), 'abcdefgh')
-        self.assertEquals(reg.sub('', '[autoland-fail[]]'), '[autoland-fail[]]')
+        self.assertEquals(reg.sub('',
+            '[autoland-fail[]]'), '[autoland-fail[]]')
         self.assertEquals(reg.sub('', '[autoland]badtag]'), 'badtag]')
         self.assertEquals(reg.sub('', '[badtag[autoland]'), '[badtag')
-        self.assertEquals(reg.sub('', 'btag1][autoland]btag2]'), 'btag1]btag2]')
+        self.assertEquals(reg.sub('',
+            'btag1][autoland]btag2]'), 'btag1]btag2]')
         self.assertEquals(reg.sub('', '[[autoland-try:123]]'), '[]')
 
         with mock.patch('utils.bz_utils.bz_util.get_matching_bugs') as bz_gmb:
@@ -215,8 +242,8 @@ class TestAutolandQueue(unittest.TestCase):
             bz_gmb.side_effect = gmb
             # populate some test cases
             for id in (10411,):
-                for tag in ('[autoland]','[autoland-try]','[autoland-branch]',
-                        '[autoland:2113,2114]','[autoland-try:2114]',
+                for tag in ('[autoland-try]','[autoland-try]','[autoland-branch]',
+                        '[autoland-try:2113,2114]','[autoland-try:2114]',
                         '[bad-autoland-tag]','[autoland\in:valid]'):
                     bugs.append((id, tag))
             with mock.patch('utils.bz_utils.bz_util.notify_bug') as bz_pc:
@@ -237,22 +264,28 @@ class TestAutolandQueue(unittest.TestCase):
                                 db.append(ps)
                             db_psi.side_effect = psi
                             old_bq = DBHandler.BranchQuery
-                            DBHandler.BranchQuery = mock.Mock(return_value=True)
+                            DBHandler.BranchQuery = \
+                                    mock.Mock(return_value=True)
                             bz_search_handler()
                             DBHandler.BranchQuery = old_bq
         jobs = []
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
-            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
+            'patches':'2113,2114', 'bug_id':10411,
+            'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
-            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
+            'patches':'2113,2114', 'bug_id':10411,
+            'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'branch', 'try_run':1, 'try_syntax': None,
-            'patches':'', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
+            'patches':'2113,2114', 'bug_id':10411,
+            'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
-            'patches':'2113,2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
+            'patches':'2113,2114', 'bug_id':10411,
+            'author': u'mjessome@mozilla.com'})
         jobs.append({'branch':'try', 'try_run':1, 'try_syntax': None,
-            'patches':'2114', 'bug_id':10411, 'author': u'mjessome@mozilla.com'})
-        print "jobs: %s" % (jobs)
-        print "db: %s" % (db)
+            'patches':'2114', 'bug_id':10411,
+            'author': u'mjessome@mozilla.com'})
+        print "jobs:\n\t%s" % ('\n\t'.join([str(x) for x in jobs]))
+        print "db:\n\t%s" % ('\n\t'.join([str(x) for x in db]))
         for job in db:
             jd = job.toDict()
             print "job: %s" % (jd)
@@ -260,6 +293,9 @@ class TestAutolandQueue(unittest.TestCase):
             jobs.remove(jd)
         self.assertEqual(jobs, [])
 
+    # this test is for the undecorated message_handler function.
+    # Not 100% sure what should be done now.
+    @nottest
     def testMessageHandler(self):
         from message_gen import messages
         orig = []
@@ -274,7 +310,6 @@ class TestAutolandQueue(unittest.TestCase):
         orig.append(bz_utils.bz_util.notify_bug)
         bz_utils.bz_util.remove_whiteboard_tag = mock.Mock(return_value=True)
         def nbr(c, i):
-            print >>sys.stderr, 'nbr called...'
             return 0
         bz_utils.bz_util.notify_bug = mock.Mock(side_effect=nbr)
         for msg_set in messages:
@@ -295,6 +330,7 @@ class TestAutolandQueue(unittest.TestCase):
         DBHandler.PatchSetUpdate = orig.pop()
         DBHandler.PatchSetQuery = orig.pop()
         DBHandler.PatchSetInsert = orig.pop()
+
     @nottest
     def testLoop(self):
         import autoland_queue as aq

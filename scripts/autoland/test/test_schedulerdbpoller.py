@@ -123,7 +123,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         revision = '83c09dc13bb8'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         type = self.poller.process_push_type(revision, buildrequests)
-        self.assertEquals(type, "try")
+        self.assertEquals(type, "TRY")
 
     # Push type should be None since there is
     # incorrect try syntax in this commit message
@@ -245,7 +245,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         print 'testPostToBug_timed_out()'
         output = self.poller.process_completed_revision(
                 revision='157ac288e589', message=comment, bug=9952,
-                status_str='timed out', push_type='try')
+                status_str='TIMED_OUT', push_type='try')
         self.assertTrue(output)
         # Test Failing due to incorrect bug number
         print 'testPostToBug_failing()'
@@ -347,7 +347,7 @@ class SchedulerDBPollerTests(unittest.TestCase):
         revision = '83c09dc13bb8'
         buildrequests = self.poller.scheduler_db.GetBuildRequests(revision)
         self.assertEquals(self.poller.orange_factor_handling(buildrequests),
-                (True, 'failure'))
+                (True, 'FAILURE'))
 
     def testRevisionTimedOut(self):
         print 'testRevisionTimedOut()'

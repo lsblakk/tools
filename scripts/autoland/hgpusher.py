@@ -542,9 +542,9 @@ def message_handler(message):
         if patch_revision:
             log.info('[Patchset] Successfully applied patchset %s'
                 % (patch_revision))
-            msg = { 'type'  : 'success',
-                    'action': 'try.push' if patchset.try_run \
-                                         else 'branch.push',
+            msg = { 'type'  : 'SUCCESS',
+                    'action': 'TRY.PUSH' if patchset.try_run \
+                                         else 'BRANCH.PUSH',
                     'bug_id' : patchset.bug_id,
                     'patchsetid': patchset.num,
                     'revision' : patch_revision,
@@ -552,7 +552,7 @@ def message_handler(message):
             mq.send_message(msg, 'db')
         else:
             # error came when processing the patchset
-            msg = { 'type' : 'error', 'action' : 'patchset.apply',
+            msg = { 'type' : 'ERROR', 'action' : 'PATCHSET.APPLY',
                     'patchsetid' : patchset.num,
                     'bug_id' : patchset.bug_id,
                     'comment' : comment }
