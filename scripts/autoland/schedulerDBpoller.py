@@ -12,7 +12,10 @@ import utils.mq_utils as mq_utils
 import logging, logging.handlers
 from mercurial import lock, error
 
-FORMAT = '%(asctime)s - %(module)s - %(funcName)s - %(message)s'
+# sets up a rotating logfile that's written to the working dir
+log = logging.getLogger()
+LOGFORMAT = logging.Formatter(
+    '%(asctime)s - %(module)s - %(funcName)s - %(message)s')
 LOGFILE = 'schedulerDBpoller.log'
 POSTED_BUGS = 'postedbugs.log'
 POLLING_INTERVAL = 14400 # 4 hours
@@ -20,11 +23,6 @@ TIMEOUT = 43200 # 12 hours
 MAX_POLLING_INTERVAL = 172800 # 48 hours
 COMPLETION_THRESHOLD = 600 # 10 minutes
 MAX_ORANGE = 2
-
-# console logging, formatted
-logging.basicConfig(format=FORMAT)
-# sets up a rotating logfile that's written to the working dir
-log = logging.getLogger(LOGFILE)
 
 class SchedulerDBPoller():
     def __init__(self, branch, cache_dir, config,
@@ -692,6 +690,7 @@ if __name__ == '__main__':
     log.setLevel(logging.INFO)
     handler = logging.handlers.RotatingFileHandler(LOGFILE,
             maxBytes=50000, backupCount=5)
+    handler.setFormatter(LOGFORMAT)
     log.addHandler(handler)
 
     parser = ArgumentParser()
