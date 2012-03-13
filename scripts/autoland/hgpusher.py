@@ -384,7 +384,7 @@ def has_sufficient_permissions(patches, branch):
 
     return True
 
-def import_patch(repo, patch, try_run, bug_id=None, user=None,
+def import_patch(repo, patch, try_run, bug_id, user=None,
         try_syntax="-b do -p all -u none -t none"):
     """
     Import patch file patch into a mercurial queue.
