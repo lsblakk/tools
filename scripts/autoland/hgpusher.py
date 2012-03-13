@@ -14,7 +14,7 @@ site.addsitedir('%s/../../lib/python' % (BASE_DIR))
 from util.hg import mercurial, apply_and_push, HgUtilError, \
                     update, get_revision
 from util.retry import retry, retriable
-from util.commands import run_cmd 
+from util.commands import run_cmd
 
 
 log = logging.getLogger()
@@ -275,7 +275,7 @@ class Patchset(object):
             # 3. patch applies using 'qimport; qpush'
             (patch_success, err) = import_patch(self.active_repo,
                     patch.file, self.try_run, user=patch.user,
-                    try_syntax=self.try_syntax)
+                    try_syntax=self.try_syntax, bug_id=self.bug_id)
             if not patch_success:
                 log.error('[Patch %s] could not verify import:\n%s'
                         % (patch.num, err))
