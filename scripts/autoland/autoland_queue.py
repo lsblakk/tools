@@ -591,7 +591,6 @@ def main():
                 mq.purge_queue(config['mq_autoland_queue'], prompt=True)
                 exit(0)
 
-    endtime = time.time() + (10*60)
     while True:
         # search bugzilla for any relevant bugs
         bz_search_handler()
@@ -624,6 +623,7 @@ def main():
             while mq.get_message(config['mq_autoland_queue'],
                     message_handler):
                 continue
+            time.sleep(5)
 
 if __name__ == '__main__':
     main()
