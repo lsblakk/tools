@@ -232,7 +232,7 @@ def bz_search_handler():
 
     for (bug_id, whiteboard) in bugs:
         tag = get_first_autoland_tag(whiteboard)
-        log.debug('Bug %s with tag %s' % (bug_id, tag))
+        #log.debug('Bug %s with tag %s' % (bug_id, tag))
 
         if tag == None or re.search('in-queue', tag) != None:
             # Strange that it showed up if None
@@ -330,6 +330,7 @@ def message_handler(message):
         }
     """
     msg = message['payload']
+    log.info('Received message:\n%s' % (message))
     if not 'type' in msg:
         log.error('Got bad mq message: %s' % (msg))
         return

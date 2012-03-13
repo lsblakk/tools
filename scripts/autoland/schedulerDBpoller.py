@@ -482,7 +482,7 @@ Results (out of %d total builds):\n""" % (revision, self.branch.title(),
         bug_post = False
         dupe = False
         result = False
-        action = run_type + '.run'
+        action = run_type + '.RUN'
 
         if status_str == 'TIMED_OUT':
             message += "\n Timed out after %s hours without completing." % strftime('%I', gmtime(TIMEOUT))
