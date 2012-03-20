@@ -169,14 +169,18 @@ class DBHandler(object):
             return map(lambda x: Branch(*x), rows)
         return None
 
-    def BranchRunningJobsQuery(self, branch):
+    def BranchRunningJobsQuery(self, branch, count_try=True):
         """
         Returns the count of jobs running on the Branch object passed in
+        count_try specifies whether or not patch_sets with "try_run" set
+        should be counted.
         """
         connection = self.engine.connect()
         r = self.scheduler_db_meta.tables['patch_sets']
         q = r.select()
         q = q.where(r.c.branch.like(branch.name))
+        if not count_try:
+            q = q.where(r.c.try_run == 0)
         q = q.where(r.c.push_time != None)
         q = q.where(r.c.completion_time == None)
         q = q.count()

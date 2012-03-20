@@ -528,14 +528,16 @@ def message_handler(message):
             return
 
         if data['branch'] == 'try':
-            # Change branch, branch_url to pull from m-c on a try run
-            data['push_url'] = data['branch_url']
+            # This is a job that was flagged specifically for try,
+            # not a branch landing on its try iteration.
+            # default to pulling from mozilla-central on a try run
             data['branch'] = 'mozilla-central'
             data['branch_url'] = data['branch_url'].replace('try',
                                                         'mozilla-central', 1)
         if 'push_url' not in data:
             data['push_url'] = data['branch_url']
         data['push_url'] = data['push_url'].replace('https', 'ssh', 1)
+        data['push_url'] = data['push_url'].replace('http', 'ssh', 1)
 
         patchset = Patchset(data['patchsetid'],
                         data['bug_id'],

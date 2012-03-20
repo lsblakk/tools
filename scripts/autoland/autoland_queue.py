@@ -507,28 +507,48 @@ def handle_patchset(patchset):
         db.PatchSetDelete(patchset)
         return
     branch = branch[0]
-    jobs = db.BranchRunningJobsQuery(Branch(name=patchset.branch))
-    log.debug("Running jobs on %s: %s" % (patchset.branch, jobs))
-    b = db.BranchQuery(Branch(name='try'))[0]
-    log.debug("Threshold for %s: %s" % (patchset.branch, b.threshold))
-    if jobs < b.threshold:
-        message = { 'job_type':'patchset', 'bug_id':patchset.bug_id,
-                'branch_url':branch.repo_url,
-                'branch':patchset.branch, 'try_run':patchset.try_run,
-                'try_syntax':patchset.try_syntax,
-                'patchsetid':patchset.id, 'patches':patches }
-        if patchset.try_run == 1:
-            tb = db.BranchQuery(Branch(name='try'))
-            if tb: tb = tb[0]
-            else: return
-        log.info("SENDING MESSAGE: %s" % (message))
-        mq.send_message(message, routing_key='hgpusher')
-        patchset.push_time = datetime.datetime.utcnow()
-        db.PatchSetUpdate(patchset)
-    else:
-        log.info("Too many jobs running right now, will have to wait.")
-        patchset.retries += 1
-        db.PatchSetUpdate(patchset)
+
+    push_url = ''
+    if patchset.try_run:
+        running = db.BranchRunningJobsQuery(Branch(name='try'))
+        log.debug("Running jobs on try: %s" % (running))
+
+        # get try branch info
+        try_branch = db.BranchQuery(Branch(name='try'))
+        if try_branch: try_branch = try_branch[0]
+        else: return
+
+        log.debug("Threshold for try: %s" % (try_branch.threshold))
+
+        # ensure try is not above threshold
+        if running >= try_branch.threshold:
+            log.info("Too many jobs running on try right now.")
+            return
+        push_url = try_branch.repo_url
+    else:   # branch landing
+        running = db.BranchRunningJobsQuery(Branch(name=patchset.branch),
+                                            count_try=False)
+        log.debug("Running jobs on %s: %s" % (patchset.branch, running))
+
+        log.debug("Threshold for branch: %s" % (branch.threshold))
+
+        # ensure branch not above threshold
+        if running >= branch.threshold:
+            log.info("Too many jobs landing on %s right now." % (branch.name))
+            return
+        push_url = branch.repo_url
+
+    message = { 'job_type':'patchset', 'bug_id':patchset.bug_id,
+            'branch_url':branch.repo_url,
+            'push_url':push_url,
+            'branch':patchset.branch, 'try_run':patchset.try_run,
+            'try_syntax':patchset.try_syntax,
+            'patchsetid':patchset.id, 'patches':patches }
+
+    log.info("Sending job to hgpusher: %s" % (message))
+    mq.send_message(message, routing_key='hgpusher')
+    patchset.push_time = datetime.datetime.utcnow()
+    db.PatchSetUpdate(patchset)
 
 def handle_comments():
     """
