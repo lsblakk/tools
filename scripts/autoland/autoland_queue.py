@@ -200,16 +200,16 @@ def get_patchset(bug_id, try_run, user_patches=None, review_comment=True):
                 post_comment('Autoland Failure\nPatch %s requires review+ '
                              'to push to branch.' % (patch['id']), bug_id)
                 return None
-            for rev in revs:
-                if rev['result'] != '+':    # Bad review, fail
-                    if review_comment:
-                        post_comment('Autoland Failure\nPatch %s has a '
-                                     'non-passing review. Requires review+ '
-                                     'to push to branch.'
-                                     % (patch['id']), bug_id)
-                    return None
-                rev['reviewer'] = bz.get_user_info(rev['reviewer'])
-            patch['reviews'] = revs
+        for rev in revs:
+            if rev['result'] != '+':    # Bad review, fail
+                if review_comment:
+                    post_comment('Autoland Failure\nPatch %s has a '
+                                 'non-passing review. Requires review+ '
+                                 'to push to branch.'
+                                 % (patch['id']), bug_id)
+                return None
+            rev['reviewer'] = bz.get_user_info(rev['reviewer'])
+        patch['reviews'] = revs
 
     if len(patchset) == 0:
         post_comment('Autoland Failure\n There are no patches to run.', bug_id)
