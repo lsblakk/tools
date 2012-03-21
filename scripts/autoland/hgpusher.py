@@ -16,7 +16,6 @@ from util.hg import mercurial, apply_and_push, HgUtilError, \
 from util.retry import retry, retriable
 from util.commands import run_cmd
 
-
 log = logging.getLogger()
 LOGFORMAT = logging.Formatter(
         '%(asctime)s\t%(module)s\t%(funcName)s\t%(message)s')
@@ -261,16 +260,24 @@ class Patchset(object):
                 self.add_comment('Patch %s couldn\'t be fetched.'
                         % (patch.num))
                 raise RetryException
+
             # 2. has valid headers. If try run, put user data into patch.user
             valid_header = has_valid_header(patch.file)
             if not valid_header:
-                if not self.try_run:
+                # check branch name, since self.try_run is set to true even if
+                # it is a try run for a branch landing.
+                # On a branch landing, valid headers are required. This means
+                # that the job should fail on the try run.
+                if not self.branch.lower() == 'try':
                     log.error('[Patch %s] Invalid header.' % (patch.num))
                     self.add_comment('Patch %s doesn\'t have '
-                            'a properly formatted header.'
+                            'a properly formatted header. To land to branches,'
+                            ' patches must contain a header with a commit '
+                            'message and user field.'
                             % (patch.num))
                     # XXX: is this a RetryException case, or a fail case
                     raise RetryException
+                # on a try run, fill in the user information
                 patch.fill_user()
             # 3. patch applies using 'qimport; qpush'
             (patch_success, err) = import_patch(self.active_repo,
@@ -419,7 +426,7 @@ def import_patch(repo, patch, try_run, bug_id, user=None,
     (output, err, ret) = run_hg(cmd)
     return (ret == 0, err)
 
-@retriable(retry_exceptions=(RetryException), attempts=3, sleeptime=5)
+@retriable(retry_exceptions=(RetryException,), attempts=3, sleeptime=5)
 def clone_branch(branch, branch_url):
     """
     Clone tip of the specified branch.
