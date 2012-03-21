@@ -499,6 +499,10 @@ def handle_patchset(patchset):
     # since the job was put on the queue.
     patches = get_patchset(patchset.bug_id, patchset.try_run,
                            user_patches=patchset.patchList())
+    if not patches:
+        log.info("Patchset not valid. Deleting from database.")
+        db.PatchSetDelete(patchset)
+
     # get branch information so that message can contain branch_url
     branch = db.BranchQuery(Branch(name=patchset.branch))
     if not branch:
