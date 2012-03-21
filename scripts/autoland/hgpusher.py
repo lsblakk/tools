@@ -32,6 +32,14 @@ ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
         config['ldap_bind_dn'], config['ldap_password'])
 
 class RetryException(Exception):
+    """
+    Used to trigger a retry when using retriable functions.
+    """
+    pass
+class FailException(Exception):
+    """
+    Used to fail immediately without retry when using retriable functions.
+    """
     pass
 
 class RepoCleanup(object):
@@ -199,7 +207,7 @@ class Patchset(object):
             shutil.rmtree(self.active_repo)
             for patch in self.patches:
                 patch.delete()
-        except (HgUtilError, RetryException), err:
+        except (HgUtilError, RetryException, FailException), err:
             # Failed
             log.error('[PatchSet] Could not be applied and pushed.\n%s'
                     % (err))
@@ -281,8 +289,7 @@ class Patchset(object):
                             ' patches must contain a header with a commit '
                             'message and user field.'
                             % (patch.num))
-                    # XXX: is this a RetryException case, or a fail case
-                    raise RetryException
+                    raise FailException
                 # on a try run, fill in the user information
                 patch.fill_user()
             # 3. patch applies using 'qimport; qpush'
