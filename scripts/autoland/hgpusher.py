@@ -118,6 +118,12 @@ class Patch(object):
 class Patchset(object):
     def __init__(self, ps_id, bug_id, patches, try_run, push_url,
             branch, branch_url, try_syntax=None):
+        """
+        Creates a Patchset object.
+        Fills in an active_repo field to point to a directory for
+            the specified branch.
+        If try_syntax not specified, uses the default.
+        """
         self.num = ps_id
         self.bug_id = bug_id
         self.patches = [Patch(patch) for patch in patches]
@@ -128,7 +134,7 @@ class Patchset(object):
         if try_syntax != None:
             self.try_syntax = try_syntax
         else:
-            self.try_syntax = "-b do -p all -u none -t none"
+            self.try_syntax = config['hg_try_syntax']
 
         self.active_repo = os.path.join('active/%s' % (branch))
         self.comment = ''
@@ -392,7 +398,7 @@ def has_sufficient_permissions(patches, branch):
     return True
 
 def import_patch(repo, patch, try_run, bug_id, user=None,
-        try_syntax="-b do -p all -u none -t none"):
+        try_syntax=config['hg_try_syntax']):
     """
     Import patch file patch into a mercurial queue.
 
