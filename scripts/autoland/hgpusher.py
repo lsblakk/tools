@@ -246,7 +246,7 @@ class Patchset(object):
         First verify the patchset, and then import & commit each patch.
         If anything fails, RetryException will be raised.
         """
-        self.verify()                   # verify patches can apply cleanly
+        self.verify()
         self.finish_import()
 
     def verify(self):
