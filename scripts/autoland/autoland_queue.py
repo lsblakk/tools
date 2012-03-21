@@ -406,6 +406,7 @@ def message_handler(message):
                 ps.push_time = None
                 log.debug('Flag patchset %s revision %s for push to branch.'
                         % (ps.id, ps.revision))
+                db.PatchSetUpdate(ps)
             else:
                 # close it!
                 bz.remove_whiteboard_tag('\[autoland-in-queue\]', ps.bug_id)
