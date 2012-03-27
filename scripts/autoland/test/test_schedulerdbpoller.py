@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import unittest, os, sys, shutil, mock, urllib2
 import datetime
 from time import time, strftime, strptime, localtime, sleep

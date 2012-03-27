@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import os, sys
 import re
 import subprocess
@@ -8,7 +12,6 @@ from mercurial import error, lock   # For lockfile on working dirs
 
 from utils import bz_utils, mq_utils, common, ldap_utils
 BASE_DIR = common.get_base_dir(__file__)
-import site
 site.addsitedir('%s/../../lib/python' % (BASE_DIR))
 
 from util.hg import mercurial, apply_and_push, HgUtilError, \

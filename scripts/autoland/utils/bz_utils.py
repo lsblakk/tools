@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import urllib2, re
 import logging
 import os, time, datetime

@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import unittest
 import os, shutil
 import sys

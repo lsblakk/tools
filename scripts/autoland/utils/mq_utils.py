@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import pika
 import sys
 from socket import error as sockerr

@@ -1,3 +1,7 @@
+import site
+site.addsitedir('vendor')
+site.addsitedir('vendor/lib/python')
+
 import time
 import os, sys
 import re
@@ -8,7 +12,6 @@ import urllib2
 
 from utils import mq_utils, bz_utils, common
 base_dir = common.get_base_dir(__file__)
-import site
 site.addsitedir('%s/../../lib/python' % (base_dir))
 
 from utils.db_handler import DBHandler, PatchSet, Branch, Comment
