@@ -34,6 +34,11 @@ bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         username=config['bz_username'], password=config['bz_password'])
 ldap = ldap_utils.ldap_util(config['ldap_host'], int(config['ldap_port']),
         config['ldap_bind_dn'], config['ldap_password'])
+mq = mq_utils.mq_util(host=config['mq_host'],
+                      vhost=config['mq_vhost'],
+                      username=config['mq_username'],
+                      password=config['mq_password'],
+                      exchange=config['mq_exchange'])
 
 class RetryException(Exception):
     """

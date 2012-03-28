@@ -16,12 +16,17 @@ import datetime
 log = logging.getLogger(__name__)
 
 class mq_util():
-    def __init__(self, host=None, exchange=None):
+    def __init__(self, host=None, vhost=None,
+                 username=None, password=None, exchange=None):
         self.connection = None
         self.log = log
         self.last_message = None
+
         self.host = host
+        self.vhost = vhost
+        self.credentials = pika.PlainCredentials(username, password)
         self.exchange = exchange
+
         self.channel = None
 
     def set_host(self, host):
@@ -43,7 +48,10 @@ class mq_util():
         while(1):
             try:
                 self.connection = pika.BlockingConnection(
-                    pika.ConnectionParameters(self.host) )
+                    pika.ConnectionParameters(host=self.host,
+                        virtual_host=self.vhost,
+                        credentials=self.credentials)
+                )
                 break
             except (sockerr, pika.exceptions.AMQPConnectionError):
                 if block:

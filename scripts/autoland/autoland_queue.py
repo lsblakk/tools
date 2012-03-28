@@ -28,7 +28,11 @@ config = common.get_configuration([os.path.join(base_dir, 'config.ini'),
 bz = bz_utils.bz_util(api_url=config['bz_api_url'], url=config['bz_url'],
         attachment_url=config['bz_attachment_url'],
         username=config['bz_username'], password=config['bz_password'])
-mq = mq_utils.mq_util()
+mq = mq_utils.mq_util(host=config['mq_host'],
+                      vhost=config['mq_vhost'],
+                      username=config['mq_username'],
+                      password=config['mq_password'],
+                      exchange=config['mq_exchange'])
 db = DBHandler(config['databases_autoland_db_url'])
 
 if config.get('staging', False):
@@ -605,8 +609,6 @@ def post_comment(comment, bug_id):
         db.CommentInsert(cmnt)
 
 def main():
-    mq.set_host(config['mq_host'])
-    mq.set_exchange(config['mq_exchange'])
     mq.connect()
     mq.declare_and_bind(config['mq_autoland_queue'], 'db')
 
