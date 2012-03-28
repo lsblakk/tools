@@ -4,10 +4,11 @@ import os
 
 HTTP_EXCEPTIONS = (urllib2.HTTPError, urllib2.URLError, httplib.BadStatusLine)
 
-def get_configuration(conf_file):
+def get_configuration(conf_files):
     # load configuration
     config = ConfigParser.ConfigParser()
-    config.read(conf_file)
+    for conf_file in conf_files:
+        config.read(conf_file)
     cfg = {}
     for section in config.sections():
         for item in config.items(section):
